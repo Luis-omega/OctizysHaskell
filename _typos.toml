@@ -1,0 +1,6 @@
+[default.extend-words]
+hask = "hask"
+
+[type.yaml]
+extend-glob = ["*.yaml"]
+check-file = false
