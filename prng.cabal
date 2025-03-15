@@ -89,7 +89,7 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
-    Internal/Core
+    Internal.Core
     Random
 
   -- Modules included in this library but not exported.
