@@ -14,10 +14,10 @@
             hfinal: hprev:
             prev.haskell.packageOverrides hfinal hprev
               // {
-              pnrg = hfinal.callCabal2nix "pnrg" ./. { };
+              stlc = hfinal.callCabal2nix "stlc" ./. { };
             };
         };
-        pnrg = final.haskell.lib.compose.justStaticExecutables final.haskellPackages.pnrg;
+        stlc = final.haskell.lib.compose.justStaticExecutables final.haskellPackages.stlc;
       };
       perSystem =
         system:
@@ -44,7 +44,7 @@
         {
           devShell = hspkgs.shellFor {
             withHoogle = true;
-            packages = p: [ p.pnrg ];
+            packages = p: [ p.stlc ];
             buildInputs = [
               hspkgs.cabal-install
               hspkgs.cabal-fmt
@@ -56,7 +56,7 @@
               pkgs.typos
             ];
           };
-          defaultPackage = pkgs.pnrg;
+          defaultPackage = pkgs.stlc;
           formatter = treefmtEval.config.build.wrapper;
           checks = {
             formatting = treefmtEval.config.build.check inputs.self;

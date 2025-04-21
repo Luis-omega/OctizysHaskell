@@ -1,9 +1,8 @@
 module Main where
 
-import qualified Random (someFunc)
+import qualified Ast (hello)
 
 
 main :: IO ()
 main = do
-  putStrLn "Hello, Haskell!"
-  Random.someFunc
+  hello
