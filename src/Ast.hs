@@ -81,7 +81,12 @@ prettyType t =
   case t of
     IntType -> "int"
     BoolType -> "bool"
-    Arrow {domain = _domain, codomain = _codomain} -> "( " <> prettyType _domain <> " -> " <> prettyType _codomain <> " )"
+    Arrow {domain = _domain, codomain = _codomain} ->
+      "( "
+        <> prettyType _domain
+        <> " -> "
+        <> prettyType _codomain
+        <> " )"
     TypeVar i -> "_" <> show i
 
 
@@ -145,9 +150,17 @@ prettyExpression e =
         <> prettyExpression __then
         <> " else "
         <> prettyExpression __else
-    Let {name = _name, definition = _definition} -> "let " <> prettySymbol _name <> " = " <> prettyExpression _definition
+    Let {name = _name, definition = _definition} ->
+      "let "
+        <> prettySymbol _name
+        <> " = "
+        <> prettyExpression _definition
     Annotation {expression = _expression, _type = __type} ->
-      "( " <> prettyExpression _expression <> " : " <> prettyType __type <> " )"
+      "( "
+        <> prettyExpression _expression
+        <> " : "
+        <> prettyType __type
+        <> " )"
 
 
 makeBool :: Bool -> Expression
@@ -212,4 +225,5 @@ data Context = Context
 
 
 makeEmptyContext :: Context
-makeEmptyContext = Context {expressions = Data.Map.empty, type_variables = Data.Map.empty}
+makeEmptyContext =
+  Context {expressions = Data.Map.empty, type_variables = Data.Map.empty}
