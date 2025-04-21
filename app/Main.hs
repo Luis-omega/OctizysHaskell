@@ -1,8 +1,19 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+
 module Main where
 
-import qualified Ast (hello)
-
+import Ast (makeEmptyContext)
+import Effectful (runEff)
+import Repl.Console (runConsole)
+import Repl.Repl (repl)
 
 main :: IO ()
-main = do
-  Ast.hello
+main =
+  let empty_context = makeEmptyContext
+   in run $ repl empty_context
+  where
+    run = runEff . runConsole
