@@ -1,19 +1,33 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Parser (parseString, ParserError, parseExpression, parseExpressionOrTop) where
+module Parser (ParserError, parseTop, parseExpression, parserToEff, parseTopEff) where
 
 import Ast (Expression, TopItem)
+import Data.Void (Void)
 import Effectful (Eff, (:>))
 import Effectful.Error.Dynamic (Error, throwError)
+import Text.Megaparsec (ParseErrorBundle, Parsec, parse)
 
-data ParserError = UninplementedParser String deriving (Show)
+type ParserError = ParseErrorBundle String Void
 
-parseString :: (Error ParserError :> es) => String -> Eff es [TopItem]
-parseString _ = throwError $ UninplementedParser "parseString"
+type Parser = Parsec Void String
 
-parseExpression :: (Error ParserError :> es) => String -> Eff es Expression
-parseExpression _ = throwError $ UninplementedParser "parseExpression"
+parserToEff :: (Error ParserError :> es) => Parser a -> String -> Eff es a
+parserToEff p s =
+  -- TODO : remove this harcode of "repl"
+  case parse p "repl" s of
+    Left e -> throwError e
+    Right a -> pure a
 
-parseExpressionOrTop :: (Error ParserError :> es) => String -> Eff es (Either Expression TopItem)
-parseExpressionOrTop _ = throwError $ UninplementedParser "parseExpressionOrTop"
+parseExpression :: Parser Expression
+parseExpression = fail "Uninplemented parser for expressions"
+
+parseTop :: Parser TopItem
+parseTop = fail "Uninplemented parser for top"
+
+-- parseExpressionEff :: (Error ParserError :> es) => String -> Eff es Expression
+-- parseExpressionEff s = parseTopEff parseExpression s
+
+parseTopEff :: (Error ParserError :> es) => String -> Eff es TopItem
+parseTopEff = parserToEff parseTop

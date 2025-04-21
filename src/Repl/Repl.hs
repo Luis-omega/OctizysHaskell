@@ -16,8 +16,8 @@ import Evaluation (EvaluationError, evaluateExpression)
 import Parser (ParserError)
 import Repl.Ast (ReplCommand (Quit), ReplTop (Command, Define, Evaluate))
 import Repl.Console (Console, putLine, putString, readLine, runConsole)
-import Repl.Parser (ReplParserError)
-import qualified Repl.Parser (parseString)
+import Repl.Parser (replParserEff)
+import Text.Megaparsec (errorBundlePretty)
 
 data ReplStatus = ContinueWith Context | Exit
 
@@ -27,10 +27,10 @@ continue context = pure $ ContinueWith context
 exit :: Eff es ReplStatus
 exit = pure Exit
 
-rep :: (Console :> es, Error ParserError :> es, Error ReplParserError :> es, Error EvaluationError :> es) => Context -> Eff es ReplStatus
+rep :: (Console :> es, Error ParserError :> es, Error EvaluationError :> es) => Context -> Eff es ReplStatus
 rep context = do
   line <- putString "repl>" >> readLine
-  action <- Repl.Parser.parseString line
+  action <- replParserEff line
   case action of
     Command Quit ->
       putLine "Bye!"
@@ -51,6 +51,11 @@ reportError context =
   runErrorNoCallStackWith
     (\e -> (putLine . show) e >> continue context)
 
+reportParserError :: forall es. (Console :> es) => Context -> Eff (Error ParserError : es) ReplStatus -> Eff es ReplStatus
+reportParserError context =
+  runErrorNoCallStackWith
+    (\e -> (putLine . errorBundlePretty) e >> continue context)
+
 repl :: (Console :> es) => Context -> Eff es ()
 repl context = do
   status <- reportErrors $ rep context
@@ -58,4 +63,4 @@ repl context = do
     Exit -> pure ()
     ContinueWith new_context -> repl new_context
   where
-    reportErrors = reportError @ParserError context . reportError @ReplParserError context . reportError @EvaluationError context
+    reportErrors = reportParserError context . reportError @EvaluationError context
