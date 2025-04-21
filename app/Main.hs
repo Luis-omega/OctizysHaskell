@@ -1,15 +1,10 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
-
 module Main where
 
 import Ast (makeEmptyContext)
 import Effectful (runEff)
 import Repl.Console (runConsole)
 import Repl.Repl (repl)
+
 
 main :: IO ()
 main =

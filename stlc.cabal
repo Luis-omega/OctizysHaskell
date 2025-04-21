@@ -75,6 +75,7 @@ common common_extensions
     PartialTypeSignatures
     RecordWildCards
     ScopedTypeVariables
+    TypeOperators
 
 library
   -- Import common warning flags.
@@ -91,10 +92,10 @@ library
     Evaluation
     Inference
     Parser
-    Repl.Repl
-    Repl.Console
     Repl.Ast
+    Repl.Console
     Repl.Parser
+    Repl.Repl
 
   -- Modules included in this library but not exported.
   -- other-modules:
@@ -105,13 +106,13 @@ library
   -- Other library packages from which modules are imported.
   build-depends:
     , base              ^>=4.18.2.1
-    , template-haskell
-    , megaparsec
     , containers
     , effectful
     , effectful-core
     , effectful-plugin
     , effectful-th
+    , megaparsec
+    , template-haskell
 
   -- Directories containing source files.
   hs-source-dirs:   src
@@ -136,9 +137,9 @@ executable stlc
 
   -- Other library packages from which modules are imported.
   build-depends:
-    , base  ^>=4.18.2.1
-    , stlc
+    , base       ^>=4.18.2.1
     , effectful
+    , stlc
 
   -- Directories containing source files.
   hs-source-dirs:   app

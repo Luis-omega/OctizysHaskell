@@ -19,15 +19,22 @@ import Repl.Console (Console, putLine, putString, readLine, runConsole)
 import Repl.Parser (replParserEff)
 import Text.Megaparsec (errorBundlePretty)
 
+
 data ReplStatus = ContinueWith Context | Exit
+
 
 continue :: Context -> Eff es ReplStatus
 continue context = pure $ ContinueWith context
 
+
 exit :: Eff es ReplStatus
 exit = pure Exit
 
-rep :: (Console :> es, Error ParserError :> es, Error EvaluationError :> es) => Context -> Eff es ReplStatus
+
+rep
+  :: (Console :> es, Error ParserError :> es, Error EvaluationError :> es)
+  => Context
+  -> Eff es ReplStatus
 rep context = do
   line <- putString "repl>" >> readLine
   action <- replParserEff line
@@ -46,17 +53,30 @@ rep context = do
       putLine "Define is not supported yet!"
         >> continue context
 
-reportError :: forall e es. (Console :> es, Show e) => Context -> Eff (Error e : es) ReplStatus -> Eff es ReplStatus
+
+reportError
+  :: forall e es
+   . (Console :> es, Show e)
+  => Context
+  -> Eff (Error e : es) ReplStatus
+  -> Eff es ReplStatus
 reportError context =
   runErrorNoCallStackWith
     (\e -> (putLine . show) e >> continue context)
 
-reportParserError :: forall es. (Console :> es) => Context -> Eff (Error ParserError : es) ReplStatus -> Eff es ReplStatus
+
+reportParserError
+  :: forall es
+   . Console :> es
+  => Context
+  -> Eff (Error ParserError : es) ReplStatus
+  -> Eff es ReplStatus
 reportParserError context =
   runErrorNoCallStackWith
     (\e -> (putLine . errorBundlePretty) e >> continue context)
 
-repl :: (Console :> es) => Context -> Eff es ()
+
+repl :: Console :> es => Context -> Eff es ()
 repl context = do
   status <- reportErrors $ rep context
   case status of

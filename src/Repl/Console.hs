@@ -15,14 +15,18 @@ import Effectful.Dispatch.Dynamic (HasCallStack, interpret)
 import Effectful.TH (makeEffect)
 import System.IO (hFlush, stdout)
 
+
 data Console :: Effect where
   ReadLine :: Console m String
   PutString :: String -> Console m ()
 
+
 $(makeEffect ''Console)
 
-putLine :: (Console :> es) => String -> Eff es ()
+
+putLine :: Console :> es => String -> Eff es ()
 putLine s = putString (s <> "\n")
+
 
 runConsole :: (HasCallStack, IOE :> es) => Eff (Console : es) a -> Eff es a
 -- TODO: Add IO error handling
