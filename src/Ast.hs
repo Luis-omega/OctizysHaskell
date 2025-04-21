@@ -1,4 +1,4 @@
 module Ast where
 
 hello :: IO ()
-hello = putLine "hi world ast!"
+hello = putStrLn "hi world ast!"

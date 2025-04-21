@@ -5,4 +5,4 @@ import qualified Ast (hello)
 
 main :: IO ()
 main = do
-  hello
+  Ast.hello
