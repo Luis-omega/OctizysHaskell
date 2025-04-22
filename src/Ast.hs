@@ -14,11 +14,11 @@ module Ast
   , functionBody
   , AstError (IsAkeywordNotVariable)
   , Type (IntType, BoolType, Arrow, TypeVar)
+  , arrowInitial
+  , arrowEnd
   , TopItem
-  , Context
   , Symbol
   , Literal
-  , makeEmptyContext
   , makeSymbol
   , makeBool
   , makeInt
@@ -32,6 +32,7 @@ module Ast
   , makeBoolType
   , makeArrow
   , makeTypeVar
+  , makeTypeHole
   , prettyExpression
   , prettyLiteral
   , prettyType
@@ -42,14 +43,11 @@ module Ast
   , makeVariableFromSymbol
   , ParserType
   , ParserExpression
-  , ParserTypeVariable (UserTypeVariable, MachineTypeVariable)
+  , ParserTypeVariable (TypeHole)
   , ParserExpressionVariable (ParserNamedVariable)
-  , makeMachineTypeVariable
-  , makeUserTypeVariable
   , makeParserExpressionVariable
   , makeParserExpressionVariableFromSymbol
   , ParserTopItem
-  , getNewInt
   , applicationArguments
   , applicationFunction
   , ifCondition
@@ -57,6 +55,7 @@ module Ast
   , ifElse
   , letDefinition
   , letName
+  , letIn
   , annotationType
   , annotationExpression
   , topItemName
@@ -68,8 +67,6 @@ where
 import Control.Arrow ((<<<))
 import Data.Bifunctor (Bifunctor (bimap))
 import Data.List (intercalate)
-import Data.Map (Map)
-import qualified Data.Map (empty)
 import Text.Megaparsec (ShowErrorComponent)
 import Text.Megaparsec.Error (ShowErrorComponent (showErrorComponent))
 
@@ -105,18 +102,12 @@ symbolToString (SymbolC s) = s
 
 
 data ParserTypeVariable
-  = UserTypeVariable Int
-  | MachineTypeVariable Int
-  deriving (Show)
+  = TypeHole
+  deriving (Show, Eq, Ord)
 
 
-makeUserTypeVariable :: Int -> ParserType
-makeUserTypeVariable = TypeVar <<< UserTypeVariable
-
-
-makeMachineTypeVariable :: Int -> ParserType
-makeMachineTypeVariable =
-  TypeVar <<< MachineTypeVariable
+makeTypeHole :: ParserType
+makeTypeHole = TypeVar TypeHole
 
 
 newtype ParserExpressionVariable
@@ -152,7 +143,7 @@ type ParserTopItem =
 data Type vars
   = IntType
   | BoolType
-  | Arrow {initial :: Type vars, end :: [Type vars]}
+  | Arrow {arrowInitial :: Type vars, arrowEnd :: [Type vars]}
   | TypeVar vars
   deriving (Show)
 
@@ -162,7 +153,7 @@ prettyType t =
   case t of
     IntType -> "int"
     BoolType -> "bool"
-    Arrow {initial = _domain, end = _codomain} ->
+    Arrow {arrowInitial = _domain, arrowEnd = _codomain} ->
       "( "
         <> prettyType _domain
         <> " -> "
@@ -170,7 +161,7 @@ prettyType t =
           " -> "
           (prettyType <$> _codomain)
         <> " )"
-    TypeVar i -> "_" <> show i
+    TypeVar _ -> "_"
 
 
 makeIntType :: Type vars
@@ -183,7 +174,7 @@ makeBoolType = BoolType
 
 makeArrow :: Type vars -> [Type vars] -> Either AstError (Type vars)
 makeArrow _ [] = Left EmptyArrowCodomain
-makeArrow initial end = Right $ Arrow {..}
+makeArrow arrowInitial arrowEnd = Right $ Arrow {..}
 
 
 makeTypeVar :: vars -> Type vars
@@ -214,7 +205,11 @@ data Expression vars tvars
       , ifThen :: Expression vars tvars
       , ifElse :: Expression vars tvars
       }
-  | Let {letName :: vars, letDefinition :: Expression vars tvars}
+  | Let
+      { letName :: vars
+      , letDefinition :: Expression vars tvars
+      , letIn :: Expression vars tvars
+      }
   | Annotation
       { annotationExpression :: Expression vars tvars
       , annotationType :: Type tvars
@@ -254,11 +249,13 @@ prettyExpression e =
         <> prettyExpression __then
         <> " else "
         <> prettyExpression __else
-    Let {letName = _name, letDefinition = _definition} ->
+    Let {letName = _name, letDefinition = _definition, letIn = _in} ->
       "let "
         <> show _name
         <> " = "
         <> prettyExpression _definition
+        <> " in "
+        <> prettyExpression _in
     Annotation {annotationExpression = _expression, annotationType = __type} ->
       "( "
         <> prettyExpression _expression
@@ -312,7 +309,8 @@ makeLet
   :: evars
   -> Expression evars tvars
   -> Expression evars tvars
-makeLet letName letDefinition = Let {..}
+  -> Expression evars tvars
+makeLet letName letDefinition letIn = Let {..}
 
 
 makeAnnotation
@@ -354,40 +352,3 @@ makeTopItem
   topItemType
   topItemBody =
     Definition {..}
-
-
-data Context evars tvars = Context
-  { expressions :: Map evars (Type tvars)
-  , type_variables :: Map tvars (Maybe (Type tvars))
-  , variable_counter :: Int
-  }
-  deriving (Show)
-
-
-makeEmptyContext :: Context evars tvars
-makeEmptyContext =
-  Context
-    { expressions =
-        Data.Map.empty
-    , type_variables = Data.Map.empty
-    , variable_counter = 0
-    }
-
-
-getNewInt :: Context evars tvars -> (Int, Context evars tvars)
-getNewInt
-  ( Context
-      { expressions =
-        _expressions
-      , type_variables = _type_variables
-      , variable_counter = _variable_counter
-      }
-    ) =
-    ( _variable_counter
-    , Context
-        { expressions =
-            _expressions
-        , type_variables = _type_variables
-        , variable_counter = _variable_counter + 1
-        }
-    )

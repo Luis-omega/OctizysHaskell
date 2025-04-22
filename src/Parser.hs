@@ -35,7 +35,7 @@ import Ast
   , makeParserExpressionVariableFromSymbol
   , makeSymbol
   , makeTopItem
-  , makeUserTypeVariable
+  , makeTypeHole
   , symbolToString
   )
 import Control.Arrow ((<<<))
@@ -122,6 +122,8 @@ identifierParser =
           `notElem` [ "if"
                     , "then"
                     , "else"
+                    , "let"
+                    , "in"
                     ]
     )
     "keyword found, expected identifier"
@@ -188,20 +190,16 @@ letKeyword :: Parser ()
 letKeyword = keyword "let"
 
 
+inKeyword :: Parser ()
+inKeyword = keyword "in"
+
+
 parens :: Parser a -> Parser a
 parens = between leftParen rightParen
 
 
 braces :: Parser a -> Parser a
 braces = between leftBrace rightBrace
-
-
-simpleIntParser :: Parser Int
-simpleIntParser =
-  lexeme
-    ( read
-        <$> takeWhile1P (Just "int digit") isDigit
-    )
 
 
 typeIntParser :: Parser (Type tvar)
@@ -216,18 +214,15 @@ typeConstantParser :: Parser (Type tvar)
 typeConstantParser = typeIntParser <|> typeBoolParser
 
 
-typeVariableParser :: Parser ParserType
-typeVariableParser =
-  ( char '_'
-      >> (makeUserTypeVariable <$> simpleIntParser)
-  )
+typeHole :: Parser ParserType
+typeHole =
+  (makeTypeHole <$ lexeme (char '_'))
     <?> "a type variable"
 
 
 typeAtom :: Parser ParserType
 typeAtom =
   typeConstantParser
-    <|> typeVariableParser
     <|> parens typeParser
 
 
@@ -313,7 +308,8 @@ letParser = do
   _ <- equal
   expr <- expressionParser
   _ <- semicolon
-  pure $ makeLet name expr
+  _ <- inKeyword
+  makeLet name expr <$> expressionParser
 
 
 applicationParser :: Parser ParserExpression
@@ -343,7 +339,7 @@ topParser :: Parser ParserTopItem
 topParser = do
   name <- identifierParser
   _type <-
-    colon >> typeParser
+    colon >> (typeParser <|> typeHole)
   equal
   braces
     ( makeTopItem name _type <$> expressionParser

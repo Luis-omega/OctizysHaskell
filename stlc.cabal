@@ -113,6 +113,8 @@ library
     , effectful-plugin
     , effectful-th
     , megaparsec
+    , pretty-show
+    , prettyprinter
     , template-haskell
 
   -- Directories containing source files.

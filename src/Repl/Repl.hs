@@ -7,25 +7,55 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Repl.Repl (repl, runConsole) where
+module Repl.Repl
+  ( repl
+  , runConsole
+  , emptyState
+  , ReplState (ReplState, translationState)
+  )
+where
 
 import Ast (prettyExpression, prettyTopItem)
 import Control.Arrow ((<<<))
 import Effectful (Eff, (:>))
 import Effectful.Error.Dynamic (Error, runErrorNoCallStackWith)
-import Evaluation (EvaluationContext, EvaluationError)
+import Effectful.State.Static.Local (runState)
+import Effectful.Writer.Static.Local (Writer, runWriter)
+import Evaluation (EvaluationError)
+import Inference
+  ( TranslationState
+  , TranslationWarrning
+  , buildInferenceContext
+  )
+import qualified Inference
+  ( TranslationError
+  , emptyState
+  )
 import Parser (ParserError)
 import Repl.Ast (ReplCommand (Quit), ReplTop (Command, Define, Evaluate))
 import Repl.Console (Console, putLine, putString, readLine, runConsole)
 import Repl.Parser (replParserEff)
 import Text.Megaparsec (errorBundlePretty)
+import Text.Show.Pretty (ppShow)
 
 
-data ReplStatus = ContinueWith EvaluationContext | Exit
+newtype ReplState = ReplState
+  { translationState :: TranslationState
+  }
 
 
-continue :: EvaluationContext -> Eff es ReplStatus
-continue context = pure $ ContinueWith context
+data ReplStatus = ContinueWith ReplState | Exit
+
+
+emptyState :: ReplState
+emptyState =
+  ReplState
+    { translationState = Inference.emptyState
+    }
+
+
+continue :: ReplState -> Eff es ReplStatus
+continue = pure <<< ContinueWith
 
 
 exit :: Eff es ReplStatus
@@ -33,8 +63,16 @@ exit = pure Exit
 
 
 rep
-  :: (Console :> es, Error ParserError :> es, Error EvaluationError :> es)
-  => EvaluationContext
+  :: ( Console :> es
+     , Error ParserError :> es
+     , Error EvaluationError :> es
+     , Error Inference.TranslationError
+        :> es
+     , Writer
+        [Inference.TranslationWarrning]
+        :> es
+     )
+  => ReplState
   -> Eff es ReplStatus
 rep context = do
   line <- putString "repl>" >> readLine
@@ -54,15 +92,25 @@ rep context = do
     -- TODO: Type check/inference
     Define d -> do
       putLine $ prettyTopItem d
+      (_, newTranslationState) <-
+        runState
+          (translationState context)
+          (buildInferenceContext [d])
       -- TODO: Raise a error
+      putLine $ "New State:\n" <> ppShow newTranslationState
       putLine "Define is not supported yet!"
-        >> continue context
+        >> continue
+          ( context
+              { translationState =
+                  newTranslationState
+              }
+          )
 
 
 reportError
   :: forall e es
    . (Console :> es, Show e)
-  => EvaluationContext
+  => ReplState
   -> Eff (Error e : es) ReplStatus
   -> Eff es ReplStatus
 reportError context =
@@ -73,7 +121,7 @@ reportError context =
 reportParserError
   :: forall es
    . Console :> es
-  => EvaluationContext
+  => ReplState
   -> Eff (Error ParserError : es) ReplStatus
   -> Eff es ReplStatus
 reportParserError context =
@@ -81,11 +129,17 @@ reportParserError context =
     (\e -> (putLine <<< errorBundlePretty) e >> continue context)
 
 
-repl :: Console :> es => EvaluationContext -> Eff es ()
+repl :: Console :> es => ReplState -> Eff es ()
 repl context = do
-  status <- reportErrors $ rep context
+  (status, warnings) <- reportWarnings $ reportErrors $ rep context
+  mapM_ (putLine <<< show) warnings
   case status of
     Exit -> pure ()
     ContinueWith new_context -> repl new_context
   where
-    reportErrors = reportParserError context <<< reportError @EvaluationError context
+    reportErrors =
+      reportError context
+        <<< reportParserError context
+        <<< reportError @EvaluationError context
+    reportWarnings =
+      runWriter @[TranslationWarrning]

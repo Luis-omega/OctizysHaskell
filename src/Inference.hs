@@ -1,8 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# HLINT ignore "Use tuple-section" #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Use tuple-section" #-}
 
 module Inference
   ( InferenceError
@@ -10,14 +10,14 @@ module Inference
   , InferenceTypeVar (InferenceTypeVarC)
   , InferenceExpression
   , InferenceType
+  , InferenceTopItem
+  , TranslationState
+  , TranslationError
+  , TranslationWarrning
   , buildInferenceContext
   , transformType
   , transform
-  , InferenceTopItem
-  , Context (ContextC)
-  , Row (RowC)
-  , freshExpressionVar
-  , freshTypeVar
+  , emptyState
   )
 where
 
@@ -40,6 +40,7 @@ import Ast
       , ifElse
       , ifThen
       , letDefinition
+      , letIn
       , letName
       )
   , ParserExpression
@@ -47,7 +48,7 @@ import Ast
   , ParserTopItem
   , ParserType
   , TopItem (topItemBody, topItemName)
-  , Type
+  , Type (Arrow, BoolType, IntType, TypeVar, arrowEnd, arrowInitial)
   , makeIf
   )
 import Control.Arrow ((<<<))
@@ -56,8 +57,8 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Dynamic (Error, throwError)
-import Effectful.State.Dynamic (State, gets, modify, runStateLocal)
-import Effectful.Writer.Dynamic (Writer)
+import Effectful.State.Static.Local (State, get, gets, modify)
+import Effectful.Writer.Static.Local (Writer, tell)
 import HistoryMap (HistoryMap, empty, lookup, popChanges, pushChanges)
 
 
@@ -81,14 +82,13 @@ type InferenceTopItem = TopItem InferenceExpressionVar InferenceTypeVar
 type InferenceType = Type InferenceTypeVar
 
 
--- type InferenceContext = Context InferenceExpressionVar InferenceTypeVar
-
 data TranslationError
   = UnboundedVariable ParserExpressionVariable
   | MultipleDefinitions [ParserExpressionVariable]
   deriving (Show)
 
 
+-- TODO : raise Shadowing concerns
 data TranslationWarrning = Warn deriving (Show)
 
 
@@ -271,17 +271,25 @@ cleanupLetNames defs = do
 
 transformType
   :: ( Error TranslationError :> es
-     , Writer TranslationWarrning :> es
+     , Writer [TranslationWarrning] :> es
      , State TranslationState :> es
      )
   => ParserType
   -> Eff es InferenceType
-transformType = undefined
+transformType t =
+  case t of
+    IntType -> pure IntType
+    BoolType -> pure BoolType
+    Arrow {arrowInitial, arrowEnd} -> do
+      ini <- transformType arrowInitial
+      end <- mapM transformType arrowEnd
+      pure Arrow {arrowInitial = ini, arrowEnd = end}
+    TypeVar _ -> (pure <<< TypeVar <<< InferenceTypeVarC) (-1)
 
 
 transform
   :: ( Error TranslationError :> es
-     , Writer TranslationWarrning :> es
+     , Writer [TranslationWarrning] :> es
      , State TranslationState :> es
      )
   => ParserExpression
@@ -315,9 +323,10 @@ transform expr =
       newIfThen <- transform _then
       newIfElse <- transform _else
       pure $ makeIf newIfCondition newIfThen newIfElse
-    Let {letName = _letName, letDefinition = _letDefinition} -> do
+    Let {letName = _letName, letDefinition = _letDefinition, letIn = _letIn} -> do
       newNames <- registerEmpty [_letName]
       newDefinition <- transform _letDefinition
+      newIn <- transform _letIn
       cleanupLetNames
         [
           ( _letName
@@ -328,6 +337,7 @@ transform expr =
         Let
           { letName = head newNames
           , letDefinition = newDefinition
+          , letIn = newIn
           }
     Annotation {annotationExpression = ae, annotationType = at} -> do
       newExpression <- transform ae
@@ -370,7 +380,7 @@ addExpressionToRow pev ie = do
 
 buildInferenceContextForItem
   :: ( Error TranslationError :> es
-     , Writer TranslationWarrning :> es
+     , Writer [TranslationWarrning] :> es
      , State TranslationState :> es
      )
   => ParserTopItem
@@ -384,25 +394,20 @@ buildInferenceContextForItem item = do
 
 buildInferenceContext
   :: ( Error TranslationError :> es
-     , State TranslationState :> es
      , Writer
-        TranslationWarrning
+        [TranslationWarrning]
         :> es
+     , State TranslationState :> es
      )
   => [ParserTopItem]
   -> Eff es (Map InferenceExpressionVar Row)
 buildInferenceContext items = do
-  ((), state) <-
-    runStateLocal
-      emptyState
-      ( do
-          _ <-
-            registerEmpty $
-              (ParserNamedVariable <<< topItemName) <$> items
-          mapM_ buildInferenceContextForItem items
-      )
-  pure $
-    (contextById <<< translationContext) state
+  tell [Warn]
+  _ <-
+    registerEmpty $
+      (ParserNamedVariable <<< topItemName) <$> items
+  mapM_ buildInferenceContextForItem items
+  (contextById <<< translationContext) <$> get
 
 -- infer ::
 --   InferenceContext ->
