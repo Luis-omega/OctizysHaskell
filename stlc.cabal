@@ -90,6 +90,7 @@ library
   exposed-modules:
     Ast
     Evaluation
+    HistoryMap
     Inference
     Parser
     Repl.Ast

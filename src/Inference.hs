@@ -1,5 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use tuple-section" #-}
 
 module Inference
   ( InferenceError
@@ -40,21 +43,22 @@ import Ast
       , letName
       )
   , ParserExpression
-  , ParserExpressionVariable
+  , ParserExpressionVariable (ParserNamedVariable)
   , ParserTopItem
   , ParserType
-  , Symbol
   , TopItem (topItemBody, topItemName)
   , Type
   , makeIf
   )
 import Control.Arrow ((<<<))
+import Control.Monad (unless)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Dynamic (Error, throwError)
-import Effectful.State.Dynamic (State, gets, modify)
+import Effectful.State.Dynamic (State, gets, modify, runStateLocal)
 import Effectful.Writer.Dynamic (Writer)
+import HistoryMap (HistoryMap, empty, lookup, popChanges, pushChanges)
 
 
 data InferenceError = InferenceError deriving (Show)
@@ -63,7 +67,8 @@ data InferenceError = InferenceError deriving (Show)
 newtype InferenceTypeVar = InferenceTypeVarC Int deriving (Show)
 
 
-newtype InferenceExpressionVar = InferenceExpressionVarC Int deriving (Show)
+newtype InferenceExpressionVar = InferenceExpressionVarC Int
+  deriving (Show, Eq, Ord)
 
 
 type InferenceExpression =
@@ -78,8 +83,9 @@ type InferenceType = Type InferenceTypeVar
 
 -- type InferenceContext = Context InferenceExpressionVar InferenceTypeVar
 
-newtype TranslationError
+data TranslationError
   = UnboundedVariable ParserExpressionVariable
+  | MultipleDefinitions [ParserExpressionVariable]
   deriving (Show)
 
 
@@ -94,6 +100,16 @@ data TranslationState = TranslationState
   deriving (Show)
 
 
+emptyState :: TranslationState
+emptyState =
+  TranslationState
+    { translationContext =
+        emptyContext
+    , nextExpressionVarId = 0
+    , nextTypeVarId = 0
+    }
+
+
 data Row = RowC
   { rowParserVariable :: ParserExpressionVariable
   , rowExpressionVariable :: InferenceExpressionVar
@@ -105,14 +121,84 @@ data Row = RowC
 
 
 data Context = ContextC
-  { contextByName :: Map ParserExpressionVariable Row
+  { contextByName :: HistoryMap ParserExpressionVariable Row
   , contextById :: Map InferenceExpressionVar Row
   }
   deriving (Show)
 
 
-getContext :: TranslationState -> Context
-getContext = translationContext
+emptyContext :: Context
+emptyContext =
+  ContextC
+    { contextByName = HistoryMap.empty
+    , contextById = Map.empty
+    }
+
+
+{- | Checks that the list of variables doesn't
+have repetitions, if it has, we throw a error.
+-}
+checkUniqueVariables
+  :: ( Error TranslationError :> es
+     , State TranslationState :> es
+     )
+  => [ParserExpressionVariable]
+  -> Eff es ()
+checkUniqueVariables pevs =
+  let frequencies =
+        Map.toList
+          ( Map.fromListWith
+              (+)
+              ( (\x -> (x, 1 :: Int)) <$> pevs
+              )
+          )
+      repeateds = filter (\x -> snd x > 1) frequencies
+   in unless
+        (null repeateds)
+        $ throwError
+          (MultipleDefinitions (fst <$> repeateds))
+
+
+{- | Registers a all the variables in
+| the context with a row that has empty
+| the expression field
+-}
+registerEmpty
+  :: ( Error TranslationError :> es
+     , State TranslationState :> es
+     )
+  => [ParserExpressionVariable]
+  -> Eff es [InferenceExpressionVar]
+registerEmpty pevs = do
+  checkUniqueVariables pevs
+  rows <-
+    mapM
+      ( \item ->
+          freshRow item >>= \x -> pure (item, x)
+      )
+      pevs
+  context <- gets translationContext
+  let newNameContext = HistoryMap.pushChanges rows (contextByName context)
+  let newIdContext =
+        foldr
+          ( \(_, row) dic ->
+              Map.insert
+                (rowExpressionVariable row)
+                row
+                dic
+          )
+          (contextById context)
+          rows
+  modify $ \s ->
+    s
+      { translationContext =
+          ContextC
+            { contextByName =
+                newNameContext
+            , contextById = newIdContext
+            }
+      }
+  pure ((rowExpressionVariable <<< snd) <$> rows)
 
 
 lookupVariable
@@ -123,7 +209,7 @@ lookupVariable
   -> Eff es Row
 lookupVariable parserVar = do
   nameContext <- gets (contextByName <<< translationContext)
-  case Map.lookup parserVar nameContext of
+  case HistoryMap.lookup parserVar nameContext of
     Just row -> pure row
     Nothing -> throwError (UnboundedVariable parserVar)
 
@@ -144,36 +230,43 @@ freshTypeVar = do
   InferenceTypeVarC <$> gets nextTypeVarId
 
 
-registerParameters
-  :: ( Error TranslationError :> es
-     , Writer TranslationWarrning :> es
-     , State TranslationState :> es
-     )
-  => [ParserExpressionVariable]
-  -> Eff es ()
-registerParameters = undefined
+freshRow
+  :: State TranslationState :> es
+  => ParserExpressionVariable
+  -> Eff es Row
+freshRow pev = do
+  newEVar <- freshExpressionVar
+  newTVar <- freshTypeVar
+  pure $
+    RowC
+      { rowParserVariable = pev
+      , rowExpressionVariable = newEVar
+      , rowTypeVariable = newTVar
+      , rowExpression = Nothing
+      }
 
 
 cleanupParameters
   :: ( Error TranslationError :> es
-     , Writer TranslationWarrning :> es
      , State TranslationState :> es
      )
-  => [ParserExpressionVariable]
-  -> Eff es [InferenceExpressionVar]
-cleanupParameters = undefined
-
-
-registerLetNames
-  :: [ParserExpressionVariable]
-  -> Eff es ()
-registerLetNames = undefined
+  => Eff es ()
+cleanupParameters = modify $ \s ->
+  let context = translationContext s
+      byName = contextByName context
+      newByName = HistoryMap.popChanges byName
+   in s {translationContext = context {contextByName = newByName}}
 
 
 cleanupLetNames
-  :: [ParserExpressionVariable]
-  -> Eff es [InferenceExpressionVar]
-cleanupLetNames = undefined
+  :: ( Error TranslationError :> es
+     , State TranslationState :> es
+     )
+  => [(ParserExpressionVariable, InferenceExpression)]
+  -> Eff es ()
+cleanupLetNames defs = do
+  mapM_ (uncurry addExpressionToRow) defs
+  cleanupParameters
 
 
 transformType
@@ -200,11 +293,9 @@ transform expr =
       value <- lookupVariable v
       pure $ Variable (rowExpressionVariable value)
     Function {functionParameters = _parameters, functionBody = _body} -> do
-      registerParameters _parameters
+      newParameters <- registerEmpty _parameters
       newBody <- transform _body
-      newParameters <-
-        cleanupParameters
-          _parameters
+      cleanupParameters
       pure
         Function {functionParameters = newParameters, functionBody = newBody}
     Application
@@ -225,10 +316,19 @@ transform expr =
       newIfElse <- transform _else
       pure $ makeIf newIfCondition newIfThen newIfElse
     Let {letName = _letName, letDefinition = _letDefinition} -> do
-      registerLetNames [_letName]
+      newNames <- registerEmpty [_letName]
       newDefinition <- transform _letDefinition
-      newNames <- cleanupLetNames [_letName]
-      pure Let {letName = head newNames, letDefinition = newDefinition}
+      cleanupLetNames
+        [
+          ( _letName
+          , newDefinition
+          )
+        ]
+      pure
+        Let
+          { letName = head newNames
+          , letDefinition = newDefinition
+          }
     Annotation {annotationExpression = ae, annotationType = at} -> do
       newExpression <- transform ae
       newType <- transformType at
@@ -240,15 +340,32 @@ transform expr =
           }
 
 
-registerExpression
+{- | It updates the entry of a variable in
+| the context. Raises an error if
+| unbound
+| It doesn't update the scope context (contextByName).
+-}
+addExpressionToRow
   :: ( Error TranslationError :> es
-     , Writer TranslationWarrning :> es
      , State TranslationState :> es
      )
-  => Symbol
+  => ParserExpressionVariable
   -> InferenceExpression
   -> Eff es ()
-registerExpression = undefined
+addExpressionToRow pev ie = do
+  row <- lookupVariable pev
+  context <- gets translationContext
+  let updatedRow = row {rowExpression = Just ie}
+  let updatedMap =
+        Map.insert
+          (rowExpressionVariable row)
+          updatedRow
+          (contextById context)
+  modify $ \s ->
+    s
+      { translationContext =
+          context {contextById = updatedMap}
+      }
 
 
 buildInferenceContextForItem
@@ -259,33 +376,33 @@ buildInferenceContextForItem
   => ParserTopItem
   -> Eff es ()
 buildInferenceContextForItem item = do
-  let name = topItemName item
+  let name = ParserNamedVariable $ topItemName item
   let body = topItemBody item
   newBody <- transform body
-  registerExpression name newBody
-
-
-registerDefinition
-  :: ( Error TranslationError :> es
-     , Writer TranslationWarrning :> es
-     , State TranslationState :> es
-     )
-  => ParserTopItem
-  -> Eff es ()
-registerDefinition = undefined
+  addExpressionToRow name newBody
 
 
 buildInferenceContext
   :: ( Error TranslationError :> es
-     , Writer TranslationWarrning :> es
      , State TranslationState :> es
+     , Writer
+        TranslationWarrning
+        :> es
      )
   => [ParserTopItem]
-  -> Eff es Context
-buildInferenceContext ls = do
-  mapM_ registerDefinition ls
-  mapM_ buildInferenceContextForItem ls
-  gets getContext
+  -> Eff es (Map InferenceExpressionVar Row)
+buildInferenceContext items = do
+  ((), state) <-
+    runStateLocal
+      emptyState
+      ( do
+          _ <-
+            registerEmpty $
+              (ParserNamedVariable <<< topItemName) <$> items
+          mapM_ buildInferenceContextForItem items
+      )
+  pure $
+    (contextById <<< translationContext) state
 
 -- infer ::
 --   InferenceContext ->
