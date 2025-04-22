@@ -2,119 +2,118 @@
 
 module Ast
   ( Expression
-      ( LiteralExpression
-      , Variable
-      , Function
-      , Application
-      , If
-      , Let
-      , Annotation
-      )
-  , Type (IntType, BoolType, Arrow, TypeVar)
-  , TopItem
-  , Context
-  , Symbol
-  , Literal
-  , makeEmptyContext
-  , makeSymbol
-  , makeBool
-  , makeInt
-  , makeVariable
-  , makeFunction
-  , makeApplication
-  , makeIf
-  , makeLet
-  , makeAnnotation
-  , makeIntType
-  , makeBoolType
-  , makeArrow
-  , makeTypeVar
-  , prettyExpression
-  , prettyLiteral
-  , prettyType
-  , prettySymbol
-  , prettyTopItem
-  , makeTopItem
-  , symbolToString
+      ( LiteralExpression,
+        Variable,
+        Function,
+        Application,
+        If,
+        Let,
+        Annotation
+      ),
+    AstError (IsAkeywordNotVariable),
+    Type (IntType, BoolType, Arrow, TypeVar),
+    TopItem,
+    Context,
+    Symbol,
+    Literal,
+    makeEmptyContext,
+    makeSymbol,
+    makeBool,
+    makeInt,
+    makeVariable,
+    makeFunction,
+    makeApplication,
+    makeIf,
+    makeLet,
+    makeAnnotation,
+    makeIntType,
+    makeBoolType,
+    makeArrow,
+    makeTypeVar,
+    prettyExpression,
+    prettyLiteral,
+    prettyType,
+    prettySymbol,
+    prettyTopItem,
+    makeTopItem,
+    symbolToString,
+    makeVariableFromSymbol,
   )
 where
 
 import Data.Bifunctor (Bifunctor (bimap))
+import Data.List (intercalate)
 import Data.Map (Map)
 import qualified Data.Map (empty)
-
+import Text.Megaparsec (ShowErrorComponent)
+import Text.Megaparsec.Error (ShowErrorComponent (showErrorComponent))
 
 data AstError
   = CantCreateSymbol String
   | CantCreateVariable String
+  | IsAkeywordNotVariable String
   | EmptyParameters
   | EmptyArguments
-  deriving (Show)
+  | EmptyArrowCodomain
+  deriving (Show, Eq, Ord)
 
+instance ShowErrorComponent AstError where
+  showErrorComponent = show
 
 newtype Symbol = SymbolC String deriving (Show)
 
-
 prettySymbol :: Symbol -> String
 prettySymbol (SymbolC s) = s
-
 
 -- TODO: Add logic to check symbols to be real symbols
 makeSymbol :: String -> Either AstError Symbol
 makeSymbol = pure . SymbolC
 
-
 symbolToString :: Symbol -> String
 symbolToString (SymbolC s) = s
-
 
 data Type
   = IntType
   | BoolType
-  | Arrow {domain :: Type, codomain :: Type}
+  | Arrow {initial :: Type, end :: [Type]}
   | TypeVar Int
   deriving (Show)
-
 
 prettyType :: Type -> String
 prettyType t =
   case t of
     IntType -> "int"
     BoolType -> "bool"
-    Arrow {domain = _domain, codomain = _codomain} ->
+    Arrow {initial = _domain, end = _codomain} ->
       "( "
         <> prettyType _domain
         <> " -> "
-        <> prettyType _codomain
+        <> intercalate
+          " -> "
+          (prettyType <$> _codomain)
         <> " )"
     TypeVar i -> "_" <> show i
-
 
 makeIntType :: Type
 makeIntType = IntType
 
-
 makeBoolType :: Type
 makeBoolType = BoolType
 
-
-makeArrow :: Type -> Type -> Type
-makeArrow domain codomain = Arrow {..}
-
+makeArrow :: Type -> [Type] -> Either AstError Type
+makeArrow _ [] = Left EmptyArrowCodomain
+makeArrow initial end = Right $ Arrow {..}
 
 makeTypeVar :: Int -> Type
 makeTypeVar = TypeVar
 
-
 data Literal = IntLiteral Int | BoolLiteral Bool deriving (Show)
-
 
 prettyLiteral :: Literal -> String
 prettyLiteral l =
   case l of
     IntLiteral i -> show i
     BoolLiteral b -> show b
-
 
 data Expression
   = LiteralExpression Literal
@@ -125,7 +124,6 @@ data Expression
   | Let {name :: Symbol, definition :: Expression}
   | Annotation {expression :: Expression, _type :: Type}
   deriving (Show)
-
 
 prettyExpression :: Expression -> String
 prettyExpression e =
@@ -162,48 +160,41 @@ prettyExpression e =
         <> prettyType __type
         <> " )"
 
-
 makeBool :: Bool -> Expression
 makeBool = LiteralExpression . BoolLiteral
-
 
 makeInt :: Int -> Expression
 makeInt = LiteralExpression . IntLiteral
 
-
 makeVariable :: String -> Either AstError Expression
 makeVariable s = bimap (\_ -> CantCreateVariable s) Variable $ makeSymbol s
 
+makeVariableFromSymbol :: Symbol -> Expression
+makeVariableFromSymbol = Variable
 
 makeFunction :: [Symbol] -> Expression -> Either AstError Expression
 makeFunction [] _ = Left EmptyParameters
 makeFunction parameters body = pure $ Function {..}
 
-
 makeApplication :: Expression -> [Expression] -> Either AstError Expression
 makeApplication _ [] = Left EmptyArguments
 makeApplication function arguments = pure $ Application {..}
 
-
 makeIf :: Expression -> Expression -> Expression -> Expression
 makeIf condition _then _else = If {..}
-
 
 makeLet :: Symbol -> Expression -> Expression
 makeLet name definition = Let {..}
 
-
 makeAnnotation :: Expression -> Type -> Expression
 makeAnnotation expression _type = Annotation {..}
 
-
 data TopItem = Definition
-  { definition_name :: Symbol
-  , definition_type :: Type
-  , definition_body :: Expression
+  { definition_name :: Symbol,
+    definition_type :: Type,
+    definition_body :: Expression
   }
   deriving (Show)
-
 
 prettyTopItem :: TopItem -> String
 prettyTopItem t =
@@ -214,15 +205,12 @@ prettyTopItem t =
     <> prettyExpression (definition_body t)
     <> " }"
 
-
 makeTopItem :: Symbol -> Type -> Expression -> TopItem
 makeTopItem definition_name definition_type definition_body = Definition {..}
-
 
 data Context = Context
   {expressions :: Map Symbol Type, type_variables :: Map Int (Maybe Type)}
   deriving (Show)
-
 
 makeEmptyContext :: Context
 makeEmptyContext =
