@@ -10,6 +10,8 @@ module Ast
         Let,
         Annotation
       ),
+    functionParameters,
+    functionBody,
     AstError (IsAkeywordNotVariable),
     Type (IntType, BoolType, Arrow, TypeVar),
     TopItem,
@@ -47,6 +49,19 @@ module Ast
     makeParserExpressionVariable,
     makeParserExpressionVariableFromSymbol,
     ParserTopItem,
+    getNewInt,
+    applicationArguments,
+    applicationFunction,
+    ifCondition,
+    ifThen,
+    ifElse,
+    letDefinition,
+    letName,
+    annotationType,
+    annotationExpression,
+    topItemName,
+    topItemBody,
+    topItemType,
   )
 where
 
@@ -70,7 +85,7 @@ data AstError
 instance ShowErrorComponent AstError where
   showErrorComponent = show
 
-newtype Symbol = SymbolC String deriving (Show)
+newtype Symbol = SymbolC String deriving (Show, Eq, Ord)
 
 prettySymbol :: Symbol -> String
 prettySymbol (SymbolC s) = s
@@ -96,7 +111,7 @@ makeMachineTypeVariable =
 
 newtype ParserExpressionVariable
   = ParserNamedVariable Symbol
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 makeParserExpressionVariable ::
   String ->
@@ -164,15 +179,15 @@ prettyLiteral l =
 data Expression vars tvars
   = LiteralExpression Literal
   | Variable vars
-  | Function {parameters :: [vars], body :: Expression vars tvars}
-  | Application {function :: Expression vars tvars, arguments :: [Expression vars tvars]}
+  | Function {functionParameters :: [vars], functionBody :: Expression vars tvars}
+  | Application {applicationFunction :: Expression vars tvars, applicationArguments :: [Expression vars tvars]}
   | If
-      { condition :: Expression vars tvars,
-        _then :: Expression vars tvars,
-        _else :: Expression vars tvars
+      { ifCondition :: Expression vars tvars,
+        ifThen :: Expression vars tvars,
+        ifElse :: Expression vars tvars
       }
-  | Let {name :: vars, definition :: Expression vars tvars}
-  | Annotation {expression :: Expression vars tvars, _type :: Type tvars}
+  | Let {letName :: vars, letDefinition :: Expression vars tvars}
+  | Annotation {annotationExpression :: Expression vars tvars, annotationType :: Type tvars}
   deriving (Show)
 
 prettyExpression ::
@@ -185,30 +200,30 @@ prettyExpression e =
     LiteralExpression l -> prettyLiteral l
     -- TODO : if we use proper pretty printing we must correct this use of show
     Variable s -> show s
-    Function {parameters = _parameters, body = _body} ->
+    Function {functionParameters = _parameters, functionBody = _body} ->
       "\\ "
         <> concatMap (\s -> show s <> " ") _parameters
         <> "-> "
         <> prettyExpression _body
-    Application {function = _function, arguments = _arguments} ->
+    Application {applicationFunction = _function, applicationArguments = _arguments} ->
       "( "
         <> prettyExpression _function
         <> " "
         <> concatMap (\expr -> prettyExpression expr <> " ") _arguments
         <> ")"
-    If {condition = _condition, _then = __then, _else = __else} ->
+    If {ifCondition = _condition, ifThen = __then, ifElse = __else} ->
       "if "
         <> prettyExpression _condition
         <> " then "
         <> prettyExpression __then
         <> " else "
         <> prettyExpression __else
-    Let {name = _name, definition = _definition} ->
+    Let {letName = _name, letDefinition = _definition} ->
       "let "
         <> show _name
         <> " = "
         <> prettyExpression _definition
-    Annotation {expression = _expression, _type = __type} ->
+    Annotation {annotationExpression = _expression, annotationType = __type} ->
       "( "
         <> prettyExpression _expression
         <> " : "
@@ -233,38 +248,38 @@ makeFunction ::
   Expression evars tvars ->
   Either AstError (Expression evars tvars)
 makeFunction [] _ = Left EmptyParameters
-makeFunction parameters body = pure $ Function {..}
+makeFunction functionParameters functionBody = pure $ Function {..}
 
 makeApplication ::
   Expression evars tvars ->
   [Expression evars tvars] ->
   Either AstError (Expression evars tvars)
 makeApplication _ [] = Left EmptyArguments
-makeApplication function arguments = pure $ Application {..}
+makeApplication applicationFunction applicationArguments = pure $ Application {..}
 
 makeIf ::
   Expression evars tvars ->
   Expression evars tvars ->
   Expression evars tvars ->
   Expression evars tvars
-makeIf condition _then _else = If {..}
+makeIf ifCondition ifThen ifElse = If {..}
 
 makeLet ::
   evars ->
   Expression evars tvars ->
   Expression evars tvars
-makeLet name definition = Let {..}
+makeLet letName letDefinition = Let {..}
 
 makeAnnotation ::
   Expression evars tvars ->
   Type tvars ->
   Expression evars tvars
-makeAnnotation expression _type = Annotation {..}
+makeAnnotation annotationExpression annotationType = Annotation {..}
 
 data TopItem evars tvars = Definition
-  { definition_name :: Symbol,
-    definition_type :: Type tvars,
-    definition_body :: Expression evars tvars
+  { topItemName :: Symbol,
+    topItemType :: Type tvars,
+    topItemBody :: Expression evars tvars
   }
   deriving (Show)
 
@@ -274,11 +289,11 @@ prettyTopItem ::
   TopItem evars tvars ->
   String
 prettyTopItem t =
-  prettySymbol (definition_name t)
+  prettySymbol (topItemName t)
     <> " : "
-    <> prettyType (definition_type t)
+    <> prettyType (topItemType t)
     <> " = { "
-    <> prettyExpression (definition_body t)
+    <> prettyExpression (topItemBody t)
     <> " }"
 
 makeTopItem ::
@@ -287,13 +302,15 @@ makeTopItem ::
   Expression evars tvars ->
   TopItem evars tvars
 makeTopItem
-  definition_name
-  definition_type
-  definition_body = Definition {..}
+  topItemName
+  topItemType
+  topItemBody =
+    Definition {..}
 
 data Context evars tvars = Context
   { expressions :: Map evars (Type tvars),
-    type_variables :: Map tvars (Maybe (Type tvars))
+    type_variables :: Map tvars (Maybe (Type tvars)),
+    variable_counter :: Int
   }
   deriving (Show)
 
@@ -302,5 +319,24 @@ makeEmptyContext =
   Context
     { expressions =
         Data.Map.empty,
-      type_variables = Data.Map.empty
+      type_variables = Data.Map.empty,
+      variable_counter = 0
     }
+
+getNewInt :: Context evars tvars -> (Int, Context evars tvars)
+getNewInt
+  ( Context
+      { expressions =
+          _expressions,
+        type_variables = _type_variables,
+        variable_counter = _variable_counter
+      }
+    ) =
+    ( _variable_counter,
+      Context
+        { expressions =
+            _expressions,
+          type_variables = _type_variables,
+          variable_counter = _variable_counter + 1
+        }
+    )
