@@ -1,12 +1,10 @@
 module Repl.Ast (ReplCommand (Quit), ReplTop (Evaluate, Define, Command)) where
 
-import Ast (Expression, TopItem)
-
+import Ast (ParserExpression, ParserTopItem)
 
 data ReplCommand = Quit
 
-
 data ReplTop
-  = Evaluate Expression
-  | Define TopItem
+  = Evaluate ParserExpression
+  | Define ParserTopItem
   | Command ReplCommand

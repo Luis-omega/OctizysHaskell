@@ -54,6 +54,7 @@
               pkgs.bashInteractive
               pkgs.mdformat
               pkgs.typos
+              pkgs.rlwrap
             ];
           };
           defaultPackage = pkgs.stlc;

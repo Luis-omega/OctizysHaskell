@@ -17,8 +17,11 @@ where
 import Ast
   ( AstError,
     Expression,
+    ParserExpression,
+    ParserExpressionVariable (ParserNamedVariable),
+    ParserTopItem,
+    ParserType,
     Symbol,
-    TopItem,
     Type,
     makeApplication,
     makeArrow,
@@ -29,10 +32,10 @@ import Ast
     makeInt,
     makeIntType,
     makeLet,
+    makeParserExpressionVariableFromSymbol,
     makeSymbol,
     makeTopItem,
-    makeTypeVar,
-    makeVariableFromSymbol,
+    makeUserTypeVariable,
     symbolToString,
   )
 import Control.Arrow ((<<<))
@@ -160,10 +163,10 @@ letKeyword :: Parser ()
 letKeyword = keyword "let"
 
 parens :: Parser a -> Parser a
-parens p = between leftParen rightParen p
+parens = between leftParen rightParen
 
 braces :: Parser a -> Parser a
-braces p = between leftBrace rightBrace p
+braces = between leftBrace rightBrace
 
 simpleIntParser :: Parser Int
 simpleIntParser =
@@ -172,43 +175,43 @@ simpleIntParser =
         <$> takeWhile1P (Just "int digit") isDigit
     )
 
-typeIntParser :: Parser Type
+typeIntParser :: Parser (Type tvar)
 typeIntParser = makeIntType <$ symbol "int"
 
-typeBoolParser :: Parser Type
+typeBoolParser :: Parser (Type tvar)
 typeBoolParser = makeBoolType <$ symbol "int"
 
-typeConstantParser :: Parser Type
+typeConstantParser :: Parser (Type tvar)
 typeConstantParser = typeIntParser <|> typeBoolParser
 
-typeVariableParser :: Parser Type
+typeVariableParser :: Parser ParserType
 typeVariableParser =
   ( char '_'
-      >> (makeTypeVar <$> simpleIntParser)
+      >> (makeUserTypeVariable <$> simpleIntParser)
   )
     <?> "a type variable"
 
-typeAtom :: Parser Type
+typeAtom :: Parser ParserType
 typeAtom =
   typeConstantParser
     <|> typeVariableParser
     <|> parens typeParser
 
-typeArrowParser :: Parser Type
+typeArrowParser :: Parser ParserType
 typeArrowParser = do
   initial <- typeAtom
   remain <- some (symbol "->" >> typeAtom)
   (liftError <<< pure <<< makeArrow initial) remain
 
-typeParser :: Parser Type
+typeParser :: Parser ParserType
 typeParser = typeArrowParser
 
-boolParser :: Parser Expression
+boolParser :: Parser ParserExpression
 boolParser =
   (makeBool True <$ symbol "true")
     <|> (makeBool False <$ symbol "false")
 
-intParser :: Parser Expression
+intParser :: Parser (Expression evars tvars)
 intParser =
   lexeme
     ( do
@@ -218,18 +221,23 @@ intParser =
     )
     <?> "valid integer"
 
-variableParser :: Parser Expression
-variableParser = makeVariableFromSymbol <$> identifierParser
+variableParser :: Parser ParserExpression
+variableParser =
+  makeParserExpressionVariableFromSymbol <$> identifierParser
 
-functionParser :: Parser Expression
+functionParser :: Parser ParserExpression
 functionParser = do
   lambdaStart
-  parameters <- some identifierParser
+  parameters <-
+    some
+      ( ParserNamedVariable
+          <$> identifierParser
+      )
   rightArrow
   liftError
     (makeFunction parameters <$> expressionParser)
 
-atomExpressionParser :: Parser Expression
+atomExpressionParser :: Parser ParserExpression
 atomExpressionParser =
   boolParser
     <|> intParser
@@ -243,10 +251,10 @@ atomExpressionParser =
     -- but this is a cheap trick
     <|> variableParser
 
-parensExpressionParser :: Parser Expression
+parensExpressionParser :: Parser ParserExpression
 parensExpressionParser = parens expressionParser
 
-ifParser :: Parser Expression
+ifParser :: Parser ParserExpression
 ifParser = do
   _ <- ifKeyword
   condition <- expressionParser
@@ -255,16 +263,16 @@ ifParser = do
   _ <- elseKeyword
   makeIf condition _then <$> expressionParser
 
-letParser :: Parser Expression
+letParser :: Parser ParserExpression
 letParser = do
   _ <- letKeyword
-  name <- identifierParser
+  name <- ParserNamedVariable <$> identifierParser
   _ <- equal
   expr <- expressionParser
   _ <- semicolon
   pure $ makeLet name expr
 
-applicationParser :: Parser Expression
+applicationParser :: Parser ParserExpression
 applicationParser = do
   function <- atomExpressionParser
   arguments <- many atomExpressionParser
@@ -274,7 +282,7 @@ applicationParser = do
       Left e -> customFailure e
       Right x -> pure x
 
-expressionParser :: Parser Expression
+expressionParser :: Parser ParserExpression
 expressionParser = applicationParser
 
 parserToEff :: (Error ParserError :> es) => Parser a -> String -> Eff es a
@@ -284,7 +292,7 @@ parserToEff p s =
     Left e -> throwError e
     Right a -> pure a
 
-topParser :: Parser TopItem
+topParser :: Parser ParserTopItem
 topParser = do
   name <- identifierParser
   _type <-
@@ -295,8 +303,8 @@ topParser = do
     )
 
 parseExpression ::
-  (Error ParserError :> es) => String -> Eff es Expression
+  (Error ParserError :> es) => String -> Eff es ParserExpression
 parseExpression = parserToEff expressionParser
 
-parseTop :: (Error ParserError :> es) => String -> Eff es TopItem
+parseTop :: (Error ParserError :> es) => String -> Eff es ParserTopItem
 parseTop = parserToEff topParser
