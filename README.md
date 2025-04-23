@@ -3,21 +3,21 @@ A functional programming language
 # Roadmap
 
 - Build a simple typed lambda calculus compiler with let and definitions
-    + Support for build-in booleans and ints
-    + Type checking
-    + A REPL
-    + Minimal standard library
-    + naive code generation (python)
-    + cps optimization
-    + sass optimization
-    + code generation (python, wasm)
-    + optional : module system
+  - Support for build-in booleans and ints
+  - Type checking
+  - A REPL
+  - Minimal standard library
+  - naive code generation (python)
+  - cps optimization
+  - sass optimization
+  - code generation (python, wasm)
+  - optional : module system
 - Addition of monomorphic records
 - Addition of sum types
 - Addition of parametric polymorphism
 - Optional:
-    + Typeclasses
-    + A fixed set of operators with fixed precedence
+  - Typeclasses
+  - A fixed set of operators with fixed precedence
 - Checked exceptions or effects
 - Code formatter
 - Treesitter grammar
@@ -123,3 +123,4 @@ check like
 
 ```
 nix build .\#format-check
+```

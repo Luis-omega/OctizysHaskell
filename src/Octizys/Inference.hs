@@ -161,6 +161,28 @@ checkUniqueVariables pevs =
           (MultipleDefinitions (fst <$> repeateds))
 
 
+checkNoDefinedVariable
+  :: ( Error TranslationError :> es
+     , State TranslationState :> es
+     )
+  => ParserExpressionVariable
+  -> Eff es ()
+checkNoDefinedVariable var = do
+  nameContext <- gets (contextByName <<< translationContext)
+  case HistoryMap.lookup var nameContext of
+    Just _ -> throwError (MultipleDefinitions [var])
+    Nothing -> pure ()
+
+
+checkNoDefinedVariables
+  :: ( Error TranslationError :> es
+     , State TranslationState :> es
+     )
+  => [ParserExpressionVariable]
+  -> Eff es ()
+checkNoDefinedVariables = mapM_ checkNoDefinedVariable
+
+
 {- | Registers a all the variables in
 | the context with a row that has empty
 | the expression field
@@ -173,6 +195,7 @@ registerEmpty
   -> Eff es [InferenceExpressionVar]
 registerEmpty pevs = do
   checkUniqueVariables pevs
+  checkNoDefinedVariables pevs
   rows <-
     mapM
       ( \item ->
@@ -203,6 +226,9 @@ registerEmpty pevs = do
   pure ((rowExpressionVariable <<< snd) <$> rows)
 
 
+{- | Get the information of a Expression variable
+if not found it raises a error
+-}
 lookupVariable
   :: ( Error TranslationError :> es
      , State TranslationState :> es
@@ -416,6 +442,9 @@ buildInferenceContextForItem item = do
   addExpressionToRow name newBody
 
 
+{- | Use it to add a lot of definitions at the
+beginning of context. Don't use later!
+-}
 buildInferenceContext
   :: ( Error TranslationError :> es
      , Writer
@@ -432,6 +461,17 @@ buildInferenceContext items = do
       (ParserNamedVariable <<< topItemName) <$> items
   mapM_ buildInferenceContextForItem items
   (contextById <<< translationContext) <$> get
+
+-- replAddDefinition ::
+--  ( Error TranslationError :> es,
+--    Writer
+--      [TranslationWarning]
+--      :> es,
+--    State TranslationState :> es
+--  ) =>
+--  ParserTopItem ->
+--  Eff es (Map InferenceExpressionVar Row)
+-- replAddDefinition topItem = undefined
 
 -- infer ::
 --   InferenceContext ->
