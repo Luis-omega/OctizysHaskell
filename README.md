@@ -1,4 +1,46 @@
-A JAM implementation made by the ConfiturePeanut team.
+A functional programming language
+
+# Roadmap
+
+- Build a simple typed lambda calculus compiler with let and definitions
+    + Type checking
+    + Support for build-in booleans and ints
+    + A REPL
+    + Minimal standard library
+    + naive code generation (python)
+    + cps optimization
+    + sass optimization
+    + code generation (python, wasm)
+    + optional : module system
+- Addition of monomorphic records
+- Addition of sum types
+- Addition of parametric polymorphism
+- Optional:
+    + Typeclasses
+    + A fixed set of operators with fixed precedence
+- Checked exceptions or effects
+- Code formatter
+- Treesitter grammar
+- Package manager
+
+# Examples
+
+```
+factorial_aux : int -> int -> int
+= {
+    \ n acc -> 
+        if lt n 2
+        then 
+            1
+        else
+            let new_n = minus n 1;
+                new_acc = mul n acc;
+            in
+                factorial_aux new_n new_acc
+}
+
+factorial : int -> int = { \ n -> factorial_aux n 1 } 
+```
 
 # Build and Development
 
@@ -81,9 +123,3 @@ check like
 
 ```
 nix build .\#format-check
-```
-
-# About ConfiturePeanut team.
-
-We are four Mexican friends wanting to participate in the JAM implementation
-contest.
