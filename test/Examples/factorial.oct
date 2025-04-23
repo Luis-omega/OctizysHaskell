@@ -23,9 +23,8 @@ factorial_acc_sass : int -> int -> int = {
       acc
     else
       let new_n = minus n 1;
-      in 
-        let new_acc = mul n acc;
-        in 
-          factorial_acc_sass new_n new_acc
+          new_acc = mul n acc;
+      in
+        factorial_acc_sass new_n new_acc
 }
 

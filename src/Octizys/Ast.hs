@@ -27,8 +27,10 @@ module Octizys.Ast
   , makeApplication
   , makeIf
   , makeLet
+  , makeLetDefinition
   , makeAnnotation
   , makeIntType
+  , LetDefinition (LetDefinitionC)
   , makeBoolType
   , makeArrow
   , makeTypeVar
@@ -49,6 +51,7 @@ module Octizys.Ast
   , ifThen
   , ifElse
   , letDefinition
+  , letDefinitions
   , letName
   , letIn
   , annotationType
@@ -74,6 +77,7 @@ data AstError
   | EmptyParameters
   | EmptyArguments
   | EmptyArrowCodomain
+  | EmptyLetDefinitions
   deriving (Show, Eq, Ord)
 
 
@@ -210,6 +214,27 @@ instance Pretty Literal where
       BoolLiteral b -> pretty b
 
 
+data LetDefinition vars tvars = LetDefinitionC
+  { letName :: vars
+  , letDefinition :: Expression vars tvars
+  }
+  deriving (Show)
+
+
+instance (Pretty vars, Pretty tvars) => Pretty (LetDefinition vars tvars) where
+  pretty LetDefinitionC {letName = _name, letDefinition = _definition} =
+    Pretty.group
+      ( pretty _name
+          <> Pretty.nest
+            2
+            ( Pretty.line
+                <> pretty "="
+                <> Pretty.nest 2 (Pretty.line <> pretty _definition)
+                <> pretty ";"
+            )
+      )
+
+
 data Expression vars tvars
   = LiteralExpression Literal
   | Variable vars
@@ -225,8 +250,7 @@ data Expression vars tvars
       , ifElse :: Expression vars tvars
       }
   | Let
-      { letName :: vars
-      , letDefinition :: Expression vars tvars
+      { letDefinitions :: [LetDefinition vars tvars]
       , letIn :: Expression vars tvars
       }
   | Annotation
@@ -289,23 +313,13 @@ instance (Pretty evars, Pretty tvars) => Pretty (Expression evars tvars) where
           , pretty "then" <> Pretty.nest 2 (Pretty.line <> pretty __then)
           , pretty "else" <> Pretty.nest 2 (Pretty.line <> pretty __else)
           ]
-      Let {letName = _name, letDefinition = _definition, letIn = _in} ->
+      Let {letDefinitions = definitions, letIn = _in} ->
         (Pretty.group <<< Pretty.vsep)
           [ pretty "let"
-              <> ( Pretty.group
-                    <<< Pretty.align
-                    <<< Pretty.nest
-                      2
-                 )
+              <> Pretty.nest
+                2
                 ( Pretty.line
-                    <> pretty _name
-                    <> Pretty.nest
-                      2
-                      ( Pretty.line
-                          <> pretty "="
-                          <> Pretty.nest 2 (Pretty.line <> pretty _definition)
-                          <> pretty ";"
-                      )
+                    <> Pretty.vsep (pretty <$> definitions)
                 )
           , pretty
               "in"
@@ -365,12 +379,21 @@ makeIf
 makeIf ifCondition ifThen ifElse = If {..}
 
 
-makeLet
+makeLetDefinition
   :: evars
   -> Expression evars tvars
+  -> LetDefinition evars tvars
+makeLetDefinition letName letDefinition = LetDefinitionC {..}
+
+
+makeLet
+  :: [LetDefinition evars tvars]
   -> Expression evars tvars
-  -> Expression evars tvars
-makeLet letName letDefinition letIn = Let {..}
+  -> Either AstError (Expression evars tvars)
+makeLet letDefinitions letIn =
+  case letDefinitions of
+    [] -> Left EmptyLetDefinitions
+    _ -> pure Let {..}
 
 
 makeAnnotation

@@ -33,10 +33,12 @@ import Effectful.Error.Dynamic (Error, throwError)
 import Octizys.Ast
   ( AstError
   , Expression
+  , LetDefinition (LetDefinitionC, letDefinition, letName)
   , ParserExpression
   , ParserExpressionVariable (ParserNamedVariable)
   , ParserTopItem
   , ParserType
+  , ParserTypeVariable
   , Symbol
   , Type
   , makeApplication
@@ -80,12 +82,22 @@ type ParserError = ParseErrorBundle String AstError
 type Parser = Parsec AstError String
 
 
+-- ==================== Auxiliary Functions =================
+
 uninplemented :: forall a. String -> Parser a
 uninplemented s = fail ("Uninplemented " <> s <> " parser")
 
 
 testParser :: Parser a -> String -> Either ParserError a
 testParser p = runParser p "test"
+
+
+parserToEff :: Error ParserError :> es => Parser a -> String -> Eff es a
+parserToEff p s =
+  -- TODO : remove this hardcore of "repl"
+  case parse p "repl" s of
+    Left e -> throwError e
+    Right a -> pure a
 
 
 withPredicate1 :: (a -> Bool) -> String -> Parser a -> Parser a
@@ -121,6 +133,16 @@ symbol :: String -> Parser String
 symbol = L.symbol sc
 
 
+charParser :: Char -> Parser ()
+charParser = void <<< lexeme <<< char
+
+
+keyword :: String -> Parser ()
+keyword = void <<< symbol
+
+
+-- ======================= Lexer ===========================
+
 identifierOrKeyword :: Parser Symbol
 identifierOrKeyword = lexeme $ do
   _head <- takeWhile1P (Just "identifier start character") isAlpha
@@ -146,14 +168,6 @@ identifierParser =
     )
     "keyword found, expected identifier"
     identifierOrKeyword
-
-
-charParser :: Char -> Parser ()
-charParser = void <<< lexeme <<< char
-
-
-keyword :: String -> Parser ()
-keyword = void <<< symbol
 
 
 colon :: Parser ()
@@ -220,6 +234,8 @@ braces :: Parser a -> Parser a
 braces = between leftBrace rightBrace
 
 
+-- ======================= Types ===========================
+
 typeIntParser :: Parser (Type tvar)
 typeIntParser = makeIntType <$ symbol "int"
 
@@ -257,6 +273,8 @@ typeParser :: Parser ParserType
 typeParser = typeArrowParser
 
 
+-- ======================= Literals ===========================
+
 boolParser :: Parser ParserExpression
 boolParser =
   (makeBool True <$ symbol "true")
@@ -273,6 +291,8 @@ intParser =
     )
     <?> "valid integer"
 
+
+-- ======================= Expression ===========================
 
 variableParser :: Parser ParserExpression
 variableParser =
@@ -321,15 +341,25 @@ ifParser = do
   makeIf condition _then <$> expressionParser
 
 
-letParser :: Parser ParserExpression
-letParser = do
-  _ <- letKeyword
+letDefinitionParser
+  :: Parser
+      ( LetDefinition ParserExpressionVariable ParserTypeVariable
+      )
+letDefinitionParser = do
   name <- ParserNamedVariable <$> identifierParser
   _ <- equal
   expr <- expressionParser
   _ <- semicolon
+  pure LetDefinitionC {letName = name, letDefinition = expr}
+
+
+letParser :: Parser ParserExpression
+letParser = do
+  _ <- letKeyword
+  definitions <- some (letDefinitionParser <?> "a definition")
   _ <- inKeyword
-  makeLet name expr <$> expressionParser
+  liftError $
+    makeLet definitions <$> expressionParser
 
 
 applicationParser :: Parser ParserExpression
@@ -347,13 +377,12 @@ expressionParser :: Parser ParserExpression
 expressionParser = applicationParser
 
 
-parserToEff :: Error ParserError :> es => Parser a -> String -> Eff es a
-parserToEff p s =
-  -- TODO : remove this hardcore of "repl"
-  case parse p "repl" s of
-    Left e -> throwError e
-    Right a -> pure a
+parseExpression
+  :: Error ParserError :> es => String -> Eff es ParserExpression
+parseExpression = parserToEff expressionParser
 
+
+-- ======================= Top ===========================
 
 topParser :: Parser ParserTopItem
 topParser = do
@@ -367,14 +396,11 @@ topParser = do
     <?> "definition expression "
 
 
-parseExpression
-  :: Error ParserError :> es => String -> Eff es ParserExpression
-parseExpression = parserToEff expressionParser
-
-
 parseTop :: Error ParserError :> es => String -> Eff es ParserTopItem
 parseTop = parserToEff topParser
 
+
+-- ======================= Module ===========================
 
 -- We don't have modules yet, this is more a `parse
 -- a bunch of definitions one after another` right now.

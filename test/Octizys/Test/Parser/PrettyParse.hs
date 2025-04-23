@@ -4,21 +4,23 @@ module Octizys.Test.Parser.PrettyParse (tests) where
 
 import Control.Arrow ((<<<))
 import Octizys.Parser
-  ( Parser,
-    eof,
-    errorBundlePretty,
-    expressionParser,
-    moduleParser,
-    testParser,
-    topParser,
-    typeParser,
+  ( Parser
+  , eof
+  , errorBundlePretty
+  , expressionParser
+  , moduleParser
+  , testParser
+  , topParser
+  , typeParser
   )
 import Octizys.Repl.Repl (render)
 import Prettyprinter (Pretty)
 import Test.Hspec
 
--- | This module is on charge of testing:
--- "(render <<< pretty <<< parser)"
+
+{- | This module is on charge of testing:
+"(render <<< pretty <<< parser)"
+-}
 tests :: SpecWith ()
 tests = do
   describe "expression parser" $ do
@@ -56,15 +58,17 @@ tests = do
   describe "module parser" $ do
     testPositiveFile "test/Examples/factorial.oct"
 
+
 cleanText :: String -> String
 cleanText = filter (`notElem` [' ', '\n', '\t', '\r'])
 
-makePositiveTest ::
-  forall a.
-  (Pretty a) =>
-  Parser a ->
-  String ->
-  SpecWith ()
+
+makePositiveTest
+  :: forall a
+   . Pretty a
+  => Parser a
+  -> String
+  -> SpecWith ()
 makePositiveTest p s =
   it s $ do
     let parsed = testParser p s
@@ -72,25 +76,29 @@ makePositiveTest p s =
       Right r -> cleanText (render r) `shouldBe` cleanText s
       Left e -> (expectationFailure <<< errorBundlePretty) e
 
+
 testPositiveExpression :: String -> SpecWith ()
 testPositiveExpression =
   makePositiveTest (expressionParser <* eof)
+
 
 testPositiveType :: String -> SpecWith ()
 testPositiveType =
   makePositiveTest (typeParser <* eof)
 
+
 testPositiveTopItem :: String -> SpecWith ()
 testPositiveTopItem =
   makePositiveTest (topParser <* eof)
 
-makePositiveFileTest ::
-  forall a.
-  (Pretty a) =>
-  Parser [a] ->
-  String ->
-  String ->
-  SpecWith ()
+
+makePositiveFileTest
+  :: forall a
+   . Pretty a
+  => Parser [a]
+  -> String
+  -> String
+  -> SpecWith ()
 makePositiveFileTest p path s =
   it path $ do
     let parsed = testParser p s
@@ -100,10 +108,12 @@ makePositiveFileTest p path s =
           `shouldBe` cleanText s
       Left e -> (expectationFailure <<< errorBundlePretty) e
 
+
 testPositiveFile :: String -> SpecWith ()
 testPositiveFile path = do
   content <- runIO $ readFile path
   makePositiveFileTest (moduleParser <* eof) path content
+
 
 fixtureFactorial :: String
 fixtureFactorial =

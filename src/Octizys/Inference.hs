@@ -47,14 +47,15 @@ import Octizys.Ast
       , ifCondition
       , ifElse
       , ifThen
-      , letDefinition
+      , letDefinitions
       , letIn
-      , letName
       )
+  , LetDefinition (LetDefinitionC, letDefinition, letName)
   , ParserExpression
   , ParserExpressionVariable (ParserNamedVariable)
   , ParserTopItem
   , ParserType
+  , ParserTypeVariable
   , TopItem (topItemBody, topItemName)
   , Type (Arrow, BoolType, IntType, TypeVar, arrowEnd, arrowInitial)
   , makeIf
@@ -288,6 +289,30 @@ transformType t =
     TypeVar _ -> (pure <<< TypeVar <<< InferenceTypeVarC) (-1)
 
 
+transformLetDefinition
+  :: ( Error TranslationError :> es
+     , Writer [TranslationWarning] :> es
+     , State TranslationState :> es
+     )
+  => LetDefinition ParserExpressionVariable ParserTypeVariable
+  -> Eff es (LetDefinition InferenceExpressionVar InferenceTypeVar)
+transformLetDefinition
+  LetDefinitionC
+    { letName =
+      _letName
+    , letDefinition = _letDefinition
+    } = do
+    -- We assume the main let transform already registered
+    -- the name!
+    newName <- rowExpressionVariable <$> lookupVariable _letName
+    newDefinition <- transform _letDefinition
+    pure $
+      LetDefinitionC
+        { letName = newName
+        , letDefinition = newDefinition
+        }
+
+
 transform
   :: ( Error TranslationError :> es
      , Writer [TranslationWarning] :> es
@@ -324,20 +349,18 @@ transform expr =
       newIfThen <- transform _then
       newIfElse <- transform _else
       pure $ makeIf newIfCondition newIfThen newIfElse
-    Let {letName = _letName, letDefinition = _letDefinition, letIn = _letIn} -> do
-      newNames <- registerEmpty [_letName]
-      newDefinition <- transform _letDefinition
+    Let {letDefinitions = definitions, letIn = _letIn} -> do
+      let names = letName <$> definitions
+      _ <- registerEmpty names
+      -- TODO : we should accumulate the errors on every
+      -- definition, then run anyways the transformation of
+      -- the In part and finally report all them at this point.
+      newDefinitions <- mapM transformLetDefinition definitions
       newIn <- transform _letIn
-      cleanupLetNames
-        [
-          ( _letName
-          , newDefinition
-          )
-        ]
+      cleanupLetNames (zip names (letDefinition <$> newDefinitions))
       pure
         Let
-          { letName = head newNames
-          , letDefinition = newDefinition
+          { letDefinitions = newDefinitions
           , letIn = newIn
           }
     Annotation {annotationExpression = ae, annotationType = at} -> do
