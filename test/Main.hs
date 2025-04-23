@@ -1,8 +1,9 @@
 module Main (main) where
 
-import qualified Dummy (tests)
 import Test.Hspec (hspec)
+import qualified Test.Parser.PrettyParse as Parser
 
 
 main :: IO ()
-main = hspec Dummy.tests
+main = do
+  hspec Parser.tests

@@ -33,11 +33,6 @@ module Ast
   , makeArrow
   , makeTypeVar
   , makeTypeHole
-  , prettyExpression
-  , prettyLiteral
-  , prettyType
-  , prettySymbol
-  , prettyTopItem
   , makeTopItem
   , symbolToString
   , makeVariableFromSymbol
@@ -66,7 +61,8 @@ where
 
 import Control.Arrow ((<<<))
 import Data.Bifunctor (Bifunctor (bimap))
-import Data.List (intercalate)
+import Prettyprinter (Pretty (pretty), (<+>))
+import qualified Prettyprinter as Pretty
 import Text.Megaparsec (ShowErrorComponent)
 import Text.Megaparsec.Error (ShowErrorComponent (showErrorComponent))
 
@@ -88,8 +84,8 @@ instance ShowErrorComponent AstError where
 newtype Symbol = SymbolC String deriving (Show, Eq, Ord)
 
 
-prettySymbol :: Symbol -> String
-prettySymbol (SymbolC s) = s
+instance Pretty Symbol where
+  pretty (SymbolC c) = pretty c
 
 
 -- TODO: Add logic to check symbols to be real symbols
@@ -106,6 +102,10 @@ data ParserTypeVariable
   deriving (Show, Eq, Ord)
 
 
+instance Pretty ParserTypeVariable where
+  pretty TypeHole = pretty "_"
+
+
 makeTypeHole :: ParserType
 makeTypeHole = TypeVar TypeHole
 
@@ -113,6 +113,10 @@ makeTypeHole = TypeVar TypeHole
 newtype ParserExpressionVariable
   = ParserNamedVariable Symbol
   deriving (Show, Eq, Ord)
+
+
+instance Pretty ParserExpressionVariable where
+  pretty (ParserNamedVariable s) = pretty s
 
 
 makeParserExpressionVariable
@@ -148,20 +152,35 @@ data Type vars
   deriving (Show)
 
 
-prettyType :: Show vars => Type vars -> String
-prettyType t =
+needsParentsInArrow :: Type vars -> Bool
+needsParentsInArrow t =
   case t of
-    IntType -> "int"
-    BoolType -> "bool"
-    Arrow {arrowInitial = _domain, arrowEnd = _codomain} ->
-      "( "
-        <> prettyType _domain
-        <> " -> "
-        <> intercalate
-          " -> "
-          (prettyType <$> _codomain)
-        <> " )"
-    TypeVar _ -> "_"
+    IntType -> False
+    BoolType -> False
+    Arrow {} -> True
+    TypeVar _ -> False
+
+
+instance Pretty vars => Pretty (Type vars) where
+  pretty t =
+    case t of
+      IntType -> pretty "int"
+      BoolType -> pretty "bool"
+      Arrow {arrowInitial = _domain, arrowEnd = _codomain} ->
+        (Pretty.group <<< Pretty.nest 2)
+          ( Pretty.line'
+              <> Pretty.concatWith
+                (\l r -> l <> Pretty.line <> pretty "->" <> r)
+                ( prettyArg
+                    <$> (_domain : _codomain)
+                )
+          )
+        where
+          prettyArg ty =
+            if needsParentsInArrow ty
+              then Pretty.parens (pretty ty)
+              else pretty ty
+      TypeVar v -> pretty v
 
 
 makeIntType :: Type vars
@@ -181,14 +200,14 @@ makeTypeVar :: vars -> Type vars
 makeTypeVar = TypeVar
 
 
-data Literal = IntLiteral Int | BoolLiteral Bool deriving (Show)
+data Literal = IntLiteral String | BoolLiteral Bool deriving (Show)
 
 
-prettyLiteral :: Literal -> String
-prettyLiteral l =
-  case l of
-    IntLiteral i -> show i
-    BoolLiteral b -> show b
+instance Pretty Literal where
+  pretty l =
+    case l of
+      IntLiteral i -> pretty i
+      BoolLiteral b -> pretty b
 
 
 data Expression vars tvars
@@ -217,58 +236,99 @@ data Expression vars tvars
   deriving (Show)
 
 
-prettyExpression
-  :: Show evars
-  => Show tvars
-  => Expression evars tvars
-  -> String
-prettyExpression e =
+needsParentsInApplication :: Expression evars tvars -> Bool
+needsParentsInApplication e =
   case e of
-    LiteralExpression l -> prettyLiteral l
-    -- TODO : if we use proper pretty printing we must correct this use of show
-    Variable s -> show s
-    Function {functionParameters = _parameters, functionBody = _body} ->
-      "\\ "
-        <> concatMap (\s -> show s <> " ") _parameters
-        <> "-> "
-        <> prettyExpression _body
-    Application
-      { applicationFunction =
-        _function
-      , applicationArguments = _arguments
-      } ->
-        "( "
-          <> prettyExpression _function
-          <> " "
-          <> concatMap (\expr -> prettyExpression expr <> " ") _arguments
-          <> ")"
-    If {ifCondition = _condition, ifThen = __then, ifElse = __else} ->
-      "if "
-        <> prettyExpression _condition
-        <> " then "
-        <> prettyExpression __then
-        <> " else "
-        <> prettyExpression __else
-    Let {letName = _name, letDefinition = _definition, letIn = _in} ->
-      "let "
-        <> show _name
-        <> " = "
-        <> prettyExpression _definition
-        <> " in "
-        <> prettyExpression _in
-    Annotation {annotationExpression = _expression, annotationType = __type} ->
-      "( "
-        <> prettyExpression _expression
-        <> " : "
-        <> prettyType __type
-        <> " )"
+    LiteralExpression _ -> False
+    Variable _ -> False
+    Function {} -> True
+    Application {} -> True
+    If {} -> True
+    Let {} -> True
+    Annotation {} -> True
+
+
+instance (Pretty evars, Pretty tvars) => Pretty (Expression evars tvars) where
+  pretty e =
+    case e of
+      LiteralExpression l -> pretty l
+      Variable s -> pretty s
+      Function {functionParameters = _parameters, functionBody = _body} ->
+        (Pretty.group <<< Pretty.vsep)
+          [ pretty "\\"
+              <> ( Pretty.group
+                    <<< Pretty.nest 2
+                 )
+                (Pretty.line <> Pretty.vsep (pretty <$> _parameters))
+          , pretty "->"
+              <> Pretty.line
+              <> Pretty.nest 2 (pretty _body)
+          ]
+      Application
+        { applicationFunction =
+          _function
+        , applicationArguments = _arguments
+        } ->
+          (Pretty.group <<< Pretty.nest 2)
+            ( Pretty.line'
+                <> prettyArg _function
+                <> Pretty.nest
+                  2
+                  ( Pretty.line
+                      <> Pretty.vsep (prettyArg <$> _arguments)
+                  )
+            )
+          where
+            prettyArg expr =
+              if needsParentsInApplication expr
+                then Pretty.parens (pretty expr)
+                else pretty expr
+      If {ifCondition = _condition, ifThen = __then, ifElse = __else} ->
+        (Pretty.group <<< Pretty.vsep)
+          [ pretty "if" <> Pretty.nest 2 (Pretty.line <> pretty _condition)
+          , pretty "then" <> Pretty.nest 2 (Pretty.line <> pretty __then)
+          , pretty "else" <> Pretty.nest 2 (Pretty.line <> pretty __else)
+          ]
+      Let {letName = _name, letDefinition = _definition, letIn = _in} ->
+        (Pretty.group <<< Pretty.vsep)
+          [ pretty "let"
+              <> ( Pretty.group
+                    <<< Pretty.align
+                    <<< Pretty.nest
+                      2
+                 )
+                ( Pretty.line
+                    <> pretty _name
+                    <> Pretty.nest
+                      2
+                      ( Pretty.line
+                          <> pretty "="
+                          <> Pretty.nest 2 (Pretty.line <> pretty _definition)
+                          <> pretty ";"
+                      )
+                )
+          , pretty
+              "in"
+              <> Pretty.nest 2 (Pretty.line <> pretty _in)
+          ]
+      Annotation {annotationExpression = _expression, annotationType = __type} ->
+        (Pretty.parens <<< Pretty.group)
+          ( pretty _expression
+              <> Pretty.line
+              <> Pretty.nest
+                2
+                ( pretty ":"
+                    <> Pretty.line
+                    <> pretty __type
+                )
+          )
 
 
 makeBool :: Bool -> Expression evars tvars
 makeBool = LiteralExpression . BoolLiteral
 
 
-makeInt :: Int -> Expression evars tvars
+makeInt :: String -> Expression evars tvars
 makeInt = LiteralExpression . IntLiteral
 
 
@@ -328,18 +388,28 @@ data TopItem evars tvars = Definition
   deriving (Show)
 
 
-prettyTopItem
-  :: Show evars
-  => Show tvars
-  => TopItem evars tvars
-  -> String
-prettyTopItem t =
-  prettySymbol (topItemName t)
-    <> " : "
-    <> prettyType (topItemType t)
-    <> " = { "
-    <> prettyExpression (topItemBody t)
-    <> " }"
+instance (Pretty evars, Pretty tvars) => Pretty (TopItem evars tvars) where
+  pretty t =
+    Pretty.group
+      ( pretty (topItemName t)
+          <+> pretty ":"
+          <> (Pretty.group <<< Pretty.nest 2)
+            ( Pretty.line
+                <> pretty (topItemType t)
+            )
+          <> Pretty.group
+            ( Pretty.line
+                <> pretty "="
+                <+> pretty "{"
+                <> Pretty.nest
+                  2
+                  ( Pretty.line
+                      <> pretty (topItemBody t)
+                  )
+                <> Pretty.line
+                <> pretty "}"
+            )
+      )
 
 
 makeTopItem

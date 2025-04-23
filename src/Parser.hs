@@ -9,8 +9,14 @@ module Parser
   , parseExpression
   , parserToEff
   , expressionParser
+  , typeParser
   , topParser
   , uninplemented
+  , testParser
+  , errorBundlePretty
+  , Text.Megaparsec.eof
+  , moduleParser
+  , parseModule
   )
 where
 
@@ -50,8 +56,11 @@ import Text.Megaparsec
   , between
   , customFailure
   , empty
+  , eof
+  , errorBundlePretty
   , many
   , parse
+  , runParser
   , some
   , (<?>)
   , (<|>)
@@ -68,6 +77,10 @@ type Parser = Parsec AstError String
 
 uninplemented :: forall a. String -> Parser a
 uninplemented s = fail ("Uninplemented " <> s <> " parser")
+
+
+testParser :: Parser a -> String -> Either ParserError a
+testParser p = runParser p "test"
 
 
 withPredicate1 :: (a -> Bool) -> String -> Parser a -> Parser a
@@ -207,7 +220,7 @@ typeIntParser = makeIntType <$ symbol "int"
 
 
 typeBoolParser :: Parser (Type tvar)
-typeBoolParser = makeBoolType <$ symbol "int"
+typeBoolParser = makeBoolType <$ symbol "bool"
 
 
 typeConstantParser :: Parser (Type tvar)
@@ -229,8 +242,10 @@ typeAtom =
 typeArrowParser :: Parser ParserType
 typeArrowParser = do
   initial <- typeAtom
-  remain <- some (symbol "->" >> typeAtom)
-  (liftError <<< pure <<< makeArrow initial) remain
+  remain <- many (symbol "->" >> typeAtom)
+  case remain of
+    [] -> pure initial
+    _ -> (liftError <<< pure <<< makeArrow initial) remain
 
 
 typeParser :: Parser ParserType
@@ -249,7 +264,7 @@ intParser =
     ( do
         _head <- takeWhile1P (Just "digit") isDigit
         others <- takeWhileP (Just "digit or _") (\c -> isDigit c || c == '_')
-        (pure <<< makeInt <<< read) (_head <> others)
+        (pure <<< makeInt) (_head <> others)
     )
     <?> "valid integer"
 
@@ -339,11 +354,12 @@ topParser :: Parser ParserTopItem
 topParser = do
   name <- identifierParser
   _type <-
-    colon >> (typeParser <|> typeHole)
+    (colon >> (typeParser <|> typeHole)) <?> "type signature for definition"
   equal
   braces
     ( makeTopItem name _type <$> expressionParser
     )
+    <?> "definition expression "
 
 
 parseExpression
@@ -353,3 +369,13 @@ parseExpression = parserToEff expressionParser
 
 parseTop :: Error ParserError :> es => String -> Eff es ParserTopItem
 parseTop = parserToEff topParser
+
+
+-- We don't have modules yet, this is more a `parse
+-- a bunch of definitions one after another` right now.
+moduleParser :: Parser [ParserTopItem]
+moduleParser = many (topParser <?> "a definition")
+
+
+parseModule :: Error ParserError :> es => String -> Eff es [ParserTopItem]
+parseModule = parserToEff moduleParser

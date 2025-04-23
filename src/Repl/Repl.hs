@@ -12,10 +12,10 @@ module Repl.Repl
   , runConsole
   , emptyState
   , ReplState (ReplState, translationState)
+  , render
   )
 where
 
-import Ast (prettyExpression, prettyTopItem)
 import Control.Arrow ((<<<))
 import Effectful (Eff, (:>))
 import Effectful.Error.Dynamic (Error, runErrorNoCallStackWith)
@@ -32,6 +32,8 @@ import qualified Inference
   , emptyState
   )
 import Parser (ParserError)
+import Prettyprinter (Pretty (pretty), defaultLayoutOptions, layoutPretty)
+import qualified Prettyprinter.Render.String
 import Repl.Ast (ReplCommand (Quit), ReplTop (Command, Define, Evaluate))
 import Repl.Console (Console, putLine, putString, readLine, runConsole)
 import Repl.Parser (replParserEff)
@@ -62,6 +64,13 @@ exit :: Eff es ReplStatus
 exit = pure Exit
 
 
+render :: forall a. Pretty a => a -> String
+render =
+  Prettyprinter.Render.String.renderString
+    <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
+    <<< pretty
+
+
 rep
   :: ( Console :> es
      , Error ParserError :> es
@@ -83,7 +92,7 @@ rep context = do
         >> exit
     Evaluate expression ->
       do
-        putLine $ prettyExpression expression
+        putLine $ render expression
         -- TODO: solve this
         -- (value, new_context) <- evaluateExpression context expression
         -- putLine (show value)
@@ -91,7 +100,7 @@ rep context = do
         continue context
     -- TODO: Type check/inference
     Define d -> do
-      putLine $ prettyTopItem d
+      putLine $ render d
       (_, newTranslationState) <-
         runState
           (translationState context)
