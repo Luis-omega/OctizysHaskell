@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Parser
+module Octizys.Parser
   ( ParserError
   , Parser
   , parseTop
@@ -25,7 +25,12 @@ module Parser
   )
 where
 
-import Ast
+import Control.Arrow ((<<<))
+import Data.Char (isAlpha, isAlphaNum, isDigit)
+import Data.Functor (void)
+import Effectful (Eff, (:>))
+import Effectful.Error.Dynamic (Error, throwError)
+import Octizys.Ast
   ( AstError
   , Expression
   , ParserExpression
@@ -49,11 +54,6 @@ import Ast
   , makeTypeHole
   , symbolToString
   )
-import Control.Arrow ((<<<))
-import Data.Char (isAlpha, isAlphaNum, isDigit)
-import Data.Functor (void)
-import Effectful (Eff, (:>))
-import Effectful.Error.Dynamic (Error, throwError)
 import Text.Megaparsec
   ( MonadParsec (lookAhead, takeWhile1P, takeWhileP)
   , ParseErrorBundle

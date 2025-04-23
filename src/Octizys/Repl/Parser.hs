@@ -1,12 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Repl.Parser (replParserEff) where
+module Octizys.Repl.Parser (replParserEff) where
 
 import Effectful (Eff, (:>))
 import Effectful.Error.Dynamic (Error)
 import GHC.Unicode (isAlphaNum)
-import Parser
+import Octizys.Parser
   ( Parser
   , ParserError
   , charParser
@@ -16,7 +16,7 @@ import Parser
   , sc
   , topParser
   )
-import Repl.Ast
+import Octizys.Repl.Ast
   ( ReplCommand (LoadFile, Quit)
   , ReplTop (Command, Define, Evaluate)
   )

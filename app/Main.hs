@@ -1,8 +1,8 @@
 module Main where
 
 import Effectful (runEff)
-import Repl.Console (runConsole)
-import Repl.Repl (emptyState, repl)
+import Octizys.Repl.Console (runConsole)
+import Octizys.Repl.Repl (emptyState, repl)
 
 
 main :: IO ()

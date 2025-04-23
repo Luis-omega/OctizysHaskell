@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Repl.Repl
+module Octizys.Repl.Repl
   ( repl
   , runConsole
   , emptyState
@@ -21,25 +21,28 @@ import Effectful (Eff, (:>))
 import Effectful.Error.Dynamic (Error, runErrorNoCallStackWith)
 import Effectful.State.Static.Local (runState)
 import Effectful.Writer.Static.Local (Writer, runWriter)
-import Evaluation (EvaluationError)
-import Inference
+import Octizys.Evaluation (EvaluationError)
+import Octizys.Inference
   ( TranslationState
   , TranslationWarning
   , buildInferenceContext
   )
-import qualified Inference
-  ( TranslationError
-  , emptyState
-  )
-import Parser (ParserError)
-import Prettyprinter (Pretty (pretty), defaultLayoutOptions, layoutPretty)
-import qualified Prettyprinter.Render.String
-import Repl.Ast
+import qualified Octizys.Inference as Inference
+import Octizys.Parser (ParserError)
+import Octizys.Repl.Ast
   ( ReplCommand (LoadFile, Quit)
   , ReplTop (Command, Define, Evaluate)
   )
-import Repl.Console (Console, putLine, putString, readLine, runConsole)
-import Repl.Parser (replParserEff)
+import Octizys.Repl.Console
+  ( Console
+  , putLine
+  , putString
+  , readLine
+  , runConsole
+  )
+import Octizys.Repl.Parser (replParserEff)
+import Prettyprinter (Pretty (pretty), defaultLayoutOptions, layoutPretty)
+import qualified Prettyprinter.Render.String
 import Text.Megaparsec (errorBundlePretty)
 import Text.Show.Pretty (ppShow)
 

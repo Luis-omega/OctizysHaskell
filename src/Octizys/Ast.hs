@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Ast
+module Octizys.Ast
   ( Expression
       ( LiteralExpression
       , Variable

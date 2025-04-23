@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Evaluation
+module Octizys.Evaluation
   ( EvaluationError
   , evaluateExpression
   , EvaluationExpressionVar (EvaluationExpressionVarC)
@@ -9,9 +9,9 @@ module Evaluation
   )
 where
 
-import Ast (Expression)
 import Effectful (Eff, (:>))
 import Effectful.Error.Dynamic (Error, throwError)
+import Octizys.Ast (Expression)
 
 
 data EvaluationError = UndefinedEvaluation deriving (Show)

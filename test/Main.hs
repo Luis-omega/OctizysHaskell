@@ -1,7 +1,7 @@
 module Main (main) where
 
+import qualified Octizys.Test.Parser.PrettyParse as Parser
 import Test.Hspec (hspec)
-import qualified Test.Parser.PrettyParse as Parser
 
 
 main :: IO ()

@@ -1,21 +1,20 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Test.Parser.PrettyParse (tests) where
+module Octizys.Test.Parser.PrettyParse (tests) where
 
 import Control.Arrow ((<<<))
-import Parser
-  ( Parser
-  , eof
-  , errorBundlePretty
-  , expressionParser
-  , testParser
-  , topParser
-  , typeParser
+import Octizys.Parser
+  ( Parser,
+    eof,
+    errorBundlePretty,
+    expressionParser,
+    testParser,
+    topParser,
+    typeParser,
   )
+import Octizys.Repl.Repl (render)
 import Prettyprinter (Pretty)
-import Repl.Repl (render)
 import Test.Hspec
-
 
 tests :: SpecWith ()
 tests = do
@@ -49,17 +48,15 @@ tests = do
     testPositiveTopItem
       "choose : bool -> int -> int -> int = { \\b x y -> if b then x else y }"
 
-
 cleanText :: String -> String
 cleanText = filter (`notElem` [' ', '\n', '\t', '\r'])
 
-
-makePositiveTest
-  :: forall a
-   . Pretty a
-  => Parser a
-  -> String
-  -> SpecWith ()
+makePositiveTest ::
+  forall a.
+  (Pretty a) =>
+  Parser a ->
+  String ->
+  SpecWith ()
 makePositiveTest p s =
   it s $ do
     let parsed = testParser p s
@@ -67,21 +64,17 @@ makePositiveTest p s =
       Right r -> cleanText (render r) `shouldBe` cleanText s
       Left e -> (expectationFailure <<< errorBundlePretty) e
 
-
 testPositiveExpression :: String -> SpecWith ()
 testPositiveExpression =
   makePositiveTest (expressionParser <* eof)
-
 
 testPositiveType :: String -> SpecWith ()
 testPositiveType =
   makePositiveTest (typeParser <* eof)
 
-
 testPositiveTopItem :: String -> SpecWith ()
 testPositiveTopItem =
   makePositiveTest (topParser <* eof)
-
 
 fixtureFactorial :: String
 fixtureFactorial =

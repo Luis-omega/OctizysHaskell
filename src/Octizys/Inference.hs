@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module Inference
+module Octizys.Inference
   ( InferenceError
   , InferenceExpressionVar (InferenceExpressionVarC)
   , InferenceTypeVar (InferenceTypeVarC)
@@ -21,7 +21,15 @@ module Inference
   )
 where
 
-import Ast
+import Control.Arrow ((<<<))
+import Control.Monad (unless)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Effectful (Eff, (:>))
+import Effectful.Error.Dynamic (Error, throwError)
+import Effectful.State.Static.Local (State, get, gets, modify)
+import Effectful.Writer.Static.Local (Writer, tell)
+import Octizys.Ast
   ( Expression
       ( Annotation
       , Application
@@ -51,15 +59,8 @@ import Ast
   , Type (Arrow, BoolType, IntType, TypeVar, arrowEnd, arrowInitial)
   , makeIf
   )
-import Control.Arrow ((<<<))
-import Control.Monad (unless)
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Effectful (Eff, (:>))
-import Effectful.Error.Dynamic (Error, throwError)
-import Effectful.State.Static.Local (State, get, gets, modify)
-import Effectful.Writer.Static.Local (Writer, tell)
-import HistoryMap (HistoryMap, empty, lookup, popChanges, pushChanges)
+import Octizys.HistoryMap (HistoryMap)
+import qualified Octizys.HistoryMap as HistoryMap
 
 
 data InferenceError = InferenceError deriving (Show)
