@@ -55,6 +55,7 @@
               pkgs.mdformat
               pkgs.typos
               pkgs.rlwrap
+              pkgs.just
             ];
           };
           defaultPackage = pkgs.stlc;

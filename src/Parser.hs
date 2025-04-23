@@ -349,7 +349,7 @@ expressionParser = applicationParser
 
 parserToEff :: Error ParserError :> es => Parser a -> String -> Eff es a
 parserToEff p s =
-  -- TODO : remove this harcode of "repl"
+  -- TODO : remove this hardcore of "repl"
   case parse p "repl" s of
     Left e -> throwError e
     Right a -> pure a

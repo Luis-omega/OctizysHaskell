@@ -24,7 +24,7 @@ import Effectful.Writer.Static.Local (Writer, runWriter)
 import Evaluation (EvaluationError)
 import Inference
   ( TranslationState
-  , TranslationWarrning
+  , TranslationWarning
   , buildInferenceContext
   )
 import qualified Inference
@@ -81,7 +81,7 @@ rep
      , Error Inference.TranslationError
         :> es
      , Writer
-        [Inference.TranslationWarrning]
+        [Inference.TranslationWarning]
         :> es
      )
   => ReplState
@@ -157,4 +157,4 @@ repl context = do
         <<< reportParserError context
         <<< reportError @EvaluationError context
     reportWarnings =
-      runWriter @[TranslationWarrning]
+      runWriter @[TranslationWarning]

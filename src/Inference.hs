@@ -13,7 +13,7 @@ module Inference
   , InferenceTopItem
   , TranslationState
   , TranslationError
-  , TranslationWarrning
+  , TranslationWarning
   , buildInferenceContext
   , transformType
   , transform
@@ -89,7 +89,7 @@ data TranslationError
 
 
 -- TODO : raise Shadowing concerns
-data TranslationWarrning = Warn deriving (Show)
+data TranslationWarning = Warn deriving (Show)
 
 
 data TranslationState = TranslationState
@@ -271,7 +271,7 @@ cleanupLetNames defs = do
 
 transformType
   :: ( Error TranslationError :> es
-     , Writer [TranslationWarrning] :> es
+     , Writer [TranslationWarning] :> es
      , State TranslationState :> es
      )
   => ParserType
@@ -289,7 +289,7 @@ transformType t =
 
 transform
   :: ( Error TranslationError :> es
-     , Writer [TranslationWarrning] :> es
+     , Writer [TranslationWarning] :> es
      , State TranslationState :> es
      )
   => ParserExpression
@@ -380,7 +380,7 @@ addExpressionToRow pev ie = do
 
 buildInferenceContextForItem
   :: ( Error TranslationError :> es
-     , Writer [TranslationWarrning] :> es
+     , Writer [TranslationWarning] :> es
      , State TranslationState :> es
      )
   => ParserTopItem
@@ -395,7 +395,7 @@ buildInferenceContextForItem item = do
 buildInferenceContext
   :: ( Error TranslationError :> es
      , Writer
-        [TranslationWarrning]
+        [TranslationWarning]
         :> es
      , State TranslationState :> es
      )
