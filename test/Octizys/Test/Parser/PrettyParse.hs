@@ -8,6 +8,7 @@ import Octizys.Parser
     eof,
     errorBundlePretty,
     expressionParser,
+    moduleParser,
     testParser,
     topParser,
     typeParser,
@@ -16,9 +17,11 @@ import Octizys.Repl.Repl (render)
 import Prettyprinter (Pretty)
 import Test.Hspec
 
+-- | This module is on charge of testing:
+-- "(render <<< pretty <<< parser)"
 tests :: SpecWith ()
 tests = do
-  describe "(render <<< pretty <<< parse)" $ do
+  describe "expression parser" $ do
     testPositiveExpression "1"
     testPositiveExpression "if True then 1 else 0"
     testPositiveExpression "let x = 42; in x 3 4"
@@ -26,6 +29,7 @@ tests = do
     testPositiveExpression "f a (b c) d"
     testPositiveExpression fixtureFactorial
 
+  describe "type parser" $ do
     testPositiveType "int"
     testPositiveType "bool"
 
@@ -38,6 +42,7 @@ tests = do
 
     testPositiveType "(int -> int) -> (bool -> bool)"
 
+  describe "definition parser" $ do
     testPositiveTopItem
       "fact : int -> int = { if lt n 2 then 1 else mul n (fact (minus n 1)) }"
     testPositiveTopItem
@@ -47,6 +52,9 @@ tests = do
     testPositiveTopItem "isZero : int -> bool = { \\n -> eq n 0 }"
     testPositiveTopItem
       "choose : bool -> int -> int -> int = { \\b x y -> if b then x else y }"
+
+  describe "module parser" $ do
+    testPositiveFile "test/Examples/factorial.oct"
 
 cleanText :: String -> String
 cleanText = filter (`notElem` [' ', '\n', '\t', '\r'])
@@ -75,6 +83,27 @@ testPositiveType =
 testPositiveTopItem :: String -> SpecWith ()
 testPositiveTopItem =
   makePositiveTest (topParser <* eof)
+
+makePositiveFileTest ::
+  forall a.
+  (Pretty a) =>
+  Parser [a] ->
+  String ->
+  String ->
+  SpecWith ()
+makePositiveFileTest p path s =
+  it path $ do
+    let parsed = testParser p s
+    case parsed of
+      Right r ->
+        (cleanText <<< concat) (render <$> r)
+          `shouldBe` cleanText s
+      Left e -> (expectationFailure <<< errorBundlePretty) e
+
+testPositiveFile :: String -> SpecWith ()
+testPositiveFile path = do
+  content <- runIO $ readFile path
+  makePositiveFileTest (moduleParser <* eof) path content
 
 fixtureFactorial :: String
 fixtureFactorial =

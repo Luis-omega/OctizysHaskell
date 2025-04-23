@@ -1,0 +1,31 @@
+factorial_standar : int -> int = {
+  \ n -> 
+    if lt n 2 
+    then 
+      1 
+    else 
+      mul n (factorial_standar (minus n 1))
+}
+
+factorial_acc : int -> int -> int = {
+  \ n acc ->
+    if lt n 2 
+    then
+      acc
+    else
+      factorial_acc (minus n 1) (mul n acc)
+}
+
+factorial_acc_sass : int -> int -> int = {
+  \ n acc ->
+    if lt n 2 
+    then
+      acc
+    else
+      let new_n = minus n 1;
+      in 
+        let new_acc = mul n acc;
+        in 
+          factorial_acc_sass new_n new_acc
+}
+
