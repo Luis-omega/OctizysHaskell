@@ -22,12 +22,12 @@ import Effectful.Error.Dynamic (Error, runErrorNoCallStackWith)
 import Effectful.State.Static.Local (runState)
 import Effectful.Writer.Static.Local (Writer, runWriter)
 import Octizys.Evaluation (EvaluationError)
-import Octizys.Inference
+import Octizys.Inference.Translation
   ( TranslationState
   , TranslationWarning
   , buildInferenceContext
   )
-import qualified Octizys.Inference as Inference
+import qualified Octizys.Inference.Translation as Inference
 import Octizys.Parser (ParserError)
 import Octizys.Repl.Ast
   ( ReplCommand (LoadFile, Quit)

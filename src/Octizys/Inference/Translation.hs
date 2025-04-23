@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module Octizys.Inference
+module Octizys.Inference.Translation
   ( InferenceError
   , InferenceExpressionVar (InferenceExpressionVarC)
   , InferenceTypeVar (InferenceTypeVarC)
@@ -461,28 +461,3 @@ buildInferenceContext items = do
       (ParserNamedVariable <<< topItemName) <$> items
   mapM_ buildInferenceContextForItem items
   (contextById <<< translationContext) <$> get
-
--- replAddDefinition ::
---  ( Error TranslationError :> es,
---    Writer
---      [TranslationWarning]
---      :> es,
---    State TranslationState :> es
---  ) =>
---  ParserTopItem ->
---  Eff es (Map InferenceExpressionVar Row)
--- replAddDefinition topItem = undefined
-
--- infer ::
---   InferenceContext ->
---   InferenceExpression ->
---   Either InferenceError InferenceType
--- infer = error "infer is unimplemented yet!"
---
--- check ::
---   InferenceContext ->
---   InferenceExpression ->
---   InferenceType ->
---   Either InferenceError ()
-
--- check = error "check is unimplemented yet!"

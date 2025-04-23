@@ -91,7 +91,8 @@ library
     Octizys.Ast
     Octizys.Evaluation
     Octizys.HistoryMap
-    Octizys.Inference
+    Octizys.Inference.Inference
+    Octizys.Inference.Translation
     Octizys.Parser
     Octizys.Repl.Ast
     Octizys.Repl.Console
