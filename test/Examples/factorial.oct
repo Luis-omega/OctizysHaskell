@@ -1,10 +1,10 @@
-factorial_standar : int -> int = {
+factorial_standard : int -> int = {
   \ n -> 
     if lt n 2 
     then 
       1 
     else 
-      mul n (factorial_standar (minus n 1))
+      mul n (factorial_standard (minus n 1))
 }
 
 factorial_acc : int -> int -> int = {
