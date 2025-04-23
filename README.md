@@ -3,8 +3,8 @@ A functional programming language
 # Roadmap
 
 - Build a simple typed lambda calculus compiler with let and definitions
-    + Type checking
     + Support for build-in booleans and ints
+    + Type checking
     + A REPL
     + Minimal standard library
     + naive code generation (python)
