@@ -17,6 +17,11 @@ module Parser
   , Text.Megaparsec.eof
   , moduleParser
   , parseModule
+  , sc
+  , lexeme
+  , symbol
+  , charParser
+  , keyword
   )
 where
 
@@ -374,7 +379,7 @@ parseTop = parserToEff topParser
 -- We don't have modules yet, this is more a `parse
 -- a bunch of definitions one after another` right now.
 moduleParser :: Parser [ParserTopItem]
-moduleParser = many (topParser <?> "a definition")
+moduleParser = sc >> many (topParser <?> "a definition")
 
 
 parseModule :: Error ParserError :> es => String -> Eff es [ParserTopItem]

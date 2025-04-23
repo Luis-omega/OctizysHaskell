@@ -1,9 +1,9 @@
-module Repl.Ast (ReplCommand (Quit), ReplTop (Evaluate, Define, Command)) where
+module Repl.Ast (ReplCommand (Quit, LoadFile), ReplTop (Evaluate, Define, Command)) where
 
 import Ast (ParserExpression, ParserTopItem)
 
 
-data ReplCommand = Quit
+data ReplCommand = Quit | LoadFile String
 
 
 data ReplTop

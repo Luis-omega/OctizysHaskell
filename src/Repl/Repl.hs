@@ -34,7 +34,10 @@ import qualified Inference
 import Parser (ParserError)
 import Prettyprinter (Pretty (pretty), defaultLayoutOptions, layoutPretty)
 import qualified Prettyprinter.Render.String
-import Repl.Ast (ReplCommand (Quit), ReplTop (Command, Define, Evaluate))
+import Repl.Ast
+  ( ReplCommand (LoadFile, Quit)
+  , ReplTop (Command, Define, Evaluate)
+  )
 import Repl.Console (Console, putLine, putString, readLine, runConsole)
 import Repl.Parser (replParserEff)
 import Text.Megaparsec (errorBundlePretty)
@@ -90,6 +93,9 @@ rep context = do
     Command Quit ->
       putLine "Bye!"
         >> exit
+    Command (LoadFile f) -> do
+      putLine $ "Unsupporte load of file: " <> f
+      continue context
     Evaluate expression ->
       do
         putLine $ render expression
