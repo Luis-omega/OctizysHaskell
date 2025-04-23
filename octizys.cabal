@@ -12,7 +12,7 @@ cabal-version:   3.0
 --   http://haskell.org/cabal/users-guide/
 --
 -- The name of the package.
-name:            stlc
+name:            octizys
 
 -- The package version.
 -- See the Haskell package versioning policy (PVP) for standards
@@ -43,7 +43,7 @@ maintainer:      73986926+Luis-omega@users.noreply.github.com
 
 -- A copyright notice.
 -- copyright:
-category:        STLC
+category:        Language
 build-type:      Simple
 
 -- Extra doc files to be distributed with the package, such as a CHANGELOG or a README.
@@ -88,15 +88,15 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
-    Ast
-    Evaluation
-    HistoryMap
-    Inference
-    Parser
-    Repl.Ast
-    Repl.Console
-    Repl.Parser
-    Repl.Repl
+    Octizys.Ast
+    Octizys.Evaluation
+    Octizys.HistoryMap
+    Octizys.Inference
+    Octizys.Parser
+    Octizys.Repl.Ast
+    Octizys.Repl.Console
+    Octizys.Repl.Parser
+    Octizys.Repl.Repl
 
   -- Modules included in this library but not exported.
   -- other-modules:
@@ -116,6 +116,7 @@ library
     , pretty-show
     , prettyprinter
     , template-haskell
+    , QuickCheck
 
   -- Directories containing source files.
   hs-source-dirs:   src
@@ -123,7 +124,7 @@ library
   -- Base language which the package is written in.
   default-language: Haskell2010
 
-executable stlc
+executable octizys
   -- Import common warning flags.
   import:
     warnings
@@ -142,7 +143,7 @@ executable stlc
   build-depends:
     , base       ^>=4.18.2.1
     , effectful
-    , stlc
+    , octizys
 
   -- Directories containing source files.
   hs-source-dirs:   app
@@ -150,7 +151,7 @@ executable stlc
   -- Base language which the package is written in.
   default-language: Haskell2010
 
-test-suite stlc-test
+test-suite octizys-test
   -- Import common warning flags.
   import:
     warnings,
@@ -172,7 +173,7 @@ test-suite stlc-test
   main-is:          Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules:    Test.Parser.PrettyParse
+  other-modules:    Octizys.Test.Parser.PrettyParse
 
   -- Test dependencies.
   build-depends:
@@ -180,4 +181,4 @@ test-suite stlc-test
     , hspec
     , prettyprinter
     , QuickCheck
-    , stlc
+    , octizys

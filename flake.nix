@@ -14,10 +14,10 @@
             hfinal: hprev:
             prev.haskell.packageOverrides hfinal hprev
               // {
-              stlc = hfinal.callCabal2nix "stlc" ./. { };
+              octizys = hfinal.callCabal2nix "octizys" ./. { };
             };
         };
-        stlc = final.haskell.lib.compose.justStaticExecutables final.haskellPackages.stlc;
+        octizys = final.haskell.lib.compose.justStaticExecutables final.haskellPackages.octizys;
       };
       perSystem =
         system:
@@ -44,7 +44,7 @@
         {
           devShell = hspkgs.shellFor {
             withHoogle = true;
-            packages = p: [ p.stlc ];
+            packages = p: [ p.octizys ];
             buildInputs = [
               hspkgs.cabal-install
               hspkgs.cabal-fmt
@@ -58,7 +58,7 @@
               pkgs.just
             ];
           };
-          defaultPackage = pkgs.stlc;
+          defaultPackage = pkgs.octizys;
           formatter = treefmtEval.config.build.wrapper;
           checks = {
             formatting = treefmtEval.config.build.check inputs.self;
