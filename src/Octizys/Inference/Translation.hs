@@ -5,12 +5,10 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Octizys.Inference.Translation
-  ( InferenceError
-  , InferenceExpressionVar (InferenceExpressionVarC)
-  , InferenceTypeVar (InferenceTypeVarC)
+  ( InferenceExpressionVar (InferenceExpressionVarC)
+  , InferenceTypeVar (UserDeclaredVar, MetaVar, RealExpressionVar)
   , InferenceExpression
   , InferenceType
-  , InferenceTopItem
   , TranslationState
   , TranslationError
   , TranslationWarning
@@ -18,6 +16,7 @@ module Octizys.Inference.Translation
   , transformType
   , transform
   , emptyState
+  , Row
   )
 where
 
@@ -56,6 +55,7 @@ import Octizys.Ast
   , ParserTopItem
   , ParserType
   , ParserTypeVariable
+  , Symbol
   , TopItem (topItemBody, topItemName)
   , Type (Arrow, BoolType, IntType, TypeVar, arrowEnd, arrowInitial)
   , makeIf
@@ -64,10 +64,14 @@ import Octizys.HistoryMap (HistoryMap)
 import qualified Octizys.HistoryMap as HistoryMap
 
 
-data InferenceError = InferenceError deriving (Show)
-
-
-newtype InferenceTypeVar = InferenceTypeVarC Int deriving (Show)
+data InferenceTypeVar
+  = -- | assigned to some expression variable
+    RealExpressionVar Int
+  | -- | variable introduced artificially
+    MetaVar Int
+  | -- | introduced explicitly by the user
+    UserDeclaredVar Int Symbol
+  deriving (Show)
 
 
 newtype InferenceExpressionVar = InferenceExpressionVarC Int
@@ -76,9 +80,6 @@ newtype InferenceExpressionVar = InferenceExpressionVarC Int
 
 type InferenceExpression =
   Expression InferenceExpressionVar InferenceTypeVar
-
-
-type InferenceTopItem = TopItem InferenceExpressionVar InferenceTypeVar
 
 
 type InferenceType = Type InferenceTypeVar
@@ -250,12 +251,15 @@ freshExpressionVar = do
   InferenceExpressionVarC <$> gets nextExpressionVarId
 
 
+{- | Generate a new type variable that is tied to some
+expression variable.
+-}
 freshTypeVar
   :: State TranslationState :> es
   => Eff es InferenceTypeVar
 freshTypeVar = do
   modify $ \s -> s {nextTypeVarId = nextTypeVarId s + 1}
-  InferenceTypeVarC <$> gets nextTypeVarId
+  RealExpressionVar <$> gets nextTypeVarId
 
 
 freshRow
@@ -312,7 +316,9 @@ transformType t =
       ini <- transformType arrowInitial
       end <- mapM transformType arrowEnd
       pure Arrow {arrowInitial = ini, arrowEnd = end}
-    TypeVar _ -> (pure <<< TypeVar <<< InferenceTypeVarC) (-1)
+    -- TODO: raise error here? we don't support type vars
+    -- in the parser or anywhere else yet.
+    TypeVar _ -> (pure <<< TypeVar <<< RealExpressionVar) (-1)
 
 
 transformLetDefinition
