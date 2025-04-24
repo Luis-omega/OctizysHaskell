@@ -5,9 +5,10 @@ module Octizys.Inference.Inference where
 
 import Control.Monad (foldM)
 import Data.Map (Map)
+import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
-import Effectful.State.Static.Local (State)
+import Effectful.State.Static.Local (State, gets)
 import Octizys.Ast
   ( Expression
       ( Annotation
@@ -30,14 +31,16 @@ import Octizys.Ast
       , letIn
       )
   , LetDefinition (letDefinition, letName)
-  , Literal
-  , Type (Arrow, BoolType, arrowEnd, arrowInitial)
+  , Literal (BoolLiteral, IntLiteral)
+  , Type (Arrow, BoolType, IntType, arrowEnd, arrowInitial)
   )
 import Octizys.Inference.Translation
   ( InferenceExpression
   , InferenceExpressionVar
   , InferenceType
   , InferenceTypeVar
+  , Row (rowTypeVariable)
+  , TranslationState
   )
 import qualified Octizys.Inference.Translation as Translation
 
@@ -68,8 +71,18 @@ data InferenceState = InferenceStateC
   }
 
 
+addTranslation
+  :: TranslationState
+  -> InferenceState
+  -> InferenceState
+addTranslation = undefined
+
+
+-- Update the
+
 inferLiteral :: Literal -> InferenceType
-inferLiteral _ = undefined "inferLiteral"
+inferLiteral (IntLiteral _) = IntType
+inferLiteral (BoolLiteral _) = BoolType
 
 
 -- | Looks on the associationMap, raise Error if not found
@@ -79,7 +92,16 @@ lookupExpressionVar
      )
   => InferenceExpressionVar
   -> Eff es InferenceType
-lookupExpressionVar = undefined "lookupVar"
+lookupExpressionVar var = do
+  assocMap <- gets associationMap
+  case Map.lookup var assocMap of
+    Just row -> do
+      let typeVar = rowTypeVariable row
+      typeVarsToTypes <- gets associatedVariablesMap
+      case Map.lookup typeVar typeVarsToTypes of
+        Just value -> pure value
+        Nothing -> throwError (UnboundTypeVar typeVar)
+    Nothing -> throwError (UnboundExpressionVar var)
 
 
 unify

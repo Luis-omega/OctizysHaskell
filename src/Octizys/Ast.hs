@@ -18,7 +18,7 @@ module Octizys.Ast
   , arrowEnd
   , TopItem
   , Symbol
-  , Literal
+  , Literal (IntLiteral, BoolLiteral)
   , makeSymbol
   , makeBool
   , makeInt

@@ -17,6 +17,8 @@ module Octizys.Inference.Translation
   , transform
   , emptyState
   , Row
+  , rowTypeVariable
+  , Context
   )
 where
 
@@ -71,7 +73,7 @@ data InferenceTypeVar
     MetaVar Int
   | -- | introduced explicitly by the user
     UserDeclaredVar Int Symbol
-  deriving (Show)
+  deriving (Show, Eq, Ord)
 
 
 newtype InferenceExpressionVar = InferenceExpressionVarC Int
@@ -93,24 +95,6 @@ data TranslationError
 
 -- TODO : raise Shadowing concerns
 data TranslationWarning = Warn deriving (Show)
-
-
-data TranslationState = TranslationState
-  { translationContext :: Context
-  , nextExpressionVarId :: Int
-  , nextTypeVarId :: Int
-  }
-  deriving (Show)
-
-
-emptyState :: TranslationState
-emptyState =
-  TranslationState
-    { translationContext =
-        emptyContext
-    , nextExpressionVarId = 0
-    , nextTypeVarId = 0
-    }
 
 
 data Row = RowC
@@ -135,6 +119,24 @@ emptyContext =
   ContextC
     { contextByName = HistoryMap.empty
     , contextById = Map.empty
+    }
+
+
+data TranslationState = TranslationState
+  { translationContext :: Context
+  , nextExpressionVarId :: Int
+  , nextTypeVarId :: Int
+  }
+  deriving (Show)
+
+
+emptyState :: TranslationState
+emptyState =
+  TranslationState
+    { translationContext =
+        emptyContext
+    , nextExpressionVarId = 0
+    , nextTypeVarId = 0
     }
 
 
