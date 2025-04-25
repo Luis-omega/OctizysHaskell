@@ -89,6 +89,7 @@ library
   -- Modules exported by the library.
   exposed-modules:
     Octizys.Ast
+    Octizys.Effects.Generator
     Octizys.Evaluation
     Octizys.HistoryMap
     Octizys.Inference.Inference
