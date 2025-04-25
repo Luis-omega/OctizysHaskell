@@ -22,6 +22,14 @@ module Octizys.Parser
   , symbol
   , charParser
   , keyword
+  , makeTypeHole
+  , makeExpressionVariable
+  , makeExpressionVariableFromSymbol
+  , Type
+  , TopItem
+  , Expression
+  , ExpressionVariable (ExpressionVariableC)
+  , TypeVariable
   )
 where
 
@@ -32,15 +40,8 @@ import Effectful (Eff, (:>))
 import Effectful.Error.Dynamic (Error, throwError)
 import Octizys.Ast
   ( AstError
-  , Expression
   , LetDefinition (LetDefinitionC, letDefinition, letName)
-  , ParserExpression
-  , ParserExpressionVariable (ParserNamedVariable)
-  , ParserTopItem
-  , ParserType
-  , ParserTypeVariable
   , Symbol
-  , Type
   , makeApplication
   , makeArrow
   , makeBool
@@ -50,12 +51,12 @@ import Octizys.Ast
   , makeInt
   , makeIntType
   , makeLet
-  , makeParserExpressionVariableFromSymbol
   , makeSymbol
   , makeTopItem
-  , makeTypeHole
   , symbolToString
   )
+import qualified Octizys.Ast as Ast
+import Prettyprinter (Pretty (pretty))
 import Text.Megaparsec
   ( MonadParsec (lookAhead, takeWhile1P, takeWhileP)
   , ParseErrorBundle
@@ -74,6 +75,53 @@ import Text.Megaparsec
   )
 import qualified Text.Megaparsec.Byte.Lexer as L
 import Text.Megaparsec.Char (char, space1)
+
+
+data TypeVariable
+  = TypeHole
+  deriving (Show, Eq, Ord)
+
+
+instance Pretty TypeVariable where
+  pretty TypeHole = pretty "_"
+
+
+makeTypeHole :: Ast.Type TypeVariable
+makeTypeHole = Ast.TypeVar TypeHole
+
+
+newtype ExpressionVariable
+  = ExpressionVariableC Symbol
+  deriving (Show, Eq, Ord)
+
+
+instance Pretty ExpressionVariable where
+  pretty (ExpressionVariableC s) = pretty s
+
+
+makeExpressionVariable
+  :: String
+  -> Either AstError Expression
+makeExpressionVariable s =
+  makeExpressionVariableFromSymbol <$> makeSymbol s
+
+
+makeExpressionVariableFromSymbol
+  :: Symbol
+  -> Expression
+makeExpressionVariableFromSymbol =
+  Ast.Variable <<< ExpressionVariableC
+
+
+type Type = Ast.Type TypeVariable
+
+
+type Expression =
+  Ast.Expression ExpressionVariable TypeVariable
+
+
+type TopItem =
+  Ast.TopItem ExpressionVariable TypeVariable
 
 
 type ParserError = ParseErrorBundle String AstError
@@ -236,31 +284,31 @@ braces = between leftBrace rightBrace
 
 -- ======================= Types ===========================
 
-typeIntParser :: Parser (Type tvar)
+typeIntParser :: Parser (Ast.Type tvar)
 typeIntParser = makeIntType <$ symbol "int"
 
 
-typeBoolParser :: Parser (Type tvar)
+typeBoolParser :: Parser (Ast.Type tvar)
 typeBoolParser = makeBoolType <$ symbol "bool"
 
 
-typeConstantParser :: Parser (Type tvar)
+typeConstantParser :: Parser (Ast.Type tvar)
 typeConstantParser = typeIntParser <|> typeBoolParser
 
 
-typeHole :: Parser ParserType
+typeHole :: Parser Type
 typeHole =
   (makeTypeHole <$ lexeme (char '_'))
     <?> "a type variable"
 
 
-typeAtom :: Parser ParserType
+typeAtom :: Parser Type
 typeAtom =
   typeConstantParser
     <|> parens typeParser
 
 
-typeArrowParser :: Parser ParserType
+typeArrowParser :: Parser Type
 typeArrowParser = do
   initial <- typeAtom
   remain <- many (symbol "->" >> typeAtom)
@@ -269,19 +317,19 @@ typeArrowParser = do
     _ -> (liftError <<< pure <<< makeArrow initial) remain
 
 
-typeParser :: Parser ParserType
+typeParser :: Parser Type
 typeParser = typeArrowParser
 
 
 -- ======================= Literals ===========================
 
-boolParser :: Parser ParserExpression
+boolParser :: Parser Expression
 boolParser =
   (makeBool True <$ symbol "true")
     <|> (makeBool False <$ symbol "false")
 
 
-intParser :: Parser (Expression evars tvars)
+intParser :: Parser (Ast.Expression evars tvars)
 intParser =
   lexeme
     ( do
@@ -294,17 +342,17 @@ intParser =
 
 -- ======================= Expression ===========================
 
-variableParser :: Parser ParserExpression
+variableParser :: Parser Expression
 variableParser =
-  makeParserExpressionVariableFromSymbol <$> identifierParser
+  makeExpressionVariableFromSymbol <$> identifierParser
 
 
-functionParser :: Parser ParserExpression
+functionParser :: Parser Expression
 functionParser = do
   lambdaStart
   parameters <-
     some
-      ( ParserNamedVariable
+      ( ExpressionVariableC
           <$> identifierParser
       )
   rightArrow
@@ -312,7 +360,7 @@ functionParser = do
     (makeFunction parameters <$> expressionParser)
 
 
-atomExpressionParser :: Parser ParserExpression
+atomExpressionParser :: Parser Expression
 atomExpressionParser =
   boolParser
     <|> intParser
@@ -327,11 +375,11 @@ atomExpressionParser =
     <|> variableParser
 
 
-parensExpressionParser :: Parser ParserExpression
+parensExpressionParser :: Parser Expression
 parensExpressionParser = parens expressionParser
 
 
-ifParser :: Parser ParserExpression
+ifParser :: Parser Expression
 ifParser = do
   _ <- ifKeyword
   condition <- expressionParser
@@ -343,17 +391,17 @@ ifParser = do
 
 letDefinitionParser
   :: Parser
-      ( LetDefinition ParserExpressionVariable ParserTypeVariable
+      ( LetDefinition ExpressionVariable TypeVariable
       )
 letDefinitionParser = do
-  name <- ParserNamedVariable <$> identifierParser
+  name <- ExpressionVariableC <$> identifierParser
   _ <- equal
   expr <- expressionParser
   _ <- semicolon
   pure LetDefinitionC {letName = name, letDefinition = expr}
 
 
-letParser :: Parser ParserExpression
+letParser :: Parser Expression
 letParser = do
   _ <- letKeyword
   definitions <- some (letDefinitionParser <?> "a definition")
@@ -362,7 +410,7 @@ letParser = do
     makeLet definitions <$> expressionParser
 
 
-applicationParser :: Parser ParserExpression
+applicationParser :: Parser Expression
 applicationParser = do
   function <- atomExpressionParser
   arguments <- many atomExpressionParser
@@ -373,18 +421,18 @@ applicationParser = do
       Right x -> pure x
 
 
-expressionParser :: Parser ParserExpression
+expressionParser :: Parser Expression
 expressionParser = applicationParser
 
 
 parseExpression
-  :: Error ParserError :> es => String -> Eff es ParserExpression
+  :: Error ParserError :> es => String -> Eff es Expression
 parseExpression = parserToEff expressionParser
 
 
 -- ======================= Top ===========================
 
-topParser :: Parser ParserTopItem
+topParser :: Parser TopItem
 topParser = do
   name <- identifierParser
   _type <-
@@ -396,7 +444,7 @@ topParser = do
     <?> "definition expression "
 
 
-parseTop :: Error ParserError :> es => String -> Eff es ParserTopItem
+parseTop :: Error ParserError :> es => String -> Eff es TopItem
 parseTop = parserToEff topParser
 
 
@@ -404,9 +452,9 @@ parseTop = parserToEff topParser
 
 -- We don't have modules yet, this is more a `parse
 -- a bunch of definitions one after another` right now.
-moduleParser :: Parser [ParserTopItem]
+moduleParser :: Parser [TopItem]
 moduleParser = sc >> many (topParser <?> "a definition")
 
 
-parseModule :: Error ParserError :> es => String -> Eff es [ParserTopItem]
+parseModule :: Error ParserError :> es => String -> Eff es [TopItem]
 parseModule = parserToEff moduleParser

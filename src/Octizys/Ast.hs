@@ -34,17 +34,9 @@ module Octizys.Ast
   , makeBoolType
   , makeArrow
   , makeTypeVar
-  , makeTypeHole
   , makeTopItem
   , symbolToString
   , makeVariableFromSymbol
-  , ParserType
-  , ParserExpression
-  , ParserTypeVariable (TypeHole)
-  , ParserExpressionVariable (ParserNamedVariable)
-  , makeParserExpressionVariable
-  , makeParserExpressionVariableFromSymbol
-  , ParserTopItem
   , applicationArguments
   , applicationFunction
   , ifCondition
@@ -99,53 +91,6 @@ makeSymbol = pure . SymbolC
 
 symbolToString :: Symbol -> String
 symbolToString (SymbolC s) = s
-
-
-data ParserTypeVariable
-  = TypeHole
-  deriving (Show, Eq, Ord)
-
-
-instance Pretty ParserTypeVariable where
-  pretty TypeHole = pretty "_"
-
-
-makeTypeHole :: ParserType
-makeTypeHole = TypeVar TypeHole
-
-
-newtype ParserExpressionVariable
-  = ParserNamedVariable Symbol
-  deriving (Show, Eq, Ord)
-
-
-instance Pretty ParserExpressionVariable where
-  pretty (ParserNamedVariable s) = pretty s
-
-
-makeParserExpressionVariable
-  :: String
-  -> Either AstError ParserExpression
-makeParserExpressionVariable s =
-  makeParserExpressionVariableFromSymbol <$> makeSymbol s
-
-
-makeParserExpressionVariableFromSymbol
-  :: Symbol
-  -> ParserExpression
-makeParserExpressionVariableFromSymbol =
-  Variable <<< ParserNamedVariable
-
-
-type ParserType = Type ParserTypeVariable
-
-
-type ParserExpression =
-  Expression ParserExpressionVariable ParserTypeVariable
-
-
-type ParserTopItem =
-  TopItem ParserExpressionVariable ParserTypeVariable
 
 
 data Type vars

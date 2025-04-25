@@ -35,33 +35,32 @@ import Octizys.Ast
   , Type (Arrow, BoolType, IntType, arrowEnd, arrowInitial)
   )
 import Octizys.Inference.Translation
-  ( InferenceExpression
-  , InferenceExpressionVar
+  ( ExpressionVariable
+  , InferenceExpression
   , InferenceType
-  , InferenceTypeVar
-  , Row (rowTypeVariable)
   , TranslationState
+  , TypeVariable
+  , VariableInformation (informationTypeVariableId)
   )
-import qualified Octizys.Inference.Translation as Translation
 
 
 data InferenceError
   = -- This shouldn't happen, is a bug.
     FunctionWithoutParams InferenceExpression
   | -- This is a bug in the translation process
-    UnboundExpressionVar InferenceExpressionVar
+    UnboundExpressionVar ExpressionVariable
   | -- This is a bug in the translation process or
     -- in the inference
-    UnboundTypeVar InferenceTypeVar
+    UnboundTypeVar TypeVariable
   | CantUnify InferenceType InferenceType
   deriving (Show)
 
 
 data InferenceState = InferenceStateC
-  { associationMap :: Map InferenceExpressionVar Translation.Row
+  { associationMap :: Map ExpressionVariable VariableInformation
   -- ^ Contains the map from Expression variables to
   -- information about them like the type variable associate.
-  , associatedVariablesMap :: Map InferenceTypeVar InferenceType
+  , associatedVariablesMap :: Map TypeVariable InferenceType
   -- ^ Only contains variables that happens in `associationMap`
   -- | all of them where made with User or Real constructors.
   , metaVariablesMap :: Map Int (Maybe InferenceType)
@@ -90,13 +89,13 @@ lookupExpressionVar
   :: ( Error InferenceError :> es
      , State InferenceState :> es
      )
-  => InferenceExpressionVar
+  => ExpressionVariable
   -> Eff es InferenceType
 lookupExpressionVar var = do
   assocMap <- gets associationMap
   case Map.lookup var assocMap of
     Just row -> do
-      let typeVar = rowTypeVariable row
+      let typeVar = informationTypeVariableId row
       typeVarsToTypes <- gets associatedVariablesMap
       case Map.lookup typeVar typeVarsToTypes of
         Just value -> pure value
@@ -121,7 +120,7 @@ updateExpressionVars
   :: ( Error InferenceError :> es
      , State InferenceState :> es
      )
-  => [(InferenceExpressionVar, InferenceType)]
+  => [(ExpressionVariable, InferenceType)]
   -> Eff es ()
 updateExpressionVars = undefined
 

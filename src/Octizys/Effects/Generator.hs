@@ -7,11 +7,23 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Octizys.Effects.Generator where
+module Octizys.Effects.Generator
+  ( GenerateFromInt (generateFromInt)
+  , Generator
+  , generate
+  , runGenerator
+  , runGeneratorWith
+  , runIntGenerator
+  , runGeneratorFull
+  , runGeneratorFullWith
+  ) where
 
+import Control.Arrow ((<<<))
+import qualified Data.Bifunctor as Bifunctor
+import Data.Coerce (coerce)
 import Effectful (Eff, Effect, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
-import Effectful.State.Static.Local (State, gets, put)
+import Effectful.State.Static.Local (State, gets, put, runState)
 import Effectful.TH (makeEffect)
 
 
@@ -30,6 +42,10 @@ class GenerateFromInt a where
   generateFromInt :: Int -> a
 
 
+instance GenerateFromInt Int where
+  generateFromInt i = i
+
+
 -- | State for keeping track of fresh integer counts
 newtype IntGeneratorState a = IntGeneratorState
   { nextInt :: Int
@@ -39,8 +55,8 @@ newtype IntGeneratorState a = IntGeneratorState
 -- | Runner for the `IntGenerator` effect
 runIntGenerator
   :: State (IntGeneratorState a) :> es
-  => Eff (IntGenerator a : es) Int
-  -> Eff es Int
+  => Eff (IntGenerator a : es) b
+  -> Eff es b
 runIntGenerator = interpret $ \_ x ->
   case x of
     GenerateInt -> do
@@ -75,3 +91,31 @@ runGenerator
   => Eff (Generator a : es) b
   -> Eff es b
 runGenerator = runGeneratorWith generateFromInt
+
+
+runGeneratorFullWith
+  :: Int
+  -> (Int -> a)
+  -> Eff (Generator a : IntGenerator a : State (IntGeneratorState a) : es) b
+  -> Eff es (b, a)
+runGeneratorFullWith seed create action = do
+  Bifunctor.second (create <<< nextInt)
+    <$> ( runState (coerce seed)
+            <<< runIntGenerator
+            <<< runGeneratorWith create
+        )
+      action
+
+
+runGeneratorFull
+  :: GenerateFromInt a
+  => Int
+  -> Eff
+      ( Generator a
+          : IntGenerator a
+          : State (IntGeneratorState a)
+          : es
+      )
+      b
+  -> Eff es (b, a)
+runGeneratorFull seed = runGeneratorFullWith seed generateFromInt

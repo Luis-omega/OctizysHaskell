@@ -1,12 +1,12 @@
 module Octizys.Repl.Ast (ReplCommand (Quit, LoadFile), ReplTop (Evaluate, Define, Command)) where
 
-import Octizys.Ast (ParserExpression, ParserTopItem)
+import qualified Octizys.Parser as Parser
 
 
 data ReplCommand = Quit | LoadFile String
 
 
 data ReplTop
-  = Evaluate ParserExpression
-  | Define ParserTopItem
+  = Evaluate Parser.Expression
+  | Define Parser.TopItem
   | Command ReplCommand

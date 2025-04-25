@@ -21,6 +21,7 @@ import Effectful (Eff, (:>))
 import Effectful.Error.Dynamic (Error, runErrorNoCallStackWith)
 import Effectful.State.Static.Local (runState)
 import Effectful.Writer.Static.Local (Writer, runWriter)
+import Octizys.Effects.Generator (Generator, runGeneratorFull)
 import Octizys.Evaluation (EvaluationError)
 import Octizys.Inference.Translation
   ( TranslationState
@@ -58,7 +59,7 @@ data ReplStatus = ContinueWith ReplState | Exit
 emptyState :: ReplState
 emptyState =
   ReplState
-    { translationState = Inference.emptyState
+    { translationState = Inference.emptyTranslationState
     }
 
 
@@ -86,6 +87,8 @@ rep
      , Writer
         [Inference.TranslationWarning]
         :> es
+     , Generator Inference.TypeVarBoundToExprVar :> es
+     , Generator Inference.ExpressionVariable :> es
      )
   => ReplState
   -> Eff es ReplStatus
@@ -147,17 +150,28 @@ reportParserError context =
     (\e -> (putLine <<< errorBundlePretty) e >> continue context)
 
 
+ignoreState :: Eff es (a, b) -> Eff es a
+ignoreState = (fst <$>)
+
+
 repl :: Console :> es => ReplState -> Eff es ()
 repl context = do
-  (status, warnings) <- reportWarnings $ reportErrors $ rep context
-  mapM_ (putLine <<< show) warnings
+  status <- runner $ rep context
   case status of
     Exit -> pure ()
     ContinueWith new_context -> repl new_context
   where
+    runner = reportErrors <<< reportWarnings <<< runGenerators
+    runGenerators =
+      ignoreState
+        <<< runGeneratorFull @Inference.ExpressionVariable 0
+        <<< ignoreState
+        <<< runGeneratorFull @Inference.TypeVarBoundToExprVar 0
     reportErrors =
       reportError context
         <<< reportParserError context
         <<< reportError @EvaluationError context
-    reportWarnings =
-      runWriter @[TranslationWarning]
+    reportWarnings action = do
+      (status, warnings) <- runWriter @[TranslationWarning] action
+      mapM_ (putLine <<< show) warnings
+      pure status
