@@ -1,14 +1,18 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Octizys.Inference.Inference where
 
+import Control.Arrow ((<<<))
 import Control.Monad (foldM)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
-import Effectful.State.Static.Local (State, gets)
+import Effectful.Reader.Static (Reader, ask, runReader)
+import Effectful.State.Static.Local (State, get)
 import Octizys.Ast
   ( Expression
       ( Annotation
@@ -56,11 +60,17 @@ data InferenceError
   deriving (Show)
 
 
+type ExpressionVarToInfo = Map ExpressionVariable VariableInformation
+
+
+type TypeVarToInfo = Map TypeVariable InferenceType
+
+
 data InferenceState = InferenceStateC
-  { associationMap :: Map ExpressionVariable VariableInformation
+  { associationMap :: ExpressionVarToInfo
   -- ^ Contains the map from Expression variables to
   -- information about them like the type variable associate.
-  , associatedVariablesMap :: Map TypeVariable InferenceType
+  , associatedVariablesMap :: TypeVarToInfo
   -- ^ Only contains variables that happens in `associationMap`
   -- | all of them where made with User or Real constructors.
   , metaVariablesMap :: Map Int (Maybe InferenceType)
@@ -87,16 +97,17 @@ inferLiteral (BoolLiteral _) = BoolType
 -- | Looks on the associationMap, raise Error if not found
 lookupExpressionVar
   :: ( Error InferenceError :> es
-     , State InferenceState :> es
+     , Reader ExpressionVarToInfo :> es
+     , Reader TypeVarToInfo :> es
      )
   => ExpressionVariable
   -> Eff es InferenceType
 lookupExpressionVar var = do
-  assocMap <- gets associationMap
+  assocMap <- ask @ExpressionVarToInfo
   case Map.lookup var assocMap of
     Just row -> do
       let typeVar = informationTypeVariableId row
-      typeVarsToTypes <- gets associatedVariablesMap
+      typeVarsToTypes <- ask @TypeVarToInfo
       case Map.lookup typeVar typeVarsToTypes of
         Just value -> pure value
         Nothing -> throwError (UnboundTypeVar typeVar)
@@ -130,6 +141,25 @@ freshMetaVar :: Eff es InferenceType
 freshMetaVar = undefined
 
 
+-- TODO: remove this and use a reader for ExpressionVarToInfo
+--
+hackRunLookup
+  :: State InferenceState :> es
+  => Eff
+      ( Reader ExpressionVarToInfo
+          : Reader TypeVarToInfo
+          : es
+      )
+      a
+  -> Eff es a
+hackRunLookup action = do
+  s <- get
+  let r1 = associatedVariablesMap s
+  let r2 = associationMap s
+  let runner = runReader r1 <<< runReader r2
+  runner action
+
+
 infer
   :: ( Error InferenceError :> es
      , State InferenceState :> es
@@ -139,10 +169,10 @@ infer
 infer e =
   case e of
     LiteralExpression l -> pure $ inferLiteral l
-    Variable v -> lookupExpressionVar v
+    Variable v -> hackRunLookup $ lookupExpressionVar v
     Function {functionParameters = params, functionBody = body} -> do
       lastArgType <- infer body
-      newParams <- mapM lookupExpressionVar params
+      newParams <- hackRunLookup $ mapM lookupExpressionVar params
       case newParams of
         [] -> throwError (FunctionWithoutParams body)
         (value : remain) ->
