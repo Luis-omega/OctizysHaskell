@@ -57,7 +57,7 @@ where
 import Control.Arrow ((<<<))
 import Data.Bifunctor (Bifunctor (bimap))
 import Prettyprinter (Pretty (pretty), (<+>))
-import qualified Prettyprinter as Pretty
+import Prettyprinter qualified as Pretty
 import Text.Megaparsec (ShowErrorComponent)
 import Text.Megaparsec.Error (ShowErrorComponent (showErrorComponent))
 

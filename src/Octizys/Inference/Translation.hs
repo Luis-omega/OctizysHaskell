@@ -28,7 +28,7 @@ where
 import Control.Arrow ((<<<))
 import Control.Monad (unless)
 import Data.Map (Map)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Dynamic (Error, throwError)
 import Effectful.State.Static.Local (State, get, gets, modify, put)
@@ -61,8 +61,8 @@ import Octizys.Ast
   )
 import Octizys.Effects.Generator (GenerateFromInt, Generator, generate)
 import Octizys.HistoryMap (HistoryMap)
-import qualified Octizys.HistoryMap as HistoryMap
-import qualified Octizys.Parser as Parser
+import Octizys.HistoryMap qualified as HistoryMap
+import Octizys.Parser qualified as Parser
 
 
 {- | A variable that is bound to a expression variable in the source

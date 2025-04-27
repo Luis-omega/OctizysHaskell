@@ -59,12 +59,15 @@ common common_plugings
   ghc-options: -fplugin=Effectful.Plugin
 
 common common_extensions
-  other-extensions:
+  default-extensions:
     DeriveFunctor
     DeriveGeneric
     DeriveLift
     DerivingVia
+    DisambiguateRecordFields
+    DuplicateRecordFields
     ExplicitForAll
+    FlexibleContexts
     ImportQualifiedPost
     LambdaCase
     NamedFieldPuns
@@ -75,6 +78,7 @@ common common_extensions
     PartialTypeSignatures
     RecordWildCards
     ScopedTypeVariables
+    TypeApplications
     TypeOperators
 
 library
@@ -89,12 +93,20 @@ library
   -- Modules exported by the library.
   exposed-modules:
     Octizys.Ast
+    Octizys.Cst.Expression
+    Octizys.Cst.InfoId
+    Octizys.Cst.TopItem
+    Octizys.Cst.Type
+    Octizys.Cst.VariableId
     Octizys.Effects.Generator
     Octizys.Evaluation
     Octizys.HistoryMap
     Octizys.Inference.Inference
     Octizys.Inference.Translation
     Octizys.Parser
+    Octizys.Pretty.Expression
+    Octizys.Pretty.TopItem
+    Octizys.Pretty.Type
     Octizys.Repl.Ast
     Octizys.Repl.Console
     Octizys.Repl.Parser
@@ -119,6 +131,7 @@ library
     , prettyprinter
     , QuickCheck
     , template-haskell
+    , text
 
   -- Directories containing source files.
   hs-source-dirs:   src

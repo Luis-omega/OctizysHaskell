@@ -55,7 +55,7 @@ import Octizys.Ast
   , makeTopItem
   , symbolToString
   )
-import qualified Octizys.Ast as Ast
+import Octizys.Ast qualified as Ast
 import Prettyprinter (Pretty (pretty))
 import Text.Megaparsec
   ( MonadParsec (lookAhead, takeWhile1P, takeWhileP)
@@ -73,7 +73,7 @@ import Text.Megaparsec
   , (<?>)
   , (<|>)
   )
-import qualified Text.Megaparsec.Byte.Lexer as L
+import Text.Megaparsec.Byte.Lexer qualified as L
 import Text.Megaparsec.Char (char, space1)
 
 

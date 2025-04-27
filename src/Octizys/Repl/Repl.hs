@@ -28,7 +28,7 @@ import Octizys.Inference.Translation
   , TranslationWarning
   , buildInferenceContext
   )
-import qualified Octizys.Inference.Translation as Inference
+import Octizys.Inference.Translation qualified as Inference
 import Octizys.Parser (ParserError)
 import Octizys.Repl.Ast
   ( ReplCommand (LoadFile, Quit)
@@ -43,7 +43,7 @@ import Octizys.Repl.Console
   )
 import Octizys.Repl.Parser (replParserEff)
 import Prettyprinter (Pretty (pretty), defaultLayoutOptions, layoutPretty)
-import qualified Prettyprinter.Render.String
+import Prettyprinter.Render.String qualified
 import Text.Megaparsec (errorBundlePretty)
 import Text.Show.Pretty (ppShow)
 
