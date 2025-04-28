@@ -15,13 +15,14 @@ import Octizys.Effects.Generator.Effect
   ( Generator
   , generate
   )
-import Octizys.Effects.Generator.Interpreter(GenerateFromInt)
+import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
 
 
 {- | A Id that signals some information of a node that
 is not stored in the Cst
 -}
-newtype InfoId = InfoIdC Int deriving (Show, Eq, Ord, GenerateFromInt) via Int
+newtype InfoId = InfoIdC Int
+  deriving (Show, Eq, Ord, GenerateFromInt) via Int
 
 
 {- | Generates a new fresh InfoId used to store information in

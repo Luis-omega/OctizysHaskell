@@ -4,13 +4,15 @@
 module Octizys.Test.Effects.Parser where
 
 import Control.Arrow ((<<<))
+import Data.Bifunctor qualified as Bifunctor
 import Data.Either (isLeft, isRight)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
 import Effectful (Eff, runPureEff)
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.State.Static.Local (State, runState)
 import Octizys.Effects.Parser.Combinators hiding (text)
-import qualified Octizys.Effects.Parser.Combinators as C
+import Octizys.Effects.Parser.Combinators qualified as C
 import Octizys.Effects.Parser.Effect
   ( Parser
   , ParserError
@@ -19,25 +21,22 @@ import Octizys.Effects.Parser.Effect
   )
 import Octizys.Effects.Parser.Interpreter qualified as Parser
 import Test.Hspec
-import qualified Data.Bifunctor as Bifunctor
-import Data.List.NonEmpty(NonEmpty((:|)))
-
 
 
 runParser
-  ::
-  Eff [Parser (), State ParserState, Error (ParserError ())] b
+  :: Eff [Parser (), State ParserState, Error (ParserError ())] b
   -> Text
   -> Either String b
 runParser p t =
   let runnedParser =
         (runErrorNoCallStack <<< runState (makeInitialState t) <<< Parser.runParser)
           p
-   in Bifunctor.first show ( fst <$> runPureEff runnedParser)
+   in Bifunctor.first show (fst <$> runPureEff runnedParser)
 
 
 text :: _
-text = C.text @() @'[Parser (),State ParserState, Error (ParserError ())]
+text = C.text @() @'[Parser (), State ParserState, Error (ParserError ())]
+
 
 tests :: SpecWith ()
 tests = do
@@ -128,5 +127,8 @@ tests = do
       runParser p "b" `shouldBe` Right 'b'
 
     it "fails if both parsers fail" $ do
-      let p = label @() ('n' :| "o soy yo, eres tu") (alternative @() (char @() 'a') (char @() 'b'))
+      let p =
+            label @()
+              ('n' :| "o soy yo, eres tu")
+              (alternative @() (char @() 'a') (char @() 'b'))
       runParser p "c" `shouldSatisfy` isRight

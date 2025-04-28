@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Octizys.Effects.Generator.Effect
-  ( Generator(Generate)
+  ( Generator (Generate)
   , generate
   , IntGenerator (GenerateInt)
   , generateInt

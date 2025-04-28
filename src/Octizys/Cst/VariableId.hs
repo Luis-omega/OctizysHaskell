@@ -12,7 +12,7 @@ import Octizys.Effects.Generator.Effect
   ( Generator
   , generate
   )
-import Octizys.Effects.Generator.Interpreter(GenerateFromInt)
+import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
 
 
 {- | A id that point to the variable information stored in a

@@ -99,19 +99,20 @@ library
     Octizys.Cst.VariableId
     Octizys.Effects.Generator.Effect
     Octizys.Effects.Generator.Interpreter
+    Octizys.Effects.Parser.Combinators
     Octizys.Effects.Parser.Effect
     Octizys.Effects.Parser.Interpreter
-    Octizys.Effects.Parser.Combinators
     Octizys.Parser.Expression
     Octizys.Parser.TopItem
     Octizys.Parser.Type
     Octizys.Pretty.Expression
     Octizys.Pretty.TopItem
     Octizys.Pretty.Type
-    -- Octizys.Repl.Ast
-    -- Octizys.Repl.Console
-    -- Octizys.Repl.Parser
-    -- Octizys.Repl.Repl
+
+  -- Octizys.Repl.Ast
+  -- Octizys.Repl.Console
+  -- Octizys.Repl.Parser
+  -- Octizys.Repl.Repl
 
   -- Octizys.Evaluation
   -- Octizys.HistoryMap
@@ -193,16 +194,15 @@ test-suite octizys-test
   main-is:          Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules:
-  -- Octizys.Test.Parser.PrettyParse
-    Octizys.Test.Effects.Parser
+  other-modules:    Octizys.Test.Effects.Parser
 
+  -- Octizys.Test.Parser.PrettyParse
   -- Test dependencies.
   build-depends:
     , base           ^>=4.18.2.1
-    , text
+    , effectful
     , hspec
     , octizys
     , prettyprinter
     , QuickCheck
-    , effectful
+    , text

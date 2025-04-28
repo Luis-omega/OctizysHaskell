@@ -545,6 +545,7 @@ sepEndBy1 p sep = do
 
 infixr 1 <|>
 
+
 -- hack to update the error expectations after we catch a exception
 -- and modify the expectations.
 -- To remove this, introduce a proper function that syncs both the state
@@ -597,4 +598,3 @@ label expectation p =
 
 
 infix 0 <?>
-

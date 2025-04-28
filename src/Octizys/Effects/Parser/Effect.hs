@@ -36,13 +36,13 @@ module Octizys.Effects.Parser.Effect
   , insertExpectation
   ) where
 
+import Data.Coerce (coerce)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text
 import Effectful (Effect)
 import Effectful.TH (makeEffect)
-import Data.Coerce (coerce)
-import qualified Data.Set as Set
 
 
 data Position = Position'
@@ -79,8 +79,9 @@ data Expected
 data Unexpected
   = -- | The original chain of charactes.
     UnexpectedRaw (NonEmpty Char)
-    -- TODO: do we need this one?
-  | -- | A custom name for the unexpeted thing.
+  | -- TODO: do we need this one?
+
+    -- | A custom name for the unexpeted thing.
     UnexpectedName (NonEmpty Char)
   | -- | Reached end of input
     UnexpectedEndOfInput
@@ -95,8 +96,10 @@ newtype Expectations
 insertExpectation :: Expected -> Expectations -> Expectations
 insertExpectation e (Expectations' es) = Expectations' (Set.insert e es)
 
+
 mergeExpectations :: Expectations -> Expectations -> Expectations
 mergeExpectations (Expectations' es') (Expectations' es) = Expectations' (Set.union es' es)
+
 
 data ParserError e
   = GeneratedErrror
@@ -138,4 +141,3 @@ data Parser e :: Effect where
 
 
 $(makeEffect ''Parser)
-

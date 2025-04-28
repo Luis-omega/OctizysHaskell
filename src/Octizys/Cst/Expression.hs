@@ -45,7 +45,7 @@ import Effectful (Eff, (:>))
 import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Type (Type)
 import Octizys.Cst.VariableId (VariableId)
-import Octizys.Effects.Generator.Effect ( Generator, generate)
+import Octizys.Effects.Generator.Effect (Generator, generate)
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
 
 

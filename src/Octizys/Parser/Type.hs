@@ -1,6 +1,7 @@
 module Octizys.Parser.Type where
 
 import Data.Map (Map)
+import Data.Map qualified as Map
 import Data.Text (Text)
 import Effectful (Eff, (:>))
 import Effectful.State.Static.Local (State, modify)
@@ -10,15 +11,15 @@ import Octizys.Cst.Expression
   )
 import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Type (TypeVariableId, freshTypeVariableId)
-import Octizys.Effects.Parser.Effect (Parser)
+import Octizys.Effects.Generator.Effect (Generator, generate)
 import Octizys.Effects.Parser.Combinators (Span, errorMessage)
-import Octizys.Effects.Generator.Effect (generate, Generator)
-import qualified Data.Map as Map
+import Octizys.Effects.Parser.Effect (Parser)
 
-import Prelude hiding(span)
+import Prelude hiding (span)
 
 
 data CstError = CstError1 | CstError2
+
 
 -- * ==================== Auxiliary Functions =================
 
@@ -26,7 +27,7 @@ data CstError = CstError1 | CstError2
 newtype Symbol = Symbol' Text
 
 
-uninplemented :: forall a e es. (Parser e :> es ) => Text -> Eff es a
+uninplemented :: forall a e es. Parser e :> es => Text -> Eff es a
 uninplemented s = errorMessage ("Uninplemented " <> s <> " parser")
 
 
@@ -112,7 +113,6 @@ registerExpressionVariable name definitionSpan = do
   typeId <- registerTypeVariable Nothing definitionSpan
   modify $ \s -> Map.insert variableId (SourceExpressionVariableInfo' {..}) s
   pure variableId
-
 
 -- testParser :: Parser a -> Text -> Either ParserError a
 -- testParser p = runParser p "test"

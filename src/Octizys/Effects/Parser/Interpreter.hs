@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 
-module Octizys.Effects.Parser.Interpreter(runParser) where
+module Octizys.Effects.Parser.Interpreter (runParser) where
 
 import Octizys.Effects.Parser.Effect
   ( Parser (CatchParseError, GetParseState, PutParseState, ThrowParseError)
@@ -9,11 +9,11 @@ import Octizys.Effects.Parser.Effect
   , ParserState
   )
 
+import Control.Arrow ((<<<))
 import Effectful (Eff, (:>))
 import Effectful.Dispatch.Dynamic (interpret, localSeqUnlift)
 import Effectful.Error.Static (Error, catchError, throwError)
 import Effectful.State.Static.Local (State, get, put)
-import Control.Arrow ((<<<))
 
 
 runParser
@@ -38,4 +38,3 @@ runParser = interpret $ \env action ->
         )
     GetParseState -> get
     PutParseState s -> put s
-

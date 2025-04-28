@@ -1,13 +1,14 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-module Octizys.Effects.Generator.Interpreter(
-  GenerateFromInt(generateFromInt)
+
+module Octizys.Effects.Generator.Interpreter
+  ( GenerateFromInt (generateFromInt)
   , runGenerator
   , runGeneratorWith
   , runIntGenerator
   , runGeneratorFull
   , runGeneratorFullWith
-                                  )where
+  ) where
 
 import Control.Arrow ((<<<))
 import Data.Bifunctor qualified as Bifunctor
@@ -15,7 +16,12 @@ import Data.Coerce (coerce)
 import Effectful (Eff, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.State.Static.Local (State, gets, put, runState)
-import Octizys.Effects.Generator.Effect (IntGenerator (GenerateInt), Generator(Generate), generateInt)
+import Octizys.Effects.Generator.Effect
+  ( Generator (Generate)
+  , IntGenerator (GenerateInt)
+  , generateInt
+  )
+
 
 {- | A type class that defines how to generate a value of type
 'a' from an integer.
@@ -45,6 +51,7 @@ runIntGenerator = interpret $ \_ x ->
       s <- gets nextInt
       put (IntGeneratorState (s + 1))
       pure s
+
 
 -- Runner for the Generator effect
 runGeneratorWith
