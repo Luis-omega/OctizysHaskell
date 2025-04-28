@@ -11,13 +11,17 @@ or source position for evaluation.
 module Octizys.Cst.InfoId (InfoId, freshInfoId) where
 
 import Effectful (Eff, (:>))
-import Octizys.Effects.Generator (Generator, generate)
+import Octizys.Effects.Generator.Effect
+  ( Generator
+  , generate
+  )
+import Octizys.Effects.Generator.Interpreter(GenerateFromInt)
 
 
 {- | A Id that signals some information of a node that
 is not stored in the Cst
 -}
-newtype InfoId = InfoIdC Int deriving (Show, Eq, Ord) via Int
+newtype InfoId = InfoIdC Int deriving (Show, Eq, Ord, GenerateFromInt) via Int
 
 
 {- | Generates a new fresh InfoId used to store information in

@@ -92,26 +92,32 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
-    Octizys.Ast
     Octizys.Cst.Expression
     Octizys.Cst.InfoId
     Octizys.Cst.TopItem
     Octizys.Cst.Type
     Octizys.Cst.VariableId
-    Octizys.Effects.Generator
-    Octizys.Evaluation
-    Octizys.HistoryMap
-    Octizys.Inference.Inference
-    Octizys.Inference.Translation
-    Octizys.Parser
+    Octizys.Effects.Generator.Effect
+    Octizys.Effects.Generator.Interpreter
+    Octizys.Effects.Parser.Effect
+    Octizys.Effects.Parser.Interpreter
+    Octizys.Effects.Parser.Combinators
+    Octizys.Parser.Expression
+    Octizys.Parser.TopItem
+    Octizys.Parser.Type
     Octizys.Pretty.Expression
     Octizys.Pretty.TopItem
     Octizys.Pretty.Type
-    Octizys.Repl.Ast
-    Octizys.Repl.Console
-    Octizys.Repl.Parser
-    Octizys.Repl.Repl
+    -- Octizys.Repl.Ast
+    -- Octizys.Repl.Console
+    -- Octizys.Repl.Parser
+    -- Octizys.Repl.Repl
 
+  -- Octizys.Evaluation
+  -- Octizys.HistoryMap
+  -- Octizys.Inference.Inference
+  -- Octizys.Inference.Translation
+  -- Octizys.Parser
   -- Modules included in this library but not exported.
   -- other-modules:
 
@@ -126,7 +132,6 @@ library
     , effectful-core
     , effectful-plugin
     , effectful-th
-    , megaparsec
     , pretty-show
     , prettyprinter
     , QuickCheck
@@ -188,12 +193,16 @@ test-suite octizys-test
   main-is:          Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules:    Octizys.Test.Parser.PrettyParse
+  other-modules:
+  -- Octizys.Test.Parser.PrettyParse
+    Octizys.Test.Effects.Parser
 
   -- Test dependencies.
   build-depends:
     , base           ^>=4.18.2.1
+    , text
     , hspec
     , octizys
     , prettyprinter
     , QuickCheck
+    , effectful

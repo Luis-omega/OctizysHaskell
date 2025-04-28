@@ -18,7 +18,8 @@ import Data.List.NonEmpty (NonEmpty)
 import Effectful (Eff, (:>))
 import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.VariableId (VariableId)
-import Octizys.Effects.Generator (GenerateFromInt, Generator, generate)
+import Octizys.Effects.Generator.Effect (Generator, generate)
+import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
 
 
 -- | A wrapper around VariableId to represent type variables.

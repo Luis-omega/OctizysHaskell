@@ -8,11 +8,11 @@ without touching the CST.
 module Octizys.Cst.VariableId (VariableId, freshVariableId) where
 
 import Effectful (Eff, (:>))
-import Octizys.Effects.Generator
-  ( GenerateFromInt
-  , Generator
+import Octizys.Effects.Generator.Effect
+  ( Generator
   , generate
   )
+import Octizys.Effects.Generator.Interpreter(GenerateFromInt)
 
 
 {- | A id that point to the variable information stored in a
