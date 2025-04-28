@@ -57,7 +57,7 @@ where
 import Control.Arrow ((<<<))
 import Data.Bifunctor (Bifunctor (bimap))
 import Prettyprinter (Pretty (pretty), (<+>))
-import Prettyprinter qualified as Pretty
+import qualified Prettyprinter as Pretty
 import Text.Megaparsec (ShowErrorComponent)
 import Text.Megaparsec.Error (ShowErrorComponent (showErrorComponent))
 
@@ -368,7 +368,7 @@ instance (Pretty evars, Pretty tvars) => Pretty (TopItem evars tvars) where
           <> Pretty.group
             ( Pretty.line
                 <> pretty "="
-                <+> pretty "{"
+                  <+> pretty "{"
                 <> Pretty.nest
                   2
                   ( Pretty.line

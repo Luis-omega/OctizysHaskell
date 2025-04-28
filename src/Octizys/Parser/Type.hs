@@ -1,7 +1,7 @@
 module Octizys.Parser.Type where
 
 import Data.Map (Map)
-import Data.Map qualified as Map
+import qualified Data.Map as Map
 import Data.Text (Text)
 import Effectful (Eff, (:>))
 import Effectful.State.Static.Local (State, modify)
@@ -114,6 +114,19 @@ registerExpressionVariable name definitionSpan = do
   modify $ \s -> Map.insert variableId (SourceExpressionVariableInfo' {..}) s
   pure variableId
 
+
+token
+  :: Parser e :> es
+  => State (Map ExpressionVariableId SourceExpressionVariableInfo) :> es
+  => State (Map TypeVariableId SourceTypeVariableInfo) :> es
+  => Generator ExpressionVariableId :> es
+  => Generator TypeVariableId :> es
+  => State (Map InfoId SourceInfo) :> es
+  => Generator InfoId :> es
+  => Eff es a
+  => Eff es a
+token = undefined
+
 -- testParser :: Parser a -> Text -> Either ParserError a
 -- testParser p = runParser p "test"
 --
@@ -210,7 +223,7 @@ registerExpressionVariable name definitionSpan = do
 --       start <- takeWhileP (!= '-' )
 --       second <- try (Just <$> string "-}" ) <|> Nothing
 --       case second of
---         Nothing -> (start <> seconPart) <> innerElement
+--         Nothing -> (start <> secondPart) <> innerElement
 --         Just _ ->  start
 --
 --     parseBlockComment =

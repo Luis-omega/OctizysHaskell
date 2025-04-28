@@ -12,7 +12,7 @@ where
 import Control.Arrow ((<<<))
 import Data.List.NonEmpty (NonEmpty ((:|)), uncons)
 import Data.Map (Map)
-import Data.Map qualified as Map
+import qualified Data.Map as Map
 import Prelude hiding (lookup)
 
 

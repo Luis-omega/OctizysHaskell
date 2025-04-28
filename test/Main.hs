@@ -1,7 +1,7 @@
 module Main (main) where
 
 -- import Octizys.Test.Parser.PrettyParse qualified as Parser
-import Octizys.Test.Effects.Parser qualified as Parser
+import qualified Octizys.Test.Effects.Parser as Parser
 import Test.Hspec (hspec)
 
 

@@ -10,7 +10,7 @@ import Octizys.Cst.Type
   , _type
   )
 import Prettyprinter (Doc, Pretty (pretty))
-import Prettyprinter qualified as Pretty
+import qualified Prettyprinter as Pretty
 
 
 needsParentsInArrow :: Type -> Bool

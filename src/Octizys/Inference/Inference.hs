@@ -8,7 +8,7 @@ module Octizys.Inference.Inference where
 import Control.Arrow ((<<<))
 import Control.Monad (foldM)
 import Data.Map (Map)
-import Data.Map qualified as Map
+import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
 import Effectful.Reader.Static (Reader, ask, runReader)

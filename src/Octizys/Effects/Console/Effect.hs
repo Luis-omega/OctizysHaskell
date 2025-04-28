@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Octizys.Repl.Console (Console, putLine, putString, readLine, runConsole) where
+module Octizys.Effects.Console.Effect (Console, putLine, putString, readLine, runConsole) where
 
 import Effectful (Eff, Effect, IOE, MonadIO (liftIO), (:>))
 import Effectful.Dispatch.Dynamic (HasCallStack, interpret)

@@ -38,7 +38,7 @@ module Octizys.Effects.Parser.Combinators
 
 import Control.Arrow ((<<<))
 import Data.Text (Text)
-import Data.Text qualified as Text
+import qualified Data.Text as Text
 import Effectful (Eff, (:>))
 import Octizys.Effects.Parser.Effect
   ( Expectations (Expectations')
@@ -46,7 +46,7 @@ import Octizys.Effects.Parser.Effect
   , Parser
   , ParserError
     ( CustomError
-    , GeneratedErrror
+    , GeneratedError
     , SimpleError
     , expected
     , sourcePosition
@@ -64,8 +64,8 @@ import Octizys.Effects.Parser.Effect
 
 import Data.Coerce (coerce)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.List.NonEmpty qualified as NonEmpty
-import Data.Set qualified as Set
+import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Set as Set
 import Debug.Trace (trace)
 import Prelude hiding (exp, fail)
 
@@ -80,7 +80,7 @@ data Span = Span'
   deriving (Show, Eq, Ord)
 
 
--- | == Auxiliar functions
+-- | == Auxiliary functions
 
 -- | === Errors
 emptyExpectations :: Expectations
@@ -105,7 +105,7 @@ errorCustom =
   throwParseError <<< CustomError
 
 
-{- | Build a `GeneratedErrror` using the current position
+{- | Build a `GeneratedError` using the current position
 and expectations.
 -}
 makeGeneratedError
@@ -115,7 +115,7 @@ makeGeneratedError
 makeGeneratedError unexpectedItem = do
   s <- getParseState
   pure
-    GeneratedErrror
+    GeneratedError
       { sourcePosition = s.position
       , unexpected = unexpectedItem
       , expected = s.expected
@@ -200,7 +200,7 @@ charUpdateState c newStream s =
 {- | Update the `ParserState` assuming it consumed the
 given `Text` and sets the remain of the stream.
 -}
-textUpateState
+textUpdateState
   :: Text
   -- ^ Parsed stream
   -> Text
@@ -208,7 +208,7 @@ textUpateState
   -> ParserState
   -- ^ State to update
   -> ParserState
-textUpateState parsed remain s =
+textUpdateState parsed remain s =
   let newPosition = Text.foldl' charUpdatePosition s.position parsed
    in s {position = newPosition, remainStream = remain}
 
@@ -250,21 +250,21 @@ text
 text s =
   let l = Text.length s
    in case Text.unpack s of
-        (sPrefix : sSufix) ->
+        (sPrefix : sSuffix) ->
           do
             st <- getParseState
             let (prefix, more) = Text.splitAt l st.remainStream
              in if s == prefix
-                  then modifyParserState (textUpateState s more) >> pure s
+                  then modifyParserState (textUpdateState s more) >> pure s
                   else do
                     modifyParserState $
                       addExpectation
                         ( ExpectedRaw
-                            (sPrefix :| sSufix)
+                            (sPrefix :| sSuffix)
                         )
                     case Text.unpack prefix of
                       [] -> unexpectedEof
-                      (pPrefix : pSufix) -> unexpectedRaw (pPrefix :| pSufix)
+                      (pPrefix : pSuffix) -> unexpectedRaw (pPrefix :| pSuffix)
         _ -> pure ""
 
 
@@ -329,7 +329,7 @@ takeWhileP predicate = do
     else
       let newStream = Text.drop (Text.length match) stream
        in do
-            modifyParserState (textUpateState match newStream)
+            modifyParserState (textUpdateState match newStream)
             pure match
 
 
@@ -360,7 +360,7 @@ takeWhile1P maybeName predicate = do
     else
       let newStream = Text.drop (Text.length match) stream
        in do
-            modifyParserState (textUpateState match newStream)
+            modifyParserState (textUpdateState match newStream)
             pure match
 
 
@@ -558,7 +558,7 @@ updateErrorExpected err = do
   s <- getParseState
   let expt = s.expected
   pure
-    GeneratedErrror
+    GeneratedError
       { expected =
           expt
       , unexpected = err.unexpected

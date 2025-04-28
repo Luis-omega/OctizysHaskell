@@ -34,10 +34,10 @@ import Octizys.Cst.Expression
   , Parameters (Parameters', remain, start)
   )
 import Octizys.Cst.Type (TypeVariableId)
-import Octizys.Cst.Type qualified as Type
+import qualified Octizys.Cst.Type as Type
 import Octizys.Pretty.Type (needsParentsInArrow, prettyType)
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
-import Prettyprinter qualified as Pretty
+import qualified Prettyprinter as Pretty
 
 
 pText :: Text -> Doc ann

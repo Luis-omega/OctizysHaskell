@@ -9,7 +9,7 @@ module Octizys.Effects.Parser.Effect
   , Expected (ExpectedRaw, ExpectedName, ExpectedEndOfInput)
   , Unexpected (UnexpectedRaw, UnexpectedName, UnexpectedEndOfInput)
   , ParserError
-    ( GeneratedErrror
+    ( GeneratedError
     , SimpleError
     , CustomError
     , sourcePosition
@@ -39,7 +39,7 @@ module Octizys.Effects.Parser.Effect
 import Data.Coerce (coerce)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Set (Set)
-import Data.Set qualified as Set
+import qualified Data.Set as Set
 import Data.Text
 import Effectful (Effect)
 import Effectful.TH (makeEffect)
@@ -77,11 +77,11 @@ data Expected
 
 -- | Represent a unexpected element in the stream.
 data Unexpected
-  = -- | The original chain of charactes.
+  = -- | The original chain of characters.
     UnexpectedRaw (NonEmpty Char)
   | -- TODO: do we need this one?
 
-    -- | A custom name for the unexpeted thing.
+    -- | A custom name for the unexpected thing.
     UnexpectedName (NonEmpty Char)
   | -- | Reached end of input
     UnexpectedEndOfInput
@@ -102,7 +102,7 @@ mergeExpectations (Expectations' es') (Expectations' es) = Expectations' (Set.un
 
 
 data ParserError e
-  = GeneratedErrror
+  = GeneratedError
       { sourcePosition :: Position
       , unexpected :: Unexpected
       , expected :: Expectations

@@ -53,7 +53,7 @@ extra-doc-files: CHANGELOG.md
 -- extra-source-files:
 
 common warnings
-  ghc-options: -Wall -Werror
+  ghc-options: -Wall -Werror -Wno-prepositive-qualified-module
 
 common common_plugings
   ghc-options: -fplugin=Effectful.Plugin
@@ -68,7 +68,6 @@ common common_extensions
     DuplicateRecordFields
     ExplicitForAll
     FlexibleContexts
-    ImportQualifiedPost
     LambdaCase
     NamedFieldPuns
     NamedWildCards
@@ -97,6 +96,8 @@ library
     Octizys.Cst.TopItem
     Octizys.Cst.Type
     Octizys.Cst.VariableId
+    Octizys.Effects.Console.Effect
+    Octizys.Effects.Console.Interpreter
     Octizys.Effects.Generator.Effect
     Octizys.Effects.Generator.Interpreter
     Octizys.Effects.Parser.Combinators

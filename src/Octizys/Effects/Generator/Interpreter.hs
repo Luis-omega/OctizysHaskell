@@ -11,7 +11,7 @@ module Octizys.Effects.Generator.Interpreter
   ) where
 
 import Control.Arrow ((<<<))
-import Data.Bifunctor qualified as Bifunctor
+import qualified Data.Bifunctor as Bifunctor
 import Data.Coerce (coerce)
 import Effectful (Eff, (:>))
 import Effectful.Dispatch.Dynamic (interpret)

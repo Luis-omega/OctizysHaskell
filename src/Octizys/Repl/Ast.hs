@@ -1,6 +1,6 @@
 module Octizys.Repl.Ast (ReplCommand (Quit, LoadFile), ReplTop (Evaluate, Define, Command)) where
 
-import Octizys.Parser qualified as Parser
+import qualified Octizys.Parser as Parser
 
 
 data ReplCommand = Quit | LoadFile String

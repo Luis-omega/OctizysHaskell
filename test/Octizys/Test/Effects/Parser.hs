@@ -4,7 +4,7 @@
 module Octizys.Test.Effects.Parser where
 
 import Control.Arrow ((<<<))
-import Data.Bifunctor qualified as Bifunctor
+import qualified Data.Bifunctor as Bifunctor
 import Data.Either (isLeft, isRight)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
@@ -12,14 +12,14 @@ import Effectful (Eff, runPureEff)
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.State.Static.Local (State, runState)
 import Octizys.Effects.Parser.Combinators hiding (text)
-import Octizys.Effects.Parser.Combinators qualified as C
+import qualified Octizys.Effects.Parser.Combinators as C
 import Octizys.Effects.Parser.Effect
   ( Parser
   , ParserError
   , ParserState
   , makeInitialState
   )
-import Octizys.Effects.Parser.Interpreter qualified as Parser
+import qualified Octizys.Effects.Parser.Interpreter as Parser
 import Test.Hspec
 
 
@@ -28,10 +28,10 @@ runParser
   -> Text
   -> Either String b
 runParser p t =
-  let runnedParser =
+  let randParser =
         (runErrorNoCallStack <<< runState (makeInitialState t) <<< Parser.runParser)
           p
-   in Bifunctor.first show (fst <$> runPureEff runnedParser)
+   in Bifunctor.first show (fst <$> runPureEff ranParser)
 
 
 text :: _

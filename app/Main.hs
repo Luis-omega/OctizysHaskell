@@ -1,7 +1,7 @@
 module Main where
 
 import Effectful (runEff)
-import Octizys.Repl.Console (runConsole)
+import Octizys.Effects.Console.Interpreter (runConsole)
 import Octizys.Repl.Repl (emptyState, repl)
 
 
