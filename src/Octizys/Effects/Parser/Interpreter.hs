@@ -1,19 +1,28 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 
-module Octizys.Effects.Parser.Interpreter (runParser) where
+module Octizys.Effects.Parser.Interpreter (runParser, runFullParser) where
 
+import Octizys.Effects.Parser.Backend
+  ( ParserError
+  , ParserState
+  , makeInitialState
+  )
 import Octizys.Effects.Parser.Effect
   ( Parser (CatchParseError, GetParseState, PutParseState, ThrowParseError)
-  , ParserError
-  , ParserState
   )
 
 import Control.Arrow ((<<<))
+import Data.Text (Text)
 import Effectful (Eff, (:>))
 import Effectful.Dispatch.Dynamic (interpret, localSeqUnlift)
-import Effectful.Error.Static (Error, catchError, throwError)
-import Effectful.State.Static.Local (State, get, put)
+import Effectful.Error.Static
+  ( Error
+  , catchError
+  , runErrorNoCallStack
+  , throwError
+  )
+import Effectful.State.Static.Local (State, get, put, runState)
 
 
 runParser
@@ -38,3 +47,23 @@ runParser = interpret $ \env action ->
         )
     GetParseState -> get
     PutParseState s -> put s
+
+
+runFullParser
+  :: Text
+  -> Eff
+      ( Parser e
+          : State ParserState
+          : Error (ParserError e)
+          : es
+      )
+      a
+  -> Eff es (Either (ParserError e) a)
+runFullParser stream p = do
+  let s = makeInitialState stream
+  ( runErrorNoCallStack
+      <<< (fst <$>)
+      <<< runState s
+      <<< runParser
+    )
+    p

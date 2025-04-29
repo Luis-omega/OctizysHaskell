@@ -5,12 +5,10 @@
 
 module Octizys.Effects.Parser.Combinators
   ( errorMessage
-  , unexpedtedNamed
   , unexpectedEof
   , unexpectedRaw
   , errorCustom
   , emptyExpectations
-  , Span (start, end)
   , item
   , text
   , satisfy
@@ -34,33 +32,40 @@ module Octizys.Effects.Parser.Combinators
   , fail
   , label
   , (<?>)
+  , getPosition
   ) where
 
 import Control.Arrow ((<<<))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Effectful (Eff, (:>))
-import Octizys.Effects.Parser.Effect
+import Octizys.Effects.Parser.Backend
   ( Expectations (Expectations')
   , Expected (ExpectedName, ExpectedRaw)
-  , Parser
   , ParserError
-    ( CustomError
-    , GeneratedError
-    , SimpleError
+    ( GeneratedError
+    , UserMadeError
+    , errorPosition
     , expected
-    , sourcePosition
     , unexpected
+    , userErrors
     )
   , ParserState (expected, position, remainStream)
-  , Position (Position', column, line, offset)
-  , Unexpected (UnexpectedEndOfInput, UnexpectedName, UnexpectedRaw)
+  , Unexpected (UnexpectedEndOfInput, UnexpectedRaw)
+  , UserError (CustomError, SimpleError)
+  , addExpectation
+  , emptyExpectations
+  , mergeExpectations, singletonExpectations
+  )
+import Octizys.Effects.Parser.Effect
+  ( Parser
   , catchParseError
   , getParseState
-  , mergeExpectations
   , putParseState
   , throwParseError
   )
+
+import Octizys.Cst.Span (Position (Position', column, line, offset))
 
 import Data.Coerce (coerce)
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -70,43 +75,65 @@ import Debug.Trace (trace)
 import Prelude hiding (exp, fail)
 
 
-{- | Represents the start and end positions
-of an input.
--}
-data Span = Span'
-  { start :: Position
-  , end :: Position
-  }
-  deriving (Show, Eq, Ord)
-
-
 -- | == Auxiliary functions
 
+{- | Apply a function to the current state and returns the
+result.
+-}
+gets
+  :: Parser e :> es
+  => (ParserState -> b)
+  -> Eff es b
+gets f =
+  f <$> getParseState
+
+
+getPosition
+  :: Parser e :> es
+  => Eff es Position
+getPosition = gets position
+
+
+getExpetations
+  :: Parser e :> es
+  => Eff es Expectations
+getExpetations = do
+  s <- getParseState
+  pure s.expected
+
+
 -- | === Errors
-emptyExpectations :: Expectations
-emptyExpectations = Expectations' mempty
 
-
--- | Throw a error with the given message.
+-- | Throw a parser error with the given message and the current position.
 errorMessage
   :: Parser e :> es
   => Text
   -> Eff es a
-errorMessage =
-  throwParseError <<< SimpleError
+errorMessage msg = do
+  pos <- getPosition
+  throwParseError $
+    UserMadeError
+      { errorPosition = pos
+      , userErrors = Set.singleton (SimpleError msg)
+      }
 
 
--- | Throw a error with the given message.
+-- | Throw a error with the current position and the given custom error.
 errorCustom
   :: Parser e :> es
   => e
   -> Eff es a
-errorCustom =
-  throwParseError <<< CustomError
+errorCustom err = do
+  pos <- getPosition
+  throwParseError $
+    UserMadeError
+      { errorPosition = pos
+      , userErrors = Set.singleton (CustomError err)
+      }
 
 
-{- | Build a `GeneratedError` using the current position
-and expectations.
+{- | Build a `GeneratedError` using the current parsing state and
+    the given `Unexpected`.
 -}
 makeGeneratedError
   :: Parser e :> es
@@ -116,20 +143,24 @@ makeGeneratedError unexpectedItem = do
   s <- getParseState
   pure
     GeneratedError
-      { sourcePosition = s.position
+      { errorPosition = s.position
       , unexpected = unexpectedItem
       , expected = s.expected
       }
 
 
--- | Throws a end of input error.
+{- | Throws a end of input error with the current state as
+information.
+-}
 unexpectedEof :: Parser e :> es => Eff es a
 unexpectedEof = do
   err <- makeGeneratedError UnexpectedEndOfInput
   throwParseError err
 
 
--- | Throws a unexpected error on the original text of the source.
+{- | Throws a unexpected error with the current state as
+information and the source information provided.
+-}
 unexpectedRaw
   :: Parser e :> es
   => NonEmpty Char
@@ -137,16 +168,6 @@ unexpectedRaw
 unexpectedRaw originalText = do
   -- TODO: handle expected set
   err <- makeGeneratedError (UnexpectedRaw originalText)
-  throwParseError err
-
-
--- | Throws a unexpected error with a custom name.
-unexpedtedNamed
-  :: Parser e :> es
-  => NonEmpty Char
-  -> Eff es a
-unexpedtedNamed name = do
-  err <- makeGeneratedError (UnexpectedName name)
   throwParseError err
 
 
@@ -160,23 +181,6 @@ modifyParserState
 modifyParserState f = do
   s <- getParseState
   putParseState (f s)
-
-
-{- | Apply a function to the current state and returns the
-result.
--}
-gets
-  :: Parser e :> es
-  => (ParserState -> b)
-  -> Eff es b
-gets f =
-  f <$> getParseState
-
-
-addExpectation :: Expected -> ParserState -> ParserState
-addExpectation exp s =
-  let newSet = coerce $ Set.insert exp (coerce s.expected)
-   in s {expected = newSet}
 
 
 -- | Updates the `Position` based on a character.
@@ -288,9 +292,8 @@ satisfy maybeName predicate = do
         else case maybeName of
           Just (x : y) -> do
             modifyParserState (addExpectation (ExpectedName (x :| y)))
-            unexpedtedNamed (NonEmpty.singleton c)
+            unexpectedRaw (NonEmpty.singleton c)
           _ -> do
-            modifyParserState (addExpectation (ExpectedName (c :| [])))
             unexpectedRaw (NonEmpty.singleton c)
     Nothing -> unexpectedEof
 
@@ -380,27 +383,33 @@ If the first parser consumes input and fails, the whole alternative fails.
 -}
 alternative
   :: Parser e :> es
+  => Ord e
   => Eff es a
   -> Eff es a
   -> Eff es a
 alternative p1 p2 = do
-  state <- getParseState
+  originalState <- getParseState
   trace "trying p1" p1 `catchParseError` \err1 -> do
     trace "Enter in exception handling" (pure ())
-    trace ("previous state" <> show state) (pure ())
-    state' <- getParseState
-    if position state' /= position state
+    trace ("originalState=" <> show originalState) (pure ())
+    afterP1State <- getParseState
+    if position originalState /= position afterP1State
       then throwParseError err1
       else do
-        modifyParserState
-          (\s -> s {expected = mergeExpectations state.expected s.expected})
-        trace ("current state" <> show state') (pure ())
-        p2
+        trace ("after first parser state" <> show afterP1State) (pure ())
+        p2 `catchParseError` \err2 -> do
+          throwParseError (err1 <> err2)
 
+
+-- p2 `catchParseError` (\ e ->
+--   modifyParserState
+--     (\s -> s {expected = mergeExpectations state.expected s.expected})
+--            )
 
 -- | Parses zero or one occurrence of p, returning Maybe.
 optional
-  :: Parser e :> es
+  :: Ord e
+  => Parser e :> es
   => Eff es a
   -> Eff es (Maybe a)
 optional p = (Just <$> p) `alternative` pure Nothing
@@ -408,7 +417,8 @@ optional p = (Just <$> p) `alternative` pure Nothing
 
 -- | Parses zero or more occurrences of p.
 many
-  :: Parser e :> es
+  :: Ord e
+  => Parser e :> es
   => Eff es a
   -> Eff es [a]
 many p = try (some p) `alternative` pure []
@@ -416,7 +426,8 @@ many p = try (some p) `alternative` pure []
 
 -- | Parses one or more occurrences of p.
 some
-  :: Parser e :> es
+  :: Ord e
+  => Parser e :> es
   => Eff es a
   -> Eff es [a]
 some p = do
@@ -427,7 +438,8 @@ some p = do
 
 -- | Parses zero or more occurrences of p separated by sep.
 sepBy
-  :: Parser e :> es
+  :: Ord e
+  => Parser e :> es
   => Eff es a
   -> Eff es sep
   -> Eff es [a]
@@ -436,7 +448,8 @@ sepBy p sep = sepBy1 p sep `alternative` pure []
 
 -- | Parses one or more occurrences of p separated by sep.
 sepBy1
-  :: Parser e :> es
+  :: Ord e
+  => Parser e :> es
   => Eff es a
   -> Eff es sep
   -> Eff es [a]
@@ -462,7 +475,8 @@ between open close p = do
 
 -- | Parses left-associative binary operations.
 chainl1
-  :: Parser e :> es
+  :: Ord e
+  => Parser e :> es
   => Eff es a
   -> Eff es (a -> a -> a)
   -> Eff es a
@@ -481,7 +495,8 @@ chainl1 p op = do
 
 -- | Parses right-associative binary operations.
 chainr1
-  :: Parser e :> es
+  :: Ord e
+  => Parser e :> es
   => Eff es a
   -> Eff es (a -> a -> a)
   -> Eff es a
@@ -497,7 +512,8 @@ chainr1 p op = do
 
 -- | Parses many p until end parser succeeds.
 manyTill
-  :: Parser e :> es
+  :: Ord e
+  => Parser e :> es
   => Eff es a
   -> Eff es end
   -> Eff es [a]
@@ -512,7 +528,8 @@ manyTill p end =
 
 -- | Parses zero or more p separated and optionally ended by sep.
 sepEndBy
-  :: Parser e :> es
+  :: Ord e
+  => Parser e :> es
   => Eff es a
   -> Eff es sep
   -> Eff es [a]
@@ -521,7 +538,8 @@ sepEndBy p sep = sepEndBy1 p sep `alternative` pure []
 
 -- | Parses one or more p separated and optionally ended by sep.
 sepEndBy1
-  :: Parser e :> es
+  :: Ord e
+  => Parser e :> es
   => Eff es a
   -> Eff es sep
   -> Eff es [a]
@@ -536,7 +554,8 @@ sepEndBy1 p sep = do
 
 
 (<|>)
-  :: Parser e :> es
+  :: Ord e
+  => Parser e :> es
   => Eff es a
   -> Eff es a
   -> Eff es a
@@ -544,26 +563,6 @@ sepEndBy1 p sep = do
 
 
 infixr 1 <|>
-
-
--- hack to update the error expectations after we catch a exception
--- and modify the expectations.
--- To remove this, introduce a proper function that syncs both the state
--- and the error with a single expectation.
-updateErrorExpected
-  :: Parser e :> es
-  => ParserError e
-  -> Eff es (ParserError e)
-updateErrorExpected err = do
-  s <- getParseState
-  let expt = s.expected
-  pure
-    GeneratedError
-      { expected =
-          expt
-      , unexpected = err.unexpected
-      , sourcePosition = err.sourcePosition
-      }
 
 
 label
@@ -575,17 +574,8 @@ label expectation p =
   catchParseError
     p
     ( \e -> do
-        modifyParserState
-          ( \s ->
-              s
-                { expected =
-                    Expectations' $ Set.singleton (ExpectedName expectation)
-                }
-          )
-        state <- getParseState
-        trace ("state : " <> show state) (pure ())
-        updatedError <- updateErrorExpected e
-        throwParseError updatedError
+      throwParseError $
+        e{expected= singletonExpectations (ExpectedName expectation)}
     )
 
 
@@ -598,3 +588,4 @@ label expectation p =
 
 
 infix 0 <?>
+

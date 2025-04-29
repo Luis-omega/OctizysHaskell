@@ -4,17 +4,50 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import Effectful (Eff, (:>))
-import Effectful.State.Static.Local (State, modify)
+import Effectful.State.Static.Local (State, gets, modify)
+import Octizys.Cst.Comment
+  ( BlockComment (BlockComment', content)
+  , Comment (Block, Line, blockComment, lineComment, span)
+  , LineComment (LineComment', content)
+  )
 import Octizys.Cst.Expression
   ( ExpressionVariableId
   , freshExpressionVariableId
   )
 import Octizys.Cst.InfoId (InfoId)
+import Octizys.Cst.Span (Span (Span', end, start))
 import Octizys.Cst.Type (TypeVariableId, freshTypeVariableId)
 import Octizys.Effects.Generator.Effect (Generator, generate)
-import Octizys.Effects.Parser.Combinators (Span, errorMessage)
-import Octizys.Effects.Parser.Effect (Parser)
+import Octizys.Effects.Parser.Combinators
+  ( errorMessage
+  , getPosition
+  , item
+  , lookupNext
+  , many
+  , takeWhileP
+  , text
+  , try
+  , (<?>)
+  , (<|>), optional
+  )
+import Octizys.Effects.Parser.Effect
+  ( Parser
+  )
+import Octizys.Effects.Parser.Backend(
+   ParserError (errorPosition)
+  , ParserState (position)
+  , insertExpectation
+                                     )
+import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
 
+import Control.Arrow ((<<<))
+import Data.Functor (void)
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.Text as Text
+import Octizys.Effects.Parser.Interpreter (runFullParser, runParser)
+import Octizys.Effects.SymbolResolution.Interpreter
+  ( SourceInfo (SourceInfo', afterComment, preComments, span)
+  )
 import Prelude hiding (span)
 
 
@@ -31,101 +64,137 @@ uninplemented :: forall a e es. Parser e :> es => Text -> Eff es a
 uninplemented s = errorMessage ("Uninplemented " <> s <> " parser")
 
 
-newtype LineComment = LineComment'
-  { content :: Text
-  }
-  deriving (Show, Eq, Ord)
+data OctizysParseError = Err1 | Err2
+  deriving (Show,Eq,Ord)
 
 
-newtype BlockComment = BlockComment'
-  { content :: [LineComment]
-  }
-  deriving (Show, Eq, Ord)
+skipSimpleSpaces
+  :: Parser e :> es
+  => Eff es ()
+skipSimpleSpaces = void $ takeWhileP (`elem` [' ', '\t', '\n', '\r'])
 
 
-data Comment
-  = Line {lineComment :: LineComment, span :: Span}
-  | Block {blockComment :: BlockComment, span :: Span}
-  deriving (Show, Eq, Ord)
+{- | Parses the same as `p` but it also gets the
+span for `p`.
+-}
+parseWithSpan
+  :: Parser e :> es
+  => Eff es a
+  -> Eff es (a, Span)
+parseWithSpan p = do
+  start <- getPosition
+  result <- p
+  end <- getPosition
+  pure (result, Span' {start, end})
 
 
-data SourceInfo = SourceInfo'
-  { span :: Span
-  , preComments :: [Comment]
-  , afterComment :: Maybe Comment
-  }
-  deriving (Show, Eq, Ord)
+parseSkipSimpleSpacesAtEnd
+  :: Parser e :> es
+  => Eff es a
+  -> Eff es a
+parseSkipSimpleSpacesAtEnd p = p <* skipSimpleSpaces
 
 
-registerInfo
-  :: State (Map InfoId SourceInfo) :> es
-  => Generator InfoId :> es
-  => Span
-  -> [Comment]
-  -> Maybe Comment
-  -> Eff es InfoId
-registerInfo span preComments afterComment = do
-  newId <- generate
-  modify $ \s -> Map.insert newId (SourceInfo' {..}) s
-  pure newId
+-- TODO: maybe we need to substract 1 to the final position?
+
+{- | Parses the item, skips spaces at end, and gets the
+span of the item.
+To be used for parsing of commentaries.
+-}
+commentToken
+  :: Parser e :> es
+  => NonEmpty Char
+  -> Eff es a
+  -> Eff es (a, Span)
+commentToken name p = (parseSkipSimpleSpacesAtEnd <<< parseWithSpan) p <?> name
 
 
-data SourceTypeVariableInfo = SourceTypeVariableInfo'
-  { name :: Maybe Text
-  , variableId :: TypeVariableId
-  , definitionSpan :: Maybe Span
-  }
-  deriving (Show, Eq, Ord)
+{- | Parses a simple line comments, it only fails
+if no comment is found.
+-}
+innerLineComment
+  :: Parser OctizysParseError :> es
+  => Eff es LineComment
+innerLineComment = do
+  void $ text "--"
+  content <- takeWhileP ('\n' /=)
+  pure $ LineComment' content
 
 
-registerTypeVariable
-  :: State (Map TypeVariableId SourceTypeVariableInfo) :> es
-  => Generator TypeVariableId :> es
-  => Maybe Text
-  -> Maybe Span
-  -> Eff es TypeVariableId
-registerTypeVariable name definitionSpan = do
-  variableId <- freshTypeVariableId
-  modify $ \s -> Map.insert variableId (SourceTypeVariableInfo' {..}) s
-  pure variableId
+parseLineComment
+  :: Parser OctizysParseError :> es
+  => Eff es Comment
+parseLineComment = do
+  -- TODO: typo signals `ine` as an error...
+  (inner, span) <- commentToken ('l' :| "ine comment") innerLineComment
+  pure Line {lineComment = inner, span = span}
 
 
-data SourceExpressionVariableInfo = SourceExpressionVariableInfo'
-  { name :: Text
-  , variableId :: ExpressionVariableId
-  , definitionSpan :: Maybe Span
-  , typeId :: TypeVariableId
-  }
-  deriving (Show, Eq, Ord)
+{- | Parses a simple line comments, it only fails
+if no comment is found.
+-}
+innerBlockComment
+  :: Parser OctizysParseError :> es
+  => Eff es BlockComment
+innerBlockComment = do
+  void $ text "{-"
+  rawText <- parseInner
+  let commentLines = LineComment' <$> Text.lines rawText
+  pure $ BlockComment' commentLines
+  where
+    parseInner = do
+      pre <- takeWhileP ('-' /=)
+      isEnd <- try (Just <$> text "-}") <|> pure Nothing
+      case isEnd of
+        Just _ -> pure pre
+        Nothing -> do
+          c <- item
+          rest <- parseInner
+          pure (pre <> Text.singleton c <> rest)
 
 
-registerExpressionVariable
-  :: State (Map ExpressionVariableId SourceExpressionVariableInfo) :> es
-  => State (Map TypeVariableId SourceTypeVariableInfo) :> es
-  => Generator ExpressionVariableId :> es
-  => Generator TypeVariableId :> es
-  => Text
-  -> Maybe Span
-  -> Eff es ExpressionVariableId
-registerExpressionVariable name definitionSpan = do
-  variableId <- freshExpressionVariableId
-  -- Type variables don't have name yet as user can't create them!
-  typeId <- registerTypeVariable Nothing definitionSpan
-  modify $ \s -> Map.insert variableId (SourceExpressionVariableInfo' {..}) s
-  pure variableId
+parseBlockComment
+  :: Parser OctizysParseError :> es
+  => Eff es Comment
+parseBlockComment = do
+  (inner, span) <- commentToken ('b' :| "lock comment") innerBlockComment
+  pure Block {blockComment = inner, span = span}
+
+
+comment
+  :: Parser OctizysParseError :> es
+  => Eff es Comment
+comment = parseLineComment <|> parseBlockComment
+
+
+comments
+  :: Parser OctizysParseError :> es
+  => Eff es [Comment]
+comments = many comment
 
 
 token
-  :: Parser e :> es
-  => State (Map ExpressionVariableId SourceExpressionVariableInfo) :> es
-  => State (Map TypeVariableId SourceTypeVariableInfo) :> es
-  => Generator ExpressionVariableId :> es
-  => Generator TypeVariableId :> es
-  => State (Map InfoId SourceInfo) :> es
-  => Generator InfoId :> es
+  :: Parser OctizysParseError :> es
   => Eff es a
-  => Eff es a
-token = undefined
+  -> Eff es (a, SourceInfo)
+token p = do
+  pre <- preC
+  p1 <- getPosition
+  result <- p
+  p2 <- getPosition
+  after <- afterC
+  let source =
+        SourceInfo'
+          { span = Span' {start = p1, end = p2}
+          , preComments = pre
+          , afterComment = after
+          }
+  pure (result, source)
+  where
+    preC = many $ do
+      comment <* skipSimpleSpaces
+    afterC =
+      optional (skipSimpleSpaces *> (parseLineComment <* skipSimpleSpaces))
 
 -- testParser :: Parser a -> Text -> Either ParserError a
 -- testParser p = runParser p "test"
@@ -505,3 +574,4 @@ token = undefined
 -- parseModule :: Error ParserError :> es => Text -> Eff es [TopItem]
 -- parseModule = parserToEff moduleParser
 --
+

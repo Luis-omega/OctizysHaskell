@@ -8,30 +8,14 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Octizys.Effects.Console.Effect (Console, putLine, putString, readLine, runConsole) where
+module Octizys.Effects.Console.Effect (Console(PutString,ReadLine), putString, readLine) where
 
-import Effectful (Eff, Effect, IOE, MonadIO (liftIO), (:>))
-import Effectful.Dispatch.Dynamic (HasCallStack, interpret)
+import Effectful (Effect)
 import Effectful.TH (makeEffect)
-import System.IO (hFlush, stdout)
 
 
 data Console :: Effect where
   ReadLine :: Console m String
   PutString :: String -> Console m ()
 
-
 $(makeEffect ''Console)
-
-
-putLine :: Console :> es => String -> Eff es ()
-putLine s = putString (s <> "\n")
-
-
-runConsole :: (HasCallStack, IOE :> es) => Eff (Console : es) a -> Eff es a
--- TODO: Add IO error handling
-runConsole = interpret $ \_ x -> case x of
-  ReadLine -> liftIO getLine
-  PutString value -> liftIO $ do
-    putStr value
-    hFlush stdout

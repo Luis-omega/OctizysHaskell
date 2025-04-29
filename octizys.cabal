@@ -52,8 +52,17 @@ extra-doc-files: CHANGELOG.md
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
 -- extra-source-files:
 
+
+flag TestMode
+  description: Signal if we are more flexible at building the package
+  default: True
+  manual: True
+
 common warnings
-  ghc-options: -Wall -Werror -Wno-prepositive-qualified-module
+  if flag(TestMode)
+    ghc-options: -Wall -Wno-prepositive-qualified-module
+  else
+    ghc-options: -Wall -Werror -Wno-prepositive-qualified-module
 
 common common_plugings
   ghc-options: -fplugin=Effectful.Plugin
@@ -96,6 +105,7 @@ library
     Octizys.Cst.TopItem
     Octizys.Cst.Type
     Octizys.Cst.VariableId
+    Octizys.Cst.Fixpoint
     Octizys.Effects.Console.Effect
     Octizys.Effects.Console.Interpreter
     Octizys.Effects.Generator.Effect
@@ -103,12 +113,18 @@ library
     Octizys.Effects.Parser.Combinators
     Octizys.Effects.Parser.Effect
     Octizys.Effects.Parser.Interpreter
+    Octizys.Effects.Parser.Backend
+    Octizys.Effects.SymbolResolution.Effect
+    Octizys.Effects.SymbolResolution.Interpreter
     Octizys.Parser.Expression
     Octizys.Parser.TopItem
     Octizys.Parser.Type
     Octizys.Pretty.Expression
     Octizys.Pretty.TopItem
     Octizys.Pretty.Type
+    Octizys.Pretty.Comment
+    Octizys.Cst.Span
+    Octizys.Cst.Comment
 
   -- Octizys.Repl.Ast
   -- Octizys.Repl.Console
@@ -195,7 +211,10 @@ test-suite octizys-test
   main-is:          Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules:    Octizys.Test.Effects.Parser
+  other-modules:    
+    Octizys.Test.Effects.Parser
+    ,Octizys.Test.Parser.PrettyParse
+
 
   -- Octizys.Test.Parser.PrettyParse
   -- Test dependencies.
