@@ -119,6 +119,7 @@ library
     Octizys.Effects.Parser.Interpreter
     Octizys.Effects.SymbolResolution.Effect
     Octizys.Effects.SymbolResolution.Interpreter
+    Octizys.Parser.Common
     Octizys.Parser.Expression
     Octizys.Parser.TopItem
     Octizys.Parser.Type

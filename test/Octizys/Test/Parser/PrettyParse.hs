@@ -4,7 +4,7 @@
 module Octizys.Test.Parser.PrettyParse (tests) where
 
 import Control.Arrow ((<<<))
-import Octizys.Parser.Type
+import Octizys.Parser.Common
   ( OctizysParseError
   , comment
   , token
