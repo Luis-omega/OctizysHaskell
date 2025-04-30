@@ -29,4 +29,3 @@ data Parser e :: Effect where
 
 
 $(makeEffect ''Parser)
-

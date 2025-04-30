@@ -1,47 +1,40 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Octizys.Effects.SymbolResolution.Interpreter
-  ( SourceInfo (SourceInfo', span, preComments, afterComment)
-  , runSymbolResolution
-  , runSymbolResolutionWithState
-  , SourceExpressionVariableInfo
-  , SourceTypeVariableInfo
+  ( runSymbolResolution
   , SymbolResolutionState
     ( SymbolResolutionState'
-    , genVarType
-    , genVarExp
     , genInfoId
+    , genVarExp
+    , genVarType
     , expVarTable
     , typeVarTable
     , infoTable
     )
-  ,initialSymbolResolutionState
+  , initialSymbolResolutionState
+  , SourceInfo (SourceInfo', span, preComments, afterComment)
+  , SourceExpressionVariableInfo (name, variableId, definitionSpan, typeId)
+  , SourceTypeVariableInfo (name, variableId, definitionSpan)
+  , runSymbolResolutionFull
   ) where
+
+import Effectful
+import Effectful.Dispatch.Dynamic
+import Effectful.State.Static.Local
 
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
-import Effectful (Eff, (:>))
-import Effectful.Dispatch.Dynamic (interpret)
-import Effectful.State.Static.Local (State, modify, runState)
+
 import Octizys.Cst.Comment (Comment)
-import Octizys.Cst.Expression
-  ( ExpressionVariableId (unExpressionVariableId)
-  , freshExpressionVariableId
-  )
-import Octizys.Cst.InfoId (InfoId (unInfoId))
+import Octizys.Cst.Expression (ExpressionVariableId (ExpressionVariableId'))
+import Octizys.Cst.InfoId (InfoId (InfoId'))
 import Octizys.Cst.Span (Span)
-import Octizys.Cst.Type
-  ( TypeVariableId (unTypeVariableId)
-  , freshTypeVariableId
-  )
-import Octizys.Cst.VariableId (unVariableId)
-import Octizys.Effects.Generator.Effect (Generator, IntGenerator, generate)
-import Octizys.Effects.Generator.Interpreter
-  ( IntGeneratorState
-  , runGeneratorFull
-  )
+import Octizys.Cst.Type (TypeVariableId (TypeVariableId'))
+import Octizys.Cst.VariableId (VariableId (VariableId'))
 import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolution
       ( CreateExpressionVariable
@@ -49,125 +42,36 @@ import Octizys.Effects.SymbolResolution.Effect
       , CreateTypeVariable
       )
   )
-import Octizys.Pretty.Comment (prettyComment)
-import Prettyprinter (Pretty (pretty), (<+>))
-import qualified Prettyprinter as Pretty
 import Prelude hiding (span)
 
 
+-- ============================================
+-- Data Types
+-- ============================================
+
 data SourceInfo = SourceInfo'
   { span :: Span
-  -- ^ The location in the source of the object.
   , preComments :: [Comment]
-  -- ^ Commentaries that happened before of the object.
   , afterComment :: Maybe Comment
-  -- ^ A line commentarie that may happened after (but in same line) the
-  -- object.
   }
   deriving (Show, Eq, Ord)
-
-
-instance Pretty SourceInfo where
-  pretty
-    SourceInfo'
-      { span = _span
-      , preComments = _preComments
-      , afterComment = _afterComment
-      } =
-      "Span:"
-        <+> pretty (show _span)
-        <+> Pretty.vsep (prettyComment <$> _preComments)
-        <+> Pretty.hardline
-        <+> maybe mempty prettyComment _afterComment
-
-
-registerInfo
-  :: State (Map InfoId SourceInfo) :> es
-  => Generator InfoId :> es
-  => Span
-  -> [Comment]
-  -> Maybe Comment
-  -> Eff es InfoId
-registerInfo span preComments afterComment = do
-  newId <- generate
-  modify $ \s -> Map.insert newId (SourceInfo' {..}) s
-  pure newId
 
 
 data SourceTypeVariableInfo = SourceTypeVariableInfo'
   { name :: Maybe Text
-  -- ^ The names is present only if it was in the source file
-  -- otherwise this is a variable automatically generated.
   , variableId :: TypeVariableId
-  -- ^ Every type variable has a unique `TypeVariableId` associated.
   , definitionSpan :: Maybe Span
-  -- ^ For a variable that we see before we know where is
-  -- located. This should be updated later.
   }
   deriving (Show, Eq, Ord)
-
-
-registerTypeVariable
-  :: State (Map TypeVariableId SourceTypeVariableInfo) :> es
-  => Generator TypeVariableId :> es
-  => Maybe Text
-  -> Maybe Span
-  -> Eff es TypeVariableId
-registerTypeVariable name definitionSpan = do
-  variableId <- freshTypeVariableId
-  modify $ \s -> Map.insert variableId (SourceTypeVariableInfo' {..}) s
-  pure variableId
 
 
 data SourceExpressionVariableInfo = SourceExpressionVariableInfo'
   { name :: Text
   , variableId :: ExpressionVariableId
-  -- ^ This is generated automatically for every variable expression.
   , definitionSpan :: Maybe Span
-  -- ^ This is a maybe since we can find a undeclared (syntactically)
-  -- variable and we may need to add the definition place later.
   , typeId :: TypeVariableId
-  -- ^ This is generated automatically for every variable expression.
   }
   deriving (Show, Eq, Ord)
-
-
-registerExpressionVariable
-  :: State (Map ExpressionVariableId SourceExpressionVariableInfo) :> es
-  => State (Map TypeVariableId SourceTypeVariableInfo) :> es
-  => Generator ExpressionVariableId :> es
-  => Generator TypeVariableId :> es
-  => Text
-  -> Maybe Span
-  -> Eff es (ExpressionVariableId, TypeVariableId)
-registerExpressionVariable name definitionSpan = do
-  variableId <- freshExpressionVariableId
-  -- Type variables don't have name yet as user can't create them!
-  typeId <- registerTypeVariable Nothing definitionSpan
-  modify $ \s -> Map.insert variableId (SourceExpressionVariableInfo' {..}) s
-  pure (variableId, typeId)
-
-
-runSymbolResolution
-  :: State (Map ExpressionVariableId SourceExpressionVariableInfo) :> es
-  => State (Map TypeVariableId SourceTypeVariableInfo) :> es
-  => State (Map InfoId SourceInfo) :> es
-  => Generator ExpressionVariableId :> es
-  => Generator TypeVariableId :> es
-  => Generator InfoId
-    :> es
-  => Eff
-      (SymbolResolution : es)
-      a
-  -> Eff es a
-runSymbolResolution = interpret $ \_ x ->
-  case x of
-    CreateExpressionVariable name maybeSpan ->
-      registerExpressionVariable name maybeSpan
-    CreateTypeVariable maybeName maybeSpan ->
-      registerTypeVariable maybeName maybeSpan
-    CreateInformation span preComments afterComment ->
-      registerInfo span preComments afterComment
 
 
 data SymbolResolutionState = SymbolResolutionState'
@@ -180,79 +84,92 @@ data SymbolResolutionState = SymbolResolutionState'
   }
 
 
-runSymbolResolutionWithState
-  :: SymbolResolutionState
-  -> Eff
-      ( SymbolResolution
-          : Generator TypeVariableId
-          : IntGenerator TypeVariableId
-          : State (IntGeneratorState TypeVariableId)
-          : Generator ExpressionVariableId
-          : IntGenerator ExpressionVariableId
-          : State (IntGeneratorState ExpressionVariableId)
-          : Generator InfoId
-          : IntGenerator InfoId
-          : State (IntGeneratorState InfoId)
-          : State (Map ExpressionVariableId SourceExpressionVariableInfo)
-          : State (Map TypeVariableId SourceTypeVariableInfo)
-          : State (Map InfoId SourceInfo)
-          : es
-      )
-      b
-  -> Eff
-      es
-      (b, SymbolResolutionState)
-runSymbolResolutionWithState s action = do
-  ( ( ( ( ( (a, nextVarType)
-            , nextVarExp
-            )
-          , nextInfoId
-          )
-        , expTable
-        )
-      , typeTable
-      )
-    , iTable
-    ) <-
-    runState
-      s.infoTable
-      ( runState
-          s.typeVarTable
-          ( runState
-              s.expVarTable
-              ( runGeneratorFull
-                  s.genInfoId
-                  ( runGeneratorFull
-                      s.genVarExp
-                      ( runGeneratorFull
-                          s.genVarType
-                          (runSymbolResolution action)
-                      )
-                  )
-              )
-          )
-      )
-  pure
-    ( a
-    , SymbolResolutionState'
-        { genVarType = unVariableId $ unTypeVariableId nextVarType
-        , genVarExp = unVariableId $ unExpressionVariableId nextVarExp
-        , genInfoId = unInfoId nextInfoId
-        , expVarTable = expTable
-        , typeVarTable = typeTable
-        , infoTable = iTable
-        }
-    )
-
-
 initialSymbolResolutionState :: SymbolResolutionState
 initialSymbolResolutionState =
   SymbolResolutionState'
     { genVarType = 0
     , genVarExp = 0
     , genInfoId = 0
-    , expVarTable = mempty
-    , typeVarTable = mempty
-    , infoTable = mempty
+    , expVarTable = Map.empty
+    , typeVarTable = Map.empty
+    , infoTable = Map.empty
     }
 
+
+-- ============================================
+-- Helper functions
+-- ============================================
+
+createInfoId :: SymbolResolutionState -> (InfoId, SymbolResolutionState)
+createInfoId s@SymbolResolutionState' {genInfoId} =
+  (InfoId' genInfoId, s {genInfoId = genInfoId + 1})
+
+
+createExpVarId
+  :: SymbolResolutionState -> (ExpressionVariableId, SymbolResolutionState)
+createExpVarId s@SymbolResolutionState' {genVarExp} =
+  ( ExpressionVariableId' (VariableId' genVarExp)
+  , s {genVarExp = genVarExp + 1}
+  )
+
+
+createTypeVarId
+  :: SymbolResolutionState -> (TypeVariableId, SymbolResolutionState)
+createTypeVarId s@SymbolResolutionState' {genVarType} =
+  (TypeVariableId' (VariableId' genVarType), s {genVarType = genVarType + 1})
+
+
+-- ============================================
+-- Interpreter
+-- ============================================
+
+runSymbolResolution
+  :: State SymbolResolutionState :> es
+  => Eff (SymbolResolution : es) a
+  -> Eff es a
+runSymbolResolution = interpret \_ -> \case
+  CreateExpressionVariable name mSpan -> do
+    SymbolResolutionState' {..} <- get
+    let (varId, s1) = createExpVarId SymbolResolutionState' {..}
+        (typeId, s2) = createTypeVarId s1
+        info =
+          SourceExpressionVariableInfo'
+            { name = name
+            , variableId = varId
+            , definitionSpan = mSpan
+            , typeId = typeId
+            }
+    put
+      s2
+        { expVarTable = Map.insert varId info expVarTable
+        , typeVarTable =
+            Map.insert
+              typeId
+              (SourceTypeVariableInfo' Nothing typeId mSpan)
+              typeVarTable
+        }
+    pure (varId, typeId)
+  CreateTypeVariable mName mSpan -> do
+    SymbolResolutionState' {..} <- get
+    let (typeId, s1) = createTypeVarId SymbolResolutionState' {..}
+        info =
+          SourceTypeVariableInfo'
+            { name = mName
+            , variableId = typeId
+            , definitionSpan = mSpan
+            }
+    put s1 {typeVarTable = Map.insert typeId info typeVarTable}
+    pure typeId
+  CreateInformation span pre after -> do
+    SymbolResolutionState' {..} <- get
+    let (infoId, s1) = createInfoId SymbolResolutionState' {..}
+        info = SourceInfo' span pre after
+    put s1 {infoTable = Map.insert infoId info infoTable}
+    pure infoId
+
+
+runSymbolResolutionFull
+  :: SymbolResolutionState
+  -> Eff (SymbolResolution : State SymbolResolutionState : es) a
+  -> Eff es (a, SymbolResolutionState)
+runSymbolResolutionFull s action = runState s $ runSymbolResolution action

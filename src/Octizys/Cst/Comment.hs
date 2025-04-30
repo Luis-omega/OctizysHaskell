@@ -1,8 +1,8 @@
-{- | Description : This module defines the type for a `Comment`
--}
+-- | Description : This module defines the type for a `Comment`
 module Octizys.Cst.Comment where
+
 import Data.Text (Text)
-import Octizys.Cst.Span(Span)
+import Octizys.Cst.Span (Span)
 
 
 newtype LineComment = LineComment'

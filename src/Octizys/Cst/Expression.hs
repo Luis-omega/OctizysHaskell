@@ -38,7 +38,6 @@ module Octizys.Cst.Expression
     , unExpressionVariableId
     )
   , Parameters (Parameters', start, remain)
-  , freshExpressionVariableId
   )
 where
 
@@ -63,12 +62,6 @@ newtype ExpressionVariableId = ExpressionVariableId' {unExpressionVariableId :: 
     , GenerateFromInt
     )
     via VariableId
-
-
-freshExpressionVariableId
-  :: Generator ExpressionVariableId :> es
-  => Eff es ExpressionVariableId
-freshExpressionVariableId = generate
 
 
 -- | The set of parameters
@@ -152,4 +145,3 @@ data Expression
       , _type :: Type
       }
   deriving (Show, Eq, Ord)
-

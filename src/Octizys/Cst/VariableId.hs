@@ -6,16 +6,10 @@ This allow us to have a symbol table that can be mutated
 without touching the CST.
 -}
 module Octizys.Cst.VariableId
-  ( VariableId
-  , freshVariableId
+  ( VariableId (VariableId')
   , unVariableId
   ) where
 
-import Effectful (Eff, (:>))
-import Octizys.Effects.Generator.Effect
-  ( Generator
-  , generate
-  )
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
 
 
@@ -30,12 +24,3 @@ newtype VariableId = VariableId' {unVariableId :: Int}
     , GenerateFromInt
     )
     via Int
-
-
-{- | Generates a new variable id.
-All Ids are guaranteed to be unique.
--}
-freshVariableId
-  :: Generator VariableId :> es => Eff es VariableId
-freshVariableId = generate
-

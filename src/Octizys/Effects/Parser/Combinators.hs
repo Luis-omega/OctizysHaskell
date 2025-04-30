@@ -42,7 +42,7 @@ import qualified Data.Text as Text
 import Effectful (Eff, (:>))
 import Octizys.Effects.Parser.Backend
   ( Expectations (Expectations')
-  , Expected (ExpectedName, ExpectedRaw, ExpectedEndOfInput)
+  , Expected (ExpectedEndOfInput, ExpectedName, ExpectedRaw)
   , ParserError
     ( GeneratedError
     , UserMadeError
@@ -56,7 +56,8 @@ import Octizys.Effects.Parser.Backend
   , UserError (CustomError, SimpleError)
   , addExpectation
   , emptyExpectations
-  , mergeExpectations, singletonExpectations
+  , mergeExpectations
+  , singletonExpectations
   )
 import Octizys.Effects.Parser.Effect
   ( Parser
@@ -247,16 +248,18 @@ item = do
       pure current
     Nothing -> unexpectedEof
 
-eof 
+
+eof
   :: Parser e :> es
   => Eff es ()
 eof = do
   maybeChar <- lookupNext
-  case maybeChar of 
+  case maybeChar of
     Nothing -> pure ()
-    Just x -> do 
-      modifyParserState $ addExpectation ExpectedEndOfInput 
-      unexpectedRaw (x :| []) 
+    Just x -> do
+      modifyParserState $ addExpectation ExpectedEndOfInput
+      unexpectedRaw (x :| [])
+
 
 text
   :: Parser e :> es
@@ -585,8 +588,8 @@ label expectation p =
   catchParseError
     p
     ( \e -> do
-      throwParseError $
-        e{expected= singletonExpectations (ExpectedName expectation)}
+        throwParseError $
+          e {expected = singletonExpectations (ExpectedName expectation)}
     )
 
 
@@ -599,4 +602,3 @@ label expectation p =
 
 
 infix 0 <?>
-

@@ -106,4 +106,3 @@ runGeneratorFull
       b
   -> Eff es (b, a)
 runGeneratorFull seed = runGeneratorFullWith seed generateFromInt
-

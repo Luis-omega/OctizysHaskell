@@ -20,7 +20,8 @@ import Effectful.Error.Static
   ( Error
   , catchError
   , runErrorNoCallStack
-  , throwError, runErrorWith
+  , runErrorWith
+  , throwError
   )
 import Effectful.State.Static.Local (State, get, put, runState)
 

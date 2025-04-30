@@ -14,7 +14,8 @@ import Effectful.State.Static.Local (State, runState)
 import Octizys.Effects.Parser.Backend
   ( ParserError
   , ParserState
-  , makeInitialState, prettyParserError
+  , makeInitialState
+  , prettyParserError
   )
 import Octizys.Effects.Parser.Combinators hiding (text)
 import qualified Octizys.Effects.Parser.Combinators as C
@@ -23,17 +24,19 @@ import Octizys.Effects.Parser.Effect
   )
 import Octizys.Effects.Parser.Interpreter (runFullParser)
 import qualified Octizys.Effects.Parser.Interpreter as Parser
-import Test.Hspec
 import Octizys.Parser.Type (OctizysParseError)
-import qualified Prettyprinter.Render.String
+import Prettyprinter (Pretty (pretty))
 import qualified Prettyprinter
-import Prettyprinter (Pretty(pretty))
+import qualified Prettyprinter.Render.String
+import Test.Hspec
+
 
 render :: ParserError String -> String
 render =
   Prettyprinter.Render.String.renderString
     <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
     <<< prettyParserError pretty (Just ('t' :| "est"))
+
 
 runParser
   :: Eff
@@ -143,6 +146,5 @@ tests = do
 
     it "fails if both parsers fail" $ do
       let p =
-              alternative @String (char @String 'a') (char @String 'b')
+            alternative @String (char @String 'a') (char @String 'b')
       runParser p "c" `shouldSatisfy` isLeft
-

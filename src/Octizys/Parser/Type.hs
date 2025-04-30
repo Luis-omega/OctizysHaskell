@@ -1,33 +1,18 @@
 module Octizys.Parser.Type where
 
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Text (Text)
 import Effectful (Eff, (:>))
-import Effectful.State.Static.Local (State, gets, modify)
 import Octizys.Cst.Comment
-  ( BlockComment (BlockComment', content)
+  ( BlockComment (BlockComment')
   , Comment (Block, Line, blockComment, lineComment, span)
-  , LineComment (LineComment', content)
-  )
-import Octizys.Cst.Expression
-  ( ExpressionVariableId
-  , freshExpressionVariableId
+  , LineComment (LineComment')
   )
 import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Span (Span (Span', end, start))
-import Octizys.Cst.Type (TypeVariableId, freshTypeVariableId)
-import Octizys.Effects.Generator.Effect (Generator, generate)
-import Octizys.Effects.Parser.Backend
-  ( ParserError (errorPosition)
-  , ParserState (position)
-  , insertExpectation
-  )
 import Octizys.Effects.Parser.Combinators
   ( errorMessage
   , getPosition
   , item
-  , lookupNext
   , many
   , optional
   , takeWhileP
@@ -48,10 +33,6 @@ import Control.Arrow ((<<<))
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Text as Text
-import Octizys.Effects.Parser.Interpreter (runFullParser, runParser)
-import Octizys.Effects.SymbolResolution.Interpreter
-  ( SourceInfo (SourceInfo', afterComment, preComments, span)
-  )
 import Prettyprinter (Pretty (pretty))
 import Prelude hiding (span)
 
@@ -105,7 +86,7 @@ parseSkipSimpleSpacesAtEnd
 parseSkipSimpleSpacesAtEnd p = p <* skipSimpleSpaces
 
 
--- TODO: maybe we need to substract 1 to the final position?
+-- TODO: maybe we need to subtract 1 to the final position?
 
 {- | Parses the item, skips spaces at end, and gets the
 span of the item.
@@ -580,4 +561,3 @@ token p = do
 -- parseModule :: Error ParserError :> es => Text -> Eff es [TopItem]
 -- parseModule = parserToEff moduleParser
 --
-

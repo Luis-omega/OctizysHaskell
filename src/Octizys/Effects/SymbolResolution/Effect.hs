@@ -42,4 +42,3 @@ data SymbolResolution :: Effect where
 
 
 $(makeEffect ''SymbolResolution)
-

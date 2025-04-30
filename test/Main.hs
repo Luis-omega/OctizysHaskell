@@ -8,7 +8,6 @@ import Test.Hspec (hspec)
 
 main :: IO ()
 main = do
-  hspec $ do 
+  hspec $ do
     Effects.Parser.tests
     PrettyParse.tests
-    

@@ -14,14 +14,11 @@ module Octizys.Cst.Type
     ( TypeVariableId'
     , unTypeVariableId
     )
-  , freshTypeVariableId
   ) where
 
 import Data.List.NonEmpty (NonEmpty)
-import Effectful (Eff, (:>))
 import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.VariableId (VariableId)
-import Octizys.Effects.Generator.Effect (Generator, generate)
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
 
 
@@ -34,12 +31,6 @@ newtype TypeVariableId = TypeVariableId' {unTypeVariableId :: VariableId}
     , Ord
     )
     via VariableId
-
-
-freshTypeVariableId
-  :: Generator TypeVariableId :> es
-  => Eff es TypeVariableId
-freshTypeVariableId = generate
 
 
 {- | `Type` has multiple design choices inside it.
@@ -74,4 +65,3 @@ data Type
     -- identifier. You can think of it as a pointer in symbol table.
     Variable {info :: InfoId, variableId :: TypeVariableId}
   deriving (Show, Eq, Ord)
-

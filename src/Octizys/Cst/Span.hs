@@ -6,7 +6,7 @@ module Octizys.Cst.Span
       , offset
       )
   , makeInitialPosition
-  , Span (Span',start, end)
+  , Span (Span', start, end)
   ) where
 
 
@@ -35,4 +35,3 @@ data Span = Span'
   , end :: Position
   }
   deriving (Show, Eq, Ord)
-

@@ -55,12 +55,13 @@ extra-doc-files: CHANGELOG.md
 
 flag TestMode
   description: Signal if we are more flexible at building the package
-  default: True
-  manual: True
+  default:     True
+  manual:      True
 
 common warnings
-  if flag(TestMode)
+  if flag(testmode)
     ghc-options: -Wall -Wno-prepositive-qualified-module
+
   else
     ghc-options: -Wall -Werror -Wno-prepositive-qualified-module
 
@@ -100,31 +101,31 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
+    Octizys.Cst.Comment
     Octizys.Cst.Expression
+    Octizys.Cst.Fixpoint
     Octizys.Cst.InfoId
+    Octizys.Cst.Span
     Octizys.Cst.TopItem
     Octizys.Cst.Type
     Octizys.Cst.VariableId
-    Octizys.Cst.Fixpoint
     Octizys.Effects.Console.Effect
     Octizys.Effects.Console.Interpreter
     Octizys.Effects.Generator.Effect
     Octizys.Effects.Generator.Interpreter
+    Octizys.Effects.Parser.Backend
     Octizys.Effects.Parser.Combinators
     Octizys.Effects.Parser.Effect
     Octizys.Effects.Parser.Interpreter
-    Octizys.Effects.Parser.Backend
     Octizys.Effects.SymbolResolution.Effect
     Octizys.Effects.SymbolResolution.Interpreter
     Octizys.Parser.Expression
     Octizys.Parser.TopItem
     Octizys.Parser.Type
+    Octizys.Pretty.Comment
     Octizys.Pretty.Expression
     Octizys.Pretty.TopItem
     Octizys.Pretty.Type
-    Octizys.Pretty.Comment
-    Octizys.Cst.Span
-    Octizys.Cst.Comment
 
   -- Octizys.Repl.Ast
   -- Octizys.Repl.Console
@@ -211,18 +212,17 @@ test-suite octizys-test
   main-is:          Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules:    
+  other-modules:
     Octizys.Test.Effects.Parser
-    ,Octizys.Test.Parser.PrettyParse
-
+    Octizys.Test.Parser.PrettyParse
 
   -- Octizys.Test.Parser.PrettyParse
   -- Test dependencies.
   build-depends:
     , base           ^>=4.18.2.1
+    , containers
     , effectful
     , hspec
-    , containers
     , octizys
     , prettyprinter
     , QuickCheck

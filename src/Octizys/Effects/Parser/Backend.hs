@@ -269,4 +269,3 @@ addExpectation :: Expected -> ParserState -> ParserState
 addExpectation expt s =
   let newSet = coerce $ Set.insert expt (coerce s.expected)
    in s {expected = newSet}
-

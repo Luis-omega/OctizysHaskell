@@ -37,8 +37,9 @@ import Octizys.Effects.SymbolResolution.Interpreter
   ( SourceExpressionVariableInfo
   , SourceInfo
   , SourceTypeVariableInfo
+  , SymbolResolutionState
   , initialSymbolResolutionState
-  , runSymbolResolution, runSymbolResolutionWithState
+  , runSymbolResolutionFull
   )
 import Octizys.Pretty.Comment (prettyComment)
 import Prettyprinter
@@ -57,18 +58,7 @@ type P a =
         : State ParserState
         : Error (ParserError OctizysParseError)
         : SymbolResolution
-        : Generator TypeVariableId
-        : IntGenerator TypeVariableId
-        : State (IntGeneratorState TypeVariableId)
-        : Generator ExpressionVariableId
-        : IntGenerator ExpressionVariableId
-        : State (IntGeneratorState ExpressionVariableId)
-        : Generator InfoId
-        : IntGenerator InfoId
-        : State (IntGeneratorState InfoId)
-        : State (Map ExpressionVariableId SourceExpressionVariableInfo)
-        : State (Map TypeVariableId SourceTypeVariableInfo)
-        : State (Map InfoId SourceInfo)
+        : State SymbolResolutionState
         : '[]
     )
     a
@@ -80,18 +70,7 @@ runParser
           : State ParserState
           : Error (ParserError OctizysParseError)
           : SymbolResolution
-          : Generator TypeVariableId
-          : IntGenerator TypeVariableId
-          : State (IntGeneratorState TypeVariableId)
-          : Generator ExpressionVariableId
-          : IntGenerator ExpressionVariableId
-          : State (IntGeneratorState ExpressionVariableId)
-          : Generator InfoId
-          : IntGenerator InfoId
-          : State (IntGeneratorState InfoId)
-          : State (Map ExpressionVariableId SourceExpressionVariableInfo)
-          : State (Map TypeVariableId SourceTypeVariableInfo)
-          : State (Map InfoId SourceInfo)
+          : State SymbolResolutionState
           : '[]
       )
       a
@@ -100,7 +79,7 @@ runParser
 runParser p t =
   runPureEff $
     fst
-      <$> runSymbolResolutionWithState
+      <$> runSymbolResolutionFull
         initialSymbolResolutionState
         (runFullParser t p)
 
@@ -291,4 +270,3 @@ makePositiveTest
 -- fixtureFactorial :: String
 -- fixtureFactorial =
 --  "let fact = \\ n -> if lt n 2 then 1 else mul n (fact (minus n 1 )); in fact 5"
-
