@@ -29,7 +29,7 @@ data SymbolResolution :: Effect where
   CreateExpressionVariable
     :: Text
     -> Maybe Span
-    -> SymbolResolution m (ExpressionVariableId,TypeVariableId)
+    -> SymbolResolution m (ExpressionVariableId, TypeVariableId)
   CreateTypeVariable
     :: Maybe Text
     -> Maybe Span

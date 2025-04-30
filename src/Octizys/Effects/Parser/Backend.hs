@@ -1,7 +1,8 @@
--- | This module contains all the definitions needed to define the `Parser` effect.
--- it is unstable.
-
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
+{- | This module contains all the definitions needed to define the `Parser` effect.
+it is unstable.
+-}
 module Octizys.Effects.Parser.Backend
   ( Expected (ExpectedRaw, ExpectedName, ExpectedEndOfInput)
   , Unexpected (UnexpectedRaw, UnexpectedEndOfInput)
@@ -27,8 +28,11 @@ module Octizys.Effects.Parser.Backend
   , mergeExpectations
   , emptyExpectations
   , singletonExpectations
+  , prettyUserError
+  , prettyParserError
   ) where
 
+import Control.Arrow ((<<<))
 import Data.Coerce (coerce)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -36,7 +40,9 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text
 import Octizys.Cst.Span (Position, makeInitialPosition)
-import Control.Arrow ((<<<))
+import qualified Octizys.Cst.Span as Span
+import Prettyprinter (Doc, Pretty (pretty), (<+>))
+import qualified Prettyprinter as Pretty
 
 
 {- | Inspired by megaparsec, it represents expectation
@@ -52,10 +58,31 @@ data Expected
   deriving (Show, Eq, Ord)
 
 
+instance Pretty Expected where
+  pretty expt =
+    case expt of
+      ExpectedRaw raw -> pretty raw
+      ExpectedName name -> pretty name
+      ExpectedEndOfInput -> pretty @String "end of input"
 
-newtype Expectations
-  = Expectations' (Set Expected)
+
+newtype Expectations = Expectations' {unExpectations :: Set Expected}
   deriving (Show, Eq, Ord)
+
+
+instance Pretty Expectations where
+  pretty es =
+    let asList :: [Expected] = Set.toList $ unExpectations es
+     in case asList of
+          [] -> pretty @String ""
+          (start : end) ->
+            ( Pretty.align
+                <<< Pretty.fillSep
+            )
+              ( pretty start
+                  : ( (\x -> pretty @String "," <> pretty x) <$> end
+                    )
+              )
 
 
 insertExpectation :: Expected -> Expectations -> Expectations
@@ -69,6 +96,7 @@ mergeExpectations (Expectations' es') (Expectations' es) =
 
 emptyExpectations :: Expectations
 emptyExpectations = Expectations' Set.empty
+
 
 singletonExpectations :: Expected -> Expectations
 singletonExpectations = Expectations' <<< Set.singleton
@@ -91,10 +119,27 @@ data Unexpected
   deriving (Show, Eq, Ord)
 
 
+instance Pretty Unexpected where
+  pretty expt =
+    case expt of
+      UnexpectedRaw raw -> pretty raw
+      UnexpectedEndOfInput -> pretty @String "end of input"
+
+
 data UserError e
   = SimpleError {message :: Text}
   | CustomError {customError :: e}
   deriving (Show, Eq, Ord)
+
+
+prettyUserError
+  :: (e -> Doc ann)
+  -> UserError e
+  -> Doc ann
+prettyUserError prettyErr err =
+  case err of
+    SimpleError {message = msg} -> pretty msg
+    CustomError {customError = userE} -> prettyErr userE
 
 
 data ParserError e
@@ -110,9 +155,59 @@ data ParserError e
   deriving (Show, Eq, Ord)
 
 
+-- TODO: add source of error
+prettyParserError
+  :: (e -> Doc ann)
+  -> Maybe (NonEmpty Char)
+  -> ParserError e
+  -> Doc ann
+prettyParserError prettyError maybeName err =
+  let sourceName =
+        maybe
+          (pretty '>')
+          (\n -> pretty n <> pretty @String ">")
+          maybeName
+      locationInfo pos =
+        pretty @String "Error>"
+          <> sourceName
+          <> "line"
+          <+> pretty (Span.line pos)
+          <> ">column"
+          <+> pretty (Span.column pos)
+          <> pretty ':'
+   in case err of
+        GeneratedError
+          { errorPosition = pos
+          , unexpected = unex
+          , expected = expt
+          } ->
+            locationInfo pos
+              <> Pretty.nest
+                4
+                ( Pretty.hardline
+                    <> pretty @String "Unexpected"
+                    <+> pretty unex
+                    <> Pretty.hardline
+                    <> pretty @String "Expected one of:"
+                    <+> pretty expt
+                )
+        UserMadeError
+          { errorPosition = pos
+          , userErrors = userErrs
+          } ->
+            locationInfo pos
+              <> Pretty.nest
+                4
+                ( Pretty.hardline
+                    <> let asList = Set.toList userErrs
+                        in (Pretty.align <<< Pretty.fillSep)
+                            (prettyUserError prettyError <$> asList)
+                )
+
+
 instance Ord e => Semigroup (ParserError e) where
   (<>) e1 e2 =
-    case compare (userErrors e1) (userErrors e2) of
+    case compare (errorPosition e1) (errorPosition e2) of
       LT -> e2
       GT -> e1
       _ ->
@@ -174,3 +269,4 @@ addExpectation :: Expected -> ParserState -> ParserState
 addExpectation expt s =
   let newSet = coerce $ Set.insert expt (coerce s.expected)
    in s {expected = newSet}
+

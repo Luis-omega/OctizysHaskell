@@ -18,27 +18,31 @@ import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Span (Span (Span', end, start))
 import Octizys.Cst.Type (TypeVariableId, freshTypeVariableId)
 import Octizys.Effects.Generator.Effect (Generator, generate)
+import Octizys.Effects.Parser.Backend
+  ( ParserError (errorPosition)
+  , ParserState (position)
+  , insertExpectation
+  )
 import Octizys.Effects.Parser.Combinators
   ( errorMessage
   , getPosition
   , item
   , lookupNext
   , many
+  , optional
   , takeWhileP
   , text
   , try
   , (<?>)
-  , (<|>), optional
+  , (<|>)
   )
 import Octizys.Effects.Parser.Effect
   ( Parser
   )
-import Octizys.Effects.Parser.Backend(
-   ParserError (errorPosition)
-  , ParserState (position)
-  , insertExpectation
-                                     )
-import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
+import Octizys.Effects.SymbolResolution.Effect
+  ( SymbolResolution
+  , createInformation
+  )
 
 import Control.Arrow ((<<<))
 import Data.Functor (void)
@@ -48,6 +52,7 @@ import Octizys.Effects.Parser.Interpreter (runFullParser, runParser)
 import Octizys.Effects.SymbolResolution.Interpreter
   ( SourceInfo (SourceInfo', afterComment, preComments, span)
   )
+import Prettyprinter (Pretty (pretty))
 import Prelude hiding (span)
 
 
@@ -65,7 +70,12 @@ uninplemented s = errorMessage ("Uninplemented " <> s <> " parser")
 
 
 data OctizysParseError = Err1 | Err2
-  deriving (Show,Eq,Ord)
+  deriving (Show, Eq, Ord)
+
+
+instance Pretty OctizysParseError where
+  pretty Err1 = pretty @String "Err1"
+  pretty Err2 = pretty @String "Err2"
 
 
 skipSimpleSpaces
@@ -175,21 +185,17 @@ comments = many comment
 
 token
   :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
   => Eff es a
-  -> Eff es (a, SourceInfo)
+  -> Eff es (a, InfoId)
 token p = do
   pre <- preC
   p1 <- getPosition
   result <- p
   p2 <- getPosition
   after <- afterC
-  let source =
-        SourceInfo'
-          { span = Span' {start = p1, end = p2}
-          , preComments = pre
-          , afterComment = after
-          }
-  pure (result, source)
+  sourceId <- createInformation (Span' {start = p1, end = p2}) pre after
+  pure (result, sourceId)
   where
     preC = many $ do
       comment <* skipSimpleSpaces

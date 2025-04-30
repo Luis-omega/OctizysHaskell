@@ -20,7 +20,7 @@ import Effectful.Error.Static
   ( Error
   , catchError
   , runErrorNoCallStack
-  , throwError
+  , throwError, runErrorWith
   )
 import Effectful.State.Static.Local (State, get, put, runState)
 
@@ -67,3 +67,23 @@ runFullParser stream p = do
       <<< runParser
     )
     p
+
+-- TODO: Use Call stack to report the error
+-- runFullParserWithCallStack
+--   :: Text
+--   -> Eff
+--       ( Parser e
+--           : State ParserState
+--           : Error (ParserError e)
+--           : es
+--       )
+--       a
+--   -> Eff es (Either (ParserError e) a)
+-- runFullParserWithCallStack stream p = do
+--   let s = makeInitialState stream
+--   ( runErrorWith
+--       <<< (fst <$>)
+--       <<< runState s
+--       <<< runParser
+--     )
+--     p

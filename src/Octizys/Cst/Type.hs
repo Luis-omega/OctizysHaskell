@@ -10,7 +10,10 @@ module Octizys.Cst.Type
   , rparen
   , _type
   , variableId
-  , TypeVariableId (TypeVariableId')
+  , TypeVariableId
+    ( TypeVariableId'
+    , unTypeVariableId
+    )
   , freshTypeVariableId
   ) where
 
@@ -23,8 +26,7 @@ import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
 
 
 -- | A wrapper around VariableId to represent type variables.
-newtype TypeVariableId
-  = TypeVariableId' VariableId
+newtype TypeVariableId = TypeVariableId' {unTypeVariableId :: VariableId}
   deriving
     ( Show
     , Eq
@@ -72,3 +74,4 @@ data Type
     -- identifier. You can think of it as a pointer in symbol table.
     Variable {info :: InfoId, variableId :: TypeVariableId}
   deriving (Show, Eq, Ord)
+

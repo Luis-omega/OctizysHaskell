@@ -33,7 +33,10 @@ module Octizys.Cst.Expression
     , expression
     , _type
     )
-  , ExpressionVariableId (ExpressionVariableId')
+  , ExpressionVariableId
+    ( ExpressionVariableId'
+    , unExpressionVariableId
+    )
   , Parameters (Parameters', start, remain)
   , freshExpressionVariableId
   )
@@ -52,8 +55,7 @@ import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
 {- | A Wrapper around VariableId to represent expressions
 of variables.
 -}
-newtype ExpressionVariableId
-  = ExpressionVariableId' VariableId
+newtype ExpressionVariableId = ExpressionVariableId' {unExpressionVariableId :: VariableId}
   deriving
     ( Show
     , Eq
@@ -150,3 +152,4 @@ data Expression
       , _type :: Type
       }
   deriving (Show, Eq, Ord)
+

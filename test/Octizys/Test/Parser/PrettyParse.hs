@@ -6,24 +6,49 @@ module Octizys.Test.Parser.PrettyParse (tests) where
 import Control.Arrow ((<<<))
 import Octizys.Parser.Type
   ( OctizysParseError
-  , comment, token
+  , comment
+  , token
   )
 import Test.Hspec
 
-import qualified Data.Bifunctor as Bifunctor
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Map (Map)
 import qualified Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Effectful (Eff, runPureEff)
 import Effectful.Error.Static (Error)
 import Effectful.State.Static.Local (State)
+import Octizys.Cst.Expression (ExpressionVariableId)
+import Octizys.Cst.InfoId (InfoId)
+import Octizys.Cst.Type (TypeVariableId)
+import Octizys.Effects.Generator.Effect (Generator, IntGenerator)
+import Octizys.Effects.Generator.Interpreter (IntGeneratorState)
+import Octizys.Effects.Parser.Backend
+  ( ParserError
+  , ParserState
+  , prettyParserError
+  )
+import Octizys.Effects.Parser.Combinators (eof, text)
 import Octizys.Effects.Parser.Effect (Parser)
-import Octizys.Effects.Parser.Backend (ParserError, ParserState)
 import Octizys.Effects.Parser.Interpreter (runFullParser)
-import Octizys.Pretty.Comment (prettyComment, prettyLine)
-import Prettyprinter (Doc, defaultLayoutOptions, layoutPretty, Pretty (pretty))
+import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
+import Octizys.Effects.SymbolResolution.Interpreter
+  ( SourceExpressionVariableInfo
+  , SourceInfo
+  , SourceTypeVariableInfo
+  , initialSymbolResolutionState
+  , runSymbolResolution, runSymbolResolutionWithState
+  )
+import Octizys.Pretty.Comment (prettyComment)
+import Prettyprinter
+  ( Doc
+  , Pretty (pretty)
+  , defaultLayoutOptions
+  , layoutPretty
+  )
+import qualified Prettyprinter as Pretty
 import qualified Prettyprinter.Render.String
-import Octizys.Effects.Parser.Combinators (text)
 
 
 type P a =
@@ -31,6 +56,19 @@ type P a =
     ( Parser OctizysParseError
         : State ParserState
         : Error (ParserError OctizysParseError)
+        : SymbolResolution
+        : Generator TypeVariableId
+        : IntGenerator TypeVariableId
+        : State (IntGeneratorState TypeVariableId)
+        : Generator ExpressionVariableId
+        : IntGenerator ExpressionVariableId
+        : State (IntGeneratorState ExpressionVariableId)
+        : Generator InfoId
+        : IntGenerator InfoId
+        : State (IntGeneratorState InfoId)
+        : State (Map ExpressionVariableId SourceExpressionVariableInfo)
+        : State (Map TypeVariableId SourceTypeVariableInfo)
+        : State (Map InfoId SourceInfo)
         : '[]
     )
     a
@@ -41,20 +79,66 @@ runParser
       ( Parser OctizysParseError
           : State ParserState
           : Error (ParserError OctizysParseError)
+          : SymbolResolution
+          : Generator TypeVariableId
+          : IntGenerator TypeVariableId
+          : State (IntGeneratorState TypeVariableId)
+          : Generator ExpressionVariableId
+          : IntGenerator ExpressionVariableId
+          : State (IntGeneratorState ExpressionVariableId)
+          : Generator InfoId
+          : IntGenerator InfoId
+          : State (IntGeneratorState InfoId)
+          : State (Map ExpressionVariableId SourceExpressionVariableInfo)
+          : State (Map TypeVariableId SourceTypeVariableInfo)
+          : State (Map InfoId SourceInfo)
           : '[]
       )
       a
   -> Text
-  -> Either String a
-runParser p t = runPureEff $ do
-  res <- runFullParser t p
-  pure $ Bifunctor.first show res
+  -> Either (ParserError OctizysParseError) a
+runParser p t =
+  runPureEff $
+    fst
+      <$> runSymbolResolutionWithState
+        initialSymbolResolutionState
+        (runFullParser t p)
+
+
+renderError :: ParserError OctizysParseError -> String
+renderError =
+  render
+    <<< prettyParserError pretty (Just ('t' :| "est"))
 
 
 render :: Doc ann -> String
 render =
   Prettyprinter.Render.String.renderString
     <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
+
+
+shouldParse
+  :: Eq a
+  => (a -> Doc ann)
+  -> Either (ParserError OctizysParseError) a
+  -> String
+  -> Expectation
+shouldParse _ (Left e) expected = do
+  expectationFailure (renderError e <> "\n" <> "Expected:" <> expected)
+shouldParse toDoc (Right result) expected =
+  let prettyResult = render (toDoc result)
+   in if prettyResult == expected
+        then pure ()
+        else
+          expectationFailure
+            ( render
+                ( pretty @String "Expected:"
+                    <> pretty expected
+                    <> Pretty.line
+                    <> "Got:"
+                    <> toDoc result
+                )
+            )
 
 
 {- | This module is on charge of testing:
@@ -65,32 +149,36 @@ tests = do
   describe "type parser" $ do
     makePositiveTest
       "line comment"
-      "-- hola mundo\n adf sdf"
+      "-- hola mundo\n"
       (Just "-- hola mundo")
-      comment
+      (comment <* eof @OctizysParseError)
       prettyComment
     makePositiveTest
       "block comment"
       "{- hola mundo\n como estas?\n he?\n bye!-}"
-      (Just " hola mundo\n como estas?\n he?\n bye!")
-      comment
-      prettyComment
-    makePositiveTest
-      "comment"
-      "{- hola mundo\n como estas?\n he?\n bye!-}"
-      (Just " hola mundo\n como estas?\n he?\n bye!")
+      Nothing
       comment
       prettyComment
     -- TODO: test offsets!
     makePositiveTest
       "let comments"
       "{- hola mundo\n como estas?\n he?\n bye!-} let -- hi!"
-      (Just "let")
-      ( let p =  token (text @OctizysParseError "let") in show <$> p)
+      Nothing
+      (let p = token (text @OctizysParseError "let") in p)
+      pretty
+    makePositiveTest
+      "let comments token"
+      "{- hola mundo\n como estas?\n he?\n bye!-} let -- hi!"
+      Nothing
+      (let p = token (text @OctizysParseError "ler") in p)
       pretty
 
+
+--      (\(a,source)-> pretty a <> pretty source)
+
 makePositiveTest
-  :: String
+  :: Eq a
+  => String
   -> Text
   -> Maybe String
   -> P a
@@ -106,8 +194,7 @@ makePositiveTest
       let result = runParser parser input
       let expected :: String =
             Data.Maybe.fromMaybe (Text.unpack input) maybeExpect
-      (render <<< prettier) <$> result
-        `shouldBe` Right expected
+      shouldParse prettier result expected
 
 --  describe "expression parser" $ do
 --    testPositiveExpression "1"

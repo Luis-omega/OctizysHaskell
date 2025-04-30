@@ -33,6 +33,7 @@ module Octizys.Effects.Parser.Combinators
   , label
   , (<?>)
   , getPosition
+  , eof
   ) where
 
 import Control.Arrow ((<<<))
@@ -41,7 +42,7 @@ import qualified Data.Text as Text
 import Effectful (Eff, (:>))
 import Octizys.Effects.Parser.Backend
   ( Expectations (Expectations')
-  , Expected (ExpectedName, ExpectedRaw)
+  , Expected (ExpectedName, ExpectedRaw, ExpectedEndOfInput)
   , ParserError
     ( GeneratedError
     , UserMadeError
@@ -246,6 +247,16 @@ item = do
       pure current
     Nothing -> unexpectedEof
 
+eof 
+  :: Parser e :> es
+  => Eff es ()
+eof = do
+  maybeChar <- lookupNext
+  case maybeChar of 
+    Nothing -> pure ()
+    Just x -> do 
+      modifyParserState $ addExpectation ExpectedEndOfInput 
+      unexpectedRaw (x :| []) 
 
 text
   :: Parser e :> es

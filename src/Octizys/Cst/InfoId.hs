@@ -8,7 +8,7 @@ of information they carry.
 This way we can discart away comentaries for inference
 or source position for evaluation.
 -}
-module Octizys.Cst.InfoId (InfoId, freshInfoId) where
+module Octizys.Cst.InfoId (InfoId(unInfoId), freshInfoId) where
 
 import Effectful (Eff, (:>))
 import Octizys.Effects.Generator.Effect
@@ -16,14 +16,18 @@ import Octizys.Effects.Generator.Effect
   , generate
   )
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
+import Prettyprinter (Pretty (pretty))
+import Control.Arrow ((<<<))
 
 
 {- | A Id that signals some information of a node that
 is not stored in the Cst
 -}
-newtype InfoId = InfoIdC Int
+newtype InfoId = InfoId' {unInfoId:: Int}
   deriving (Show, Eq, Ord, GenerateFromInt) via Int
 
+instance Pretty InfoId where
+  pretty = pretty <<< unInfoId
 
 {- | Generates a new fresh InfoId used to store information in
 a different structure than the Cst.

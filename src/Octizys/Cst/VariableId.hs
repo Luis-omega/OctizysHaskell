@@ -5,7 +5,11 @@ is necesarie.
 This allow us to have a symbol table that can be mutated
 without touching the CST.
 -}
-module Octizys.Cst.VariableId (VariableId, freshVariableId) where
+module Octizys.Cst.VariableId
+  ( VariableId
+  , freshVariableId
+  , unVariableId
+  ) where
 
 import Effectful (Eff, (:>))
 import Octizys.Effects.Generator.Effect
@@ -18,7 +22,7 @@ import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
 {- | A id that point to the variable information stored in a
 symbol table.
 -}
-newtype VariableId = VariableIdC Int
+newtype VariableId = VariableId' {unVariableId :: Int}
   deriving
     ( Show
     , Eq
@@ -34,3 +38,4 @@ All Ids are guaranteed to be unique.
 freshVariableId
   :: Generator VariableId :> es => Eff es VariableId
 freshVariableId = generate
+

@@ -8,6 +8,7 @@ module Octizys.Effects.Generator.Interpreter
   , runIntGenerator
   , runGeneratorFull
   , runGeneratorFullWith
+  , IntGeneratorState (IntGeneratorState', nextInt)
   ) where
 
 import Control.Arrow ((<<<))
@@ -35,7 +36,7 @@ instance GenerateFromInt Int where
 
 
 -- | State for keeping track of fresh integer counts
-newtype IntGeneratorState a = IntGeneratorState
+newtype IntGeneratorState a = IntGeneratorState'
   { nextInt :: Int
   }
 
@@ -49,7 +50,7 @@ runIntGenerator = interpret $ \_ x ->
   case x of
     GenerateInt -> do
       s <- gets nextInt
-      put (IntGeneratorState (s + 1))
+      put (IntGeneratorState' (s + 1))
       pure s
 
 
@@ -76,7 +77,13 @@ runGenerator = runGeneratorWith generateFromInt
 runGeneratorFullWith
   :: Int
   -> (Int -> a)
-  -> Eff (Generator a : IntGenerator a : State (IntGeneratorState a) : es) b
+  -> Eff
+      ( Generator a
+          : IntGenerator a
+          : State (IntGeneratorState a)
+          : es
+      )
+      b
   -> Eff es (b, a)
 runGeneratorFullWith seed create action = do
   Bifunctor.second (create <<< nextInt)
@@ -99,3 +106,4 @@ runGeneratorFull
       b
   -> Eff es (b, a)
 runGeneratorFull seed = runGeneratorFullWith seed generateFromInt
+

@@ -11,20 +11,29 @@ import Data.Text (Text)
 import Effectful (Eff, runPureEff, (:>))
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.State.Static.Local (State, runState)
+import Octizys.Effects.Parser.Backend
+  ( ParserError
+  , ParserState
+  , makeInitialState, prettyParserError
+  )
 import Octizys.Effects.Parser.Combinators hiding (text)
 import qualified Octizys.Effects.Parser.Combinators as C
 import Octizys.Effects.Parser.Effect
   ( Parser
   )
-import Octizys.Effects.Parser.Backend(
-   ParserError
-  , ParserState
-  , makeInitialState
-                                     )
 import Octizys.Effects.Parser.Interpreter (runFullParser)
 import qualified Octizys.Effects.Parser.Interpreter as Parser
 import Test.Hspec
+import Octizys.Parser.Type (OctizysParseError)
+import qualified Prettyprinter.Render.String
+import qualified Prettyprinter
+import Prettyprinter (Pretty(pretty))
 
+render :: ParserError String -> String
+render =
+  Prettyprinter.Render.String.renderString
+    <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
+    <<< prettyParserError pretty (Just ('t' :| "est"))
 
 runParser
   :: Eff
@@ -38,10 +47,11 @@ runParser
   -> Either String a
 runParser p t = runPureEff $ do
   res <- runFullParser t p
-  pure $ Bifunctor.first show res
+  pure $ Bifunctor.first render res
 
 
 text = C.text @String
+
 
 tests :: SpecWith ()
 tests = do
@@ -133,8 +143,6 @@ tests = do
 
     it "fails if both parsers fail" $ do
       let p =
-            label @String
-              ('n' :| "o soy yo, eres tu")
-              (alternative @String (char @String 'a') (char @String 'b'))
-      runParser p "c" `shouldSatisfy` isRight
+              alternative @String (char @String 'a') (char @String 'b')
+      runParser p "c" `shouldSatisfy` isLeft
 

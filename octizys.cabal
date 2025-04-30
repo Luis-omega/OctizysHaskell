@@ -222,6 +222,7 @@ test-suite octizys-test
     , base           ^>=4.18.2.1
     , effectful
     , hspec
+    , containers
     , octizys
     , prettyprinter
     , QuickCheck

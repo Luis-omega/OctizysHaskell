@@ -16,7 +16,10 @@ prettyLine LineComment' {content=_content} =
 
 prettyBlock :: BlockComment -> Doc ann
 prettyBlock BlockComment' {content=_content} = 
+  pText "{-" <>
   vsep ((pText <<< \ (LineComment' x) -> x) <$> _content)
+  <>
+  pText "-}"
 
 prettyComment :: Comment -> Doc ann
 prettyComment (Line l _) = prettyLine l
