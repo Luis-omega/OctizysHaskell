@@ -1,14 +1,14 @@
-[default.extend-words]
-hask = "hask"
-
 [default]
 extend-ignore-identifiers-re = [
   "ine"
 ]
 
-[type.yaml]
-extend-glob = ["*.yaml"]
-check-file = false
+[default.extend-words]
+hask = "hask"
 
 [type.haskell]
 extend-glob = ["*.hs"]
+
+[type.yaml]
+extend-glob = ["*.yaml"]
+check-file = false
