@@ -10,6 +10,7 @@ module Octizys.Repl.Repl
   ( repl
   , runConsole
   , render
+  , reportErrorShow
   )
 where
 
@@ -25,9 +26,8 @@ import Effectful.Error.Static (Error, runErrorNoCallStackWith)
 --   )
 -- import qualified Octizys.Inference.Translation as Inference
 
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Prettyprint.Doc.Render.Text as Prettyprinter.Render.Text
 import Octizys.Effects.Console.Effect
   ( Console
   , putText
@@ -37,7 +37,11 @@ import Octizys.Effects.Console.Interpreter
   ( putLine
   , runConsole
   )
-import Octizys.Effects.Parser.Backend (ParserError, makeInitialState)
+import Octizys.Effects.Parser.Backend
+  ( ParserError
+  , makeInitialState
+  , prettyParserError
+  )
 import Octizys.Effects.Parser.Interpreter (runParserWith)
 import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
 import Octizys.Parser.Common (OctizysParseError)
@@ -54,6 +58,7 @@ import Prettyprinter
   , defaultLayoutOptions
   , layoutPretty
   )
+import qualified Prettyprinter.Render.Text
 
 
 data ReplStatus = Continue | Exit
@@ -120,19 +125,36 @@ rep = do
 --         }
 --     )
 
-reportError
+reportErrorWith
+  :: forall e es ann
+   . Console :> es
+  => (e -> Doc ann)
+  -> Eff (Error e : es) ReplStatus
+  -> Eff es ReplStatus
+reportErrorWith prettier =
+  runErrorNoCallStackWith
+    (\e -> (putLine <<< render prettier) e >> continue)
+
+
+reportErrorShow
   :: forall e es
    . (Console :> es, Show e)
   => Eff (Error e : es) ReplStatus
   -> Eff es ReplStatus
-reportError =
-  runErrorNoCallStackWith
-    (\e -> (putLine <<< Text.pack <<< show) e >> continue)
+reportErrorShow = reportErrorWith (pretty <<< show)
+
+
+reportErrorParser
+  :: forall es
+   . Console :> es
+  => Eff (Error (ParserError OctizysParseError) : es) ReplStatus
+  -> Eff es ReplStatus
+reportErrorParser = reportErrorWith (prettyParserError pretty (Just ('R' :| "epl")))
 
 
 repl :: SymbolResolution :> es => Console :> es => Eff es ()
 repl = do
-  status <- reportError rep
+  status <- reportErrorParser rep
   case status of
     Exit -> pure ()
     Continue -> repl
