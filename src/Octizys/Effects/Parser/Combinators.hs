@@ -36,12 +36,11 @@ module Octizys.Effects.Parser.Combinators
   , eof
   ) where
 
-import Control.Arrow ((<<<))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Effectful (Eff, (:>))
 import Octizys.Effects.Parser.Backend
-  ( Expectations (Expectations')
+  ( Expectations
   , Expected (ExpectedEndOfInput, ExpectedName, ExpectedRaw)
   , ParserError
     ( GeneratedError
@@ -56,7 +55,6 @@ import Octizys.Effects.Parser.Backend
   , UserError (CustomError, SimpleError)
   , addExpectation
   , emptyExpectations
-  , mergeExpectations
   , singletonExpectations
   )
 import Octizys.Effects.Parser.Effect
@@ -69,11 +67,9 @@ import Octizys.Effects.Parser.Effect
 
 import Octizys.Cst.Span (Position (Position', column, line, offset))
 
-import Data.Coerce (coerce)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Set as Set
-import Debug.Trace (trace)
 import Prelude hiding (exp, fail)
 
 
@@ -403,14 +399,11 @@ alternative
   -> Eff es a
 alternative p1 p2 = do
   originalState <- getParseState
-  trace "trying p1" p1 `catchParseError` \err1 -> do
-    trace "Enter in exception handling" (pure ())
-    trace ("originalState=" <> show originalState) (pure ())
+  p1 `catchParseError` \err1 -> do
     afterP1State <- getParseState
     if position originalState /= position afterP1State
       then throwParseError err1
       else do
-        trace ("after first parser state" <> show afterP1State) (pure ())
         p2 `catchParseError` \err2 -> do
           throwParseError (err1 <> err2)
 

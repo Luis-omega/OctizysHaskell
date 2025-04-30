@@ -5,16 +5,15 @@ module Octizys.Test.Effects.Parser where
 
 import Control.Arrow ((<<<))
 import qualified Data.Bifunctor as Bifunctor
-import Data.Either (isLeft, isRight)
+import Data.Either (isLeft)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
-import Effectful (Eff, runPureEff, (:>))
-import Effectful.Error.Static (Error, runErrorNoCallStack)
-import Effectful.State.Static.Local (State, runState)
+import Effectful (Eff, runPureEff)
+import Effectful.Error.Static (Error)
+import Effectful.State.Static.Local (State)
 import Octizys.Effects.Parser.Backend
   ( ParserError
   , ParserState
-  , makeInitialState
   , prettyParserError
   )
 import Octizys.Effects.Parser.Combinators hiding (text)
@@ -23,8 +22,6 @@ import Octizys.Effects.Parser.Effect
   ( Parser
   )
 import Octizys.Effects.Parser.Interpreter (runFullParser)
-import qualified Octizys.Effects.Parser.Interpreter as Parser
-import Octizys.Parser.Type (OctizysParseError)
 import Prettyprinter (Pretty (pretty))
 import qualified Prettyprinter
 import qualified Prettyprinter.Render.String
@@ -53,6 +50,9 @@ runParser p t = runPureEff $ do
   pure $ Bifunctor.first render res
 
 
+text
+  :: Text
+  -> Eff [Parser String, State ParserState, Error (ParserError String)] Text
 text = C.text @String
 
 

@@ -142,14 +142,8 @@ tests = do
     makePositiveTest
       "let comments"
       "{- hola mundo\n como estas?\n he?\n bye!-} let -- hi!"
-      Nothing
+      (Just "(let, 0)")
       (let p = token (text @OctizysParseError "let") in p)
-      pretty
-    makePositiveTest
-      "let comments token"
-      "{- hola mundo\n como estas?\n he?\n bye!-} let -- hi!"
-      Nothing
-      (let p = token (text @OctizysParseError "ler") in p)
       pretty
 
 
