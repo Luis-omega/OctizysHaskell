@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 
-module Octizys.Effects.Parser.Interpreter (runParser, runFullParser) where
+module Octizys.Effects.Parser.Interpreter (runParser, runFullParser, runParserWith, ParserState) where
 
 import Octizys.Effects.Parser.Backend
   ( ParserError
@@ -50,6 +50,19 @@ runParser = interpret $ \env action ->
     PutParseState s -> put s
 
 
+runParserWith
+  :: Error (ParserError e) :> es
+  => ParserState
+  -> Eff
+      ( Parser e
+          : State ParserState
+          : es
+      )
+      a
+  -> Eff es (a, ParserState)
+runParserWith s p = runState s $ runParser p
+
+
 runFullParser
   :: Text
   -> Eff
@@ -68,23 +81,3 @@ runFullParser stream p = do
       <<< runParser
     )
     p
-
--- TODO: Use Call stack to report the error
--- runFullParserWithCallStack
---   :: Text
---   -> Eff
---       ( Parser e
---           : State ParserState
---           : Error (ParserError e)
---           : es
---       )
---       a
---   -> Eff es (Either (ParserError e) a)
--- runFullParserWithCallStack stream p = do
---   let s = makeInitialState stream
---   ( runErrorWith
---       <<< (fst <$>)
---       <<< runState s
---       <<< runParser
---     )
---     p

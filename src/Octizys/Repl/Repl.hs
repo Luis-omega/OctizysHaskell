@@ -3,175 +3,136 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Octizys.Repl.Repl
   ( repl
   , runConsole
-  , emptyState
-  , ReplState (ReplState, translationState)
   , render
   )
 where
 
 import Control.Arrow ((<<<))
 import Effectful (Eff, (:>))
-import Effectful.Error.Dynamic (Error, runErrorNoCallStackWith)
-import Effectful.State.Static.Local (runState)
-import Effectful.Writer.Static.Local (Writer, runWriter)
-import Octizys.Effects.Generator (Generator, runGeneratorFull)
-import Octizys.Evaluation (EvaluationError)
-import Octizys.Inference.Translation
-  ( TranslationState
-  , TranslationWarning
-  , buildInferenceContext
+import Effectful.Error.Static (Error, runErrorNoCallStackWith)
+
+-- import Octizys.Evaluation (EvaluationError)
+-- import Octizys.Inference.Translation
+--   ( TranslationState
+--   , TranslationWarning
+--   , buildInferenceContext
+--   )
+-- import qualified Octizys.Inference.Translation as Inference
+
+import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.Prettyprint.Doc.Render.Text as Prettyprinter.Render.Text
+import Octizys.Effects.Console.Effect
+  ( Console
+  , putText
+  , readLine
   )
-import qualified Octizys.Inference.Translation as Inference
-import Octizys.Parser (ParserError)
+import Octizys.Effects.Console.Interpreter
+  ( putLine
+  , runConsole
+  )
+import Octizys.Effects.Parser.Backend (ParserError, makeInitialState)
+import Octizys.Effects.Parser.Interpreter (runParserWith)
+import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
+import Octizys.Parser.Common (OctizysParseError)
+import Octizys.Pretty.Expression (prettyExpression)
+import Octizys.Pretty.TopItem (prettyModule)
 import Octizys.Repl.Ast
   ( ReplCommand (LoadFile, Quit)
   , ReplTop (Command, Define, Evaluate)
   )
-import Octizys.Repl.Console
-  ( Console
-  , putLine
-  , putString
-  , readLine
-  , runConsole
+import Octizys.Repl.Parser (replParser)
+import Prettyprinter
+  ( Doc
+  , Pretty (pretty)
+  , defaultLayoutOptions
+  , layoutPretty
   )
-import Octizys.Repl.Parser (replParserEff)
-import Prettyprinter (Pretty (pretty), defaultLayoutOptions, layoutPretty)
-import qualified Prettyprinter.Render.String
-import Text.Megaparsec (errorBundlePretty)
-import Text.Show.Pretty (ppShow)
 
 
-newtype ReplState = ReplState
-  { translationState :: TranslationState
-  }
+data ReplStatus = Continue | Exit
 
 
-data ReplStatus = ContinueWith ReplState | Exit
-
-
-emptyState :: ReplState
-emptyState =
-  ReplState
-    { translationState = Inference.emptyTranslationState
-    }
-
-
-continue :: ReplState -> Eff es ReplStatus
-continue = pure <<< ContinueWith
+continue :: Eff es ReplStatus
+continue = pure Continue
 
 
 exit :: Eff es ReplStatus
 exit = pure Exit
 
 
-render :: forall a. Pretty a => a -> String
-render =
-  Prettyprinter.Render.String.renderString
+render :: forall a ann. (a -> Doc ann) -> a -> Text
+render prettifier =
+  Prettyprinter.Render.Text.renderStrict
     <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
-    <<< pretty
+    <<< prettifier
 
 
 rep
   :: ( Console :> es
-     , Error ParserError :> es
-     , Error EvaluationError :> es
-     , Error Inference.TranslationError
-        :> es
-     , Writer
-        [Inference.TranslationWarning]
-        :> es
-     , Generator Inference.TypeVarBoundToExprVar :> es
-     , Generator Inference.ExpressionVariable :> es
+     , Error (ParserError OctizysParseError) :> es
+     , SymbolResolution :> es
      )
-  => ReplState
-  -> Eff es ReplStatus
-rep context = do
-  line <- putString "repl>" >> readLine
-  action <- replParserEff line
+  => Eff es ReplStatus
+rep = do
+  line <- putText "repl>" >> readLine
+  let newParserState = makeInitialState line
+  (action, _) <- runParserWith newParserState replParser
   case action of
     Command Quit ->
       putLine "Bye!"
         >> exit
     Command (LoadFile f) -> do
       putLine $ "Unsupporte load of file: " <> f
-      continue context
+      continue
     Evaluate expression ->
       do
-        putLine $ render expression
+        putLine $ render (prettyExpression pretty pretty) expression
         -- TODO: solve this
         -- (value, new_context) <- evaluateExpression context expression
         -- putLine (show value)
         -- continue new_context
-        continue context
+        continue
     -- TODO: Type check/inference
     Define d -> do
-      putLine $ render d
-      (_, newTranslationState) <-
-        runState
-          (translationState context)
-          (buildInferenceContext [d])
-      -- TODO: Raise a error
-      putLine $ "New State:\n" <> ppShow newTranslationState
-      putLine "Define is not supported yet!"
-        >> continue
-          ( context
-              { translationState =
-                  newTranslationState
-              }
-          )
+      putLine $ render (prettyModule pretty pretty) d
+      continue
 
+
+-- TODO: do this again
+-- (_, newTranslationState) <-
+--   runState
+--     (translationState context)
+--     (buildInferenceContext [d])
+-- -- TODO: Raise a error
+-- putLine $ "New State:\n" <> ppShow newTranslationState
+-- putLine "Define is not supported yet!"
+--   >> continue
+--     ( context
+--         { translationState =
+--             newTranslationState
+--         }
+--     )
 
 reportError
   :: forall e es
    . (Console :> es, Show e)
-  => ReplState
-  -> Eff (Error e : es) ReplStatus
+  => Eff (Error e : es) ReplStatus
   -> Eff es ReplStatus
-reportError context =
+reportError =
   runErrorNoCallStackWith
-    (\e -> (putLine <<< show) e >> continue context)
+    (\e -> (putLine <<< Text.pack <<< show) e >> continue)
 
 
-reportParserError
-  :: forall es
-   . Console :> es
-  => ReplState
-  -> Eff (Error ParserError : es) ReplStatus
-  -> Eff es ReplStatus
-reportParserError context =
-  runErrorNoCallStackWith
-    (\e -> (putLine <<< errorBundlePretty) e >> continue context)
-
-
-ignoreState :: Eff es (a, b) -> Eff es a
-ignoreState = (fst <$>)
-
-
-repl :: Console :> es => ReplState -> Eff es ()
-repl context = do
-  status <- runner $ rep context
+repl :: SymbolResolution :> es => Console :> es => Eff es ()
+repl = do
+  status <- reportError rep
   case status of
     Exit -> pure ()
-    ContinueWith new_context -> repl new_context
-  where
-    runner = reportErrors <<< reportWarnings <<< runGenerators
-    runGenerators =
-      ignoreState
-        <<< runGeneratorFull @Inference.ExpressionVariable 0
-        <<< ignoreState
-        <<< runGeneratorFull @Inference.TypeVarBoundToExprVar 0
-    reportErrors =
-      reportError context
-        <<< reportParserError context
-        <<< reportError @EvaluationError context
-    reportWarnings action = do
-      (status, warnings) <- runWriter @[TranslationWarning] action
-      mapM_ (putLine <<< show) warnings
-      pure status
+    Continue -> repl

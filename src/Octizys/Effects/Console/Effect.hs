@@ -8,15 +8,16 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Octizys.Effects.Console.Effect (Console (PutString, ReadLine), putString, readLine) where
+module Octizys.Effects.Console.Effect (Console (PutText, ReadLine), putText, readLine) where
 
+import Data.Text (Text)
 import Effectful (Effect)
 import Effectful.TH (makeEffect)
 
 
 data Console :: Effect where
-  ReadLine :: Console m String
-  PutString :: String -> Console m ()
+  ReadLine :: Console m Text
+  PutText :: Text -> Console m ()
 
 
 $(makeEffect ''Console)

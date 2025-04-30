@@ -43,12 +43,11 @@ where
 
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
-import Effectful (Eff, (:>))
 import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Type (Type)
 import Octizys.Cst.VariableId (VariableId)
-import Octizys.Effects.Generator.Effect (Generator, generate)
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
+import Prettyprinter (Pretty)
 
 
 {- | A Wrapper around VariableId to represent expressions
@@ -60,6 +59,7 @@ newtype ExpressionVariableId = ExpressionVariableId' {unExpressionVariableId :: 
     , Eq
     , Ord
     , GenerateFromInt
+    , Pretty
     )
     via VariableId
 

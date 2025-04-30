@@ -1,12 +1,23 @@
 module Main where
 
+import Control.Arrow ((<<<))
 import Effectful (runEff)
 import Octizys.Effects.Console.Interpreter (runConsole)
-import Octizys.Repl.Repl (emptyState, repl)
+import Octizys.Effects.SymbolResolution.Interpreter
+  ( initialSymbolResolutionState
+  , runSymbolResolutionFull
+  )
+import Octizys.Repl.Repl (repl)
 
 
 main :: IO ()
 main =
-  run $ repl emptyState
+  run repl
   where
-    run = runEff . runConsole
+    run eff =
+      fst
+        <$> ( runEff
+                <<< runConsole
+                <<< runSymbolResolutionFull initialSymbolResolutionState
+            )
+          eff

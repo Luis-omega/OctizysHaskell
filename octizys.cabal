@@ -127,11 +127,9 @@ library
     Octizys.Pretty.Expression
     Octizys.Pretty.TopItem
     Octizys.Pretty.Type
-
-  -- Octizys.Repl.Ast
-  -- Octizys.Repl.Console
-  -- Octizys.Repl.Parser
-  -- Octizys.Repl.Repl
+    Octizys.Repl.Ast
+    Octizys.Repl.Parser
+    Octizys.Repl.Repl
 
   -- Octizys.Evaluation
   -- Octizys.HistoryMap

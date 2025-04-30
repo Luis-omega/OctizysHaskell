@@ -36,10 +36,11 @@ import qualified Data.Text as Text
 import Prettyprinter (Pretty (pretty))
 import Prelude hiding (span)
 
+
 -- * ==================== Auxiliary Functions =================
 
 
-newtype Symbol = Symbol' {unSymbol:: Text}
+newtype Symbol = Symbol' {unSymbol :: Text}
 
 
 uninplemented :: forall a e es. Parser e :> es => Text -> Eff es a

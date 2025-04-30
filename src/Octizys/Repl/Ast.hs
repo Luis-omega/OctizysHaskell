@@ -1,14 +1,21 @@
-module Octizys.Repl.Ast (ReplCommand (Quit, LoadFile), ReplTop (Evaluate, Define, Command)) where
+module Octizys.Repl.Ast
+  ( ReplCommand (Quit, LoadFile)
+  , ReplTop
+    ( Evaluate
+    , Define
+    , Command
+    )
+  ) where
 
-import qualified Octizys.Parser.Expression as Expression
-import qualified Octizys.Parser.TopItem as TopItem
-import qualified Octizys.Parser.Type as Type
+import Data.Text (Text)
+import qualified Octizys.Cst.Expression as Expression
+import qualified Octizys.Cst.TopItem as TopItem
 
 
-data ReplCommand = Quit | LoadFile String
+data ReplCommand = Quit | LoadFile Text
 
 
 data ReplTop
-  = Evaluate Expression.Parser
-  | Define TopItem.Parser
+  = Evaluate Expression.Expression
+  | Define TopItem.Module
   | Command ReplCommand

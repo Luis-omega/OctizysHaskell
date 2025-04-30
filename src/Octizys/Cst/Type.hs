@@ -20,6 +20,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.VariableId (VariableId)
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
+import Prettyprinter (Pretty)
 
 
 -- | A wrapper around VariableId to represent type variables.
@@ -29,6 +30,7 @@ newtype TypeVariableId = TypeVariableId' {unTypeVariableId :: VariableId}
     , Eq
     , GenerateFromInt
     , Ord
+    , Pretty
     )
     via VariableId
 

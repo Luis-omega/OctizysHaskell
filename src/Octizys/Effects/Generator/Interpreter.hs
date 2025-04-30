@@ -9,6 +9,7 @@ module Octizys.Effects.Generator.Interpreter
   , runGeneratorFull
   , runGeneratorFullWith
   , IntGeneratorState (IntGeneratorState', nextInt)
+  , Generator
   ) where
 
 import Control.Arrow ((<<<))

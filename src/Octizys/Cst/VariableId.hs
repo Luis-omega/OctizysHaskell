@@ -11,6 +11,7 @@ module Octizys.Cst.VariableId
   ) where
 
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
+import Prettyprinter (Pretty)
 
 
 {- | A id that point to the variable information stored in a
@@ -22,5 +23,6 @@ newtype VariableId = VariableId' {unVariableId :: Int}
     , Eq
     , Ord
     , GenerateFromInt
+    , Pretty
     )
     via Int

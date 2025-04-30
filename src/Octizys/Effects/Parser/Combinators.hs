@@ -92,14 +92,6 @@ getPosition
 getPosition = gets position
 
 
-getExpetations
-  :: Parser e :> es
-  => Eff es Expectations
-getExpetations = do
-  s <- getParseState
-  pure s.expected
-
-
 -- | === Errors
 
 -- | Throw a parser error with the given message and the current position.
