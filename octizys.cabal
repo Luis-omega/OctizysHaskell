@@ -135,7 +135,7 @@ library
   -- Octizys.HistoryMap
   -- Octizys.Inference.Inference
   -- Octizys.Inference.Translation
-  -- Octizys.Parser
+
   -- Modules included in this library but not exported.
   -- other-modules:
 
