@@ -1,6 +1,7 @@
 [default]
 extend-ignore-identifiers-re = [
-  "ine"
+  "ine",
+  "nam"
 ]
 
 [default.extend-words]

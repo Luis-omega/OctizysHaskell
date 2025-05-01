@@ -31,6 +31,7 @@ module Octizys.Cst.Expression
     , definitions
     , _in
     , expression
+    , colon
     , _type
     )
   , ExpressionVariableId
@@ -47,7 +48,7 @@ import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Type (Type)
 import Octizys.Cst.VariableId (VariableId)
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
-import Prettyprinter (Pretty)
+import Prettyprinter (Pretty (pretty))
 
 
 {- | A Wrapper around VariableId to represent expressions
@@ -55,13 +56,17 @@ of variables.
 -}
 newtype ExpressionVariableId = ExpressionVariableId' {unExpressionVariableId :: VariableId}
   deriving
-    ( Show
-    , Eq
+    ( Eq
     , Ord
     , GenerateFromInt
-    , Pretty
     )
     via VariableId
+  deriving (Show)
+
+
+instance Pretty ExpressionVariableId where
+  pretty (ExpressionVariableId' ex) =
+    pretty @Text "ExpVarId[" <> pretty ex <> pretty @Text "]"
 
 
 -- | The set of parameters
@@ -86,7 +91,7 @@ data Parameters = Parameters'
 -- | Either a Let definition or a Top level definition
 data Definition = Definition'
   { name :: (InfoId, ExpressionVariableId)
-  , parameters :: Maybe Parameters
+  , parameters :: Maybe (InfoId, Parameters)
   , equal :: InfoId
   , definition :: Expression
   }

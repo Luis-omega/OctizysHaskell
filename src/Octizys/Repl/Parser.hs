@@ -91,10 +91,10 @@ replParser = do
   ( Command
       <$> (commandParser <* eof)
     )
-    <|> try
-      ( Define
-          <$> (parseModule <* eof)
-      )
+    --    <|> try
+    --      ( Define
+    --          <$> (parseModule <* eof)
+    --      )
     <|> ( Evaluate
             <$> (parseExpression <* eof)
         )

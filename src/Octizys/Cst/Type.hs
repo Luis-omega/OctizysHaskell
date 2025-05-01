@@ -26,13 +26,13 @@ import Prettyprinter (Pretty)
 -- | A wrapper around VariableId to represent type variables.
 newtype TypeVariableId = TypeVariableId' {unTypeVariableId :: VariableId}
   deriving
-    ( Show
-    , Eq
+    ( Eq
     , GenerateFromInt
     , Ord
     , Pretty
     )
     via VariableId
+  deriving (Show)
 
 
 {- | `Type` has multiple design choices inside it.

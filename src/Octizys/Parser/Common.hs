@@ -36,7 +36,9 @@ import Data.Char (isAlpha, isAlphaNum)
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Text as Text
+import Debug.Trace (trace)
 import Prettyprinter (Pretty (pretty))
+import Text.Show.Pretty (ppShow)
 import Prelude hiding (span)
 
 
@@ -161,7 +163,8 @@ comment = parseLineComment <|> parseBlockComment
 comments
   :: Parser OctizysParseError :> es
   => Eff es [Comment]
-comments = many comment
+comments = many $ do
+  comment <* skipSimpleSpaces
 
 
 token
@@ -169,19 +172,23 @@ token
   => Eff es a
   -> Eff es (a, (Span, [Comment], Maybe Comment))
 token p = do
-  pre <- preC
+  pre <- comments
   p1 <- getPosition
   result <- p
   p2 <- getPosition
   after <- afterC
   pure (result, (Span' {start = p1, end = p2}, pre, after))
   where
-    preC = many $ do
-      comment <* skipSimpleSpaces
     afterC =
-      optional (skipSimpleSpaces *> (parseLineComment <* skipSimpleSpaces))
+      optional (skipSimpleSpaces *> parseLineComment)
+        <* skipSimpleSpaces
 
 
+{- | Takes a parser and try to apply it, then
+if successful, it applies the given predicate
+and if True returns the result, otherwise fails with the
+given message.
+-}
 withPredicate1
   :: Parser OctizysParseError :> es
   => (a -> Bool)
@@ -191,7 +198,7 @@ withPredicate1
 withPredicate1 predicate errorMsg p = do
   result <- try p
   if predicate result
-    then p
+    then pure result
     else errorMessage errorMsg
 
 

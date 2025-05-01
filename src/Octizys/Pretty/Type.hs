@@ -26,8 +26,8 @@ needsParentsInArrow t =
 prettyType :: (TypeVariableId -> Doc ann) -> Type -> Doc ann
 prettyType prettyVar t =
   case t of
-    IntType _ -> pretty @Text "int"
-    BoolType _ -> pretty @Text "bool"
+    IntType _ -> pretty @Text "Int"
+    BoolType _ -> pretty @Text "Bool"
     Arrow {start = _domain, remain = _codomain} ->
       (Pretty.group <<< Pretty.nest 2)
         ( Pretty.line'

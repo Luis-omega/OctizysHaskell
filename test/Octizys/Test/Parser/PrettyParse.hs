@@ -32,7 +32,21 @@ import Octizys.Effects.SymbolResolution.Interpreter
   , initialSymbolResolutionState
   , runSymbolResolutionFull
   )
+import Octizys.Parser.Expression
+  ( boolParser
+  , functionParser
+  , ifParser
+  , intParser
+  , letParser
+  , parametersParser
+  , variableParser
+  )
 import Octizys.Pretty.Comment (prettyComment)
+import Octizys.Pretty.Expression
+  ( prettyExpression
+  , prettyFunction
+  , prettyParameters
+  )
 import Prettyprinter
   ( Doc
   , Pretty (pretty)
@@ -87,6 +101,10 @@ render =
     <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
 
 
+stripSpacesAndNewlines :: String -> String
+stripSpacesAndNewlines = filter (`notElem` [' ', '\n', '\r', '\t'])
+
+
 shouldParse
   :: Eq a
   => Text
@@ -98,7 +116,10 @@ shouldParse input _ (Left e) expected = do
   expectationFailure (renderError input e <> "\n" <> "Expected:" <> expected)
 shouldParse _ toDoc (Right result) expected =
   let prettyResult = render (toDoc result)
-   in if prettyResult == expected
+   in if stripSpacesAndNewlines
+        prettyResult
+        == stripSpacesAndNewlines
+          expected
         then pure ()
         else
           expectationFailure
@@ -117,7 +138,7 @@ shouldParse _ toDoc (Right result) expected =
 -}
 tests :: SpecWith ()
 tests = do
-  describe "type parser" $ do
+  describe "comment parsers" $ do
     makePositiveTest
       "line comment"
       "-- hola mundo\n"
@@ -130,13 +151,103 @@ tests = do
       Nothing
       comment
       prettyComment
-    -- TODO: test offsets!
+  -- TODO: test offsets!
+  describe "expressions parser" $ do
     makePositiveTest
-      "let comments"
-      "{- hola mundo\n como estas?\n he?\n bye!-} let -- hi!"
-      (Just "(let, 0)")
-      (let p = token (text @OctizysParseError "let") in p)
-      pretty
+      "bool true"
+      "true"
+      (Just "true")
+      boolParser
+      (prettyExpression pretty pretty)
+    makePositiveTest
+      "bool false"
+      "false"
+      (Just "false")
+      boolParser
+      (prettyExpression pretty pretty)
+    makePositiveTest
+      "int zero"
+      "0"
+      Nothing
+      intParser
+      (prettyExpression pretty pretty)
+    makePositiveTest
+      "int no _ in int"
+      "3487982"
+      Nothing
+      intParser
+      (prettyExpression pretty pretty)
+    makePositiveTest
+      "int"
+      "34_87_98___2"
+      Nothing
+      intParser
+      (prettyExpression pretty pretty)
+    makePositiveTest
+      "variable"
+      "abcde"
+      (Just "ExpVarId[0]")
+      variableParser
+      (prettyExpression pretty pretty)
+    makePositiveTest
+      "function (lambdas)"
+      "\\ a b c d -> c"
+      -- TODO: the SymbolResolutionState is broken, it needs to help us
+      -- catch this and have c the same identifier in both sides.
+      ( Just
+          "\\\n  ExpVarId[0]\n  ExpVarId[1]\n  ExpVarId[2]\n  ExpVarId[3] \n-> ExpVarId[2]"
+      )
+      functionParser
+      (prettyFunction pretty pretty)
+    makePositiveTest
+      "if"
+      "if 1 then 2 else 3"
+      Nothing
+      ifParser
+      (prettyExpression pretty pretty)
+    makePositiveTest
+      "let single"
+      "let a = 1; in 3"
+      (Just "let ExpVarId[0] = 1; in 3")
+      letParser
+      (prettyExpression pretty pretty)
+    makePositiveTest
+      "let two vars"
+      "let a = 1; b =2; in 3"
+      (Just "let ExpVarId[0] = 1; ExpVarId[1] = 2; in 3")
+      letParser
+      (prettyExpression pretty pretty)
+    makePositiveTest
+      "let five vars"
+      "let a = 1; b =2; c=3; d=4; e=5; in 6"
+      ( Just
+          "let ExpVarId[0] = 1; ExpVarId[1] = 2; ExpVarId[2] = 3;ExpVarId[3] = 4;ExpVarId[4] = 5;in 6"
+      )
+      letParser
+      (prettyExpression pretty pretty)
+    makePositiveTest
+      "let capture avoid params"
+      "let f: x = x; g:x = x in g 6"
+      ( Just
+          "let ExpVarId[0]: ExpVarId[1] = ExpVarId[1]; ExpVarId[2]:ExpVarId[3] = ExpVarId[3]; in ExpVarId[2] 6"
+      )
+      letParser
+      (prettyExpression pretty pretty)
+    makePositiveTest
+      "parameters"
+      "x:Bool->y:Int"
+      (Just "ExpVarId[0]:Bool->ExpVarId[1]:Int")
+      parametersParser
+      (prettyParameters pretty pretty)
+    -- TODO: remove the last parens of this test.
+    -- This means modify pretty to skip this paren
+    -- at the end of arguments definition
+    makePositiveTest
+      "parameters"
+      "x:Bool->y:Int->z:Bool->Int"
+      (Just "ExpVarId[0]:Bool->ExpVarId[1]:Int->ExpVarId[2]:(Bool->Int)")
+      parametersParser
+      (prettyParameters pretty pretty)
 
 
 --      (\(a,source)-> pretty a <> pretty source)

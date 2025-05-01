@@ -107,14 +107,16 @@ prettyDefinition
     let n = prettyVar v
         pars =
           case parameters of
-            Just ps ->
-              (Pretty.nest 2 <<< Pretty.group)
-                ( Pretty.line
-                    <> prettyParameters
-                      prettyVar
-                      prettyTypeVar
-                      ps
-                )
+            Just (_, ps) ->
+              pText ""
+                <+> pText ":"
+                <> (Pretty.nest 2 <<< Pretty.group)
+                  ( Pretty.line
+                      <> prettyParameters
+                        prettyVar
+                        prettyTypeVar
+                        ps
+                  )
             Nothing -> mempty
         def =
           (Pretty.group <<< Pretty.nest 2)
@@ -122,7 +124,6 @@ prettyDefinition
                 <> prettyExpression prettyVar prettyTypeVar definition
             )
      in n
-          <+> pText ":"
           <> pars
           <> ( Pretty.line
                 <> pText "="
@@ -223,7 +224,7 @@ prettyExpression prettyVar prettyTypeVar e =
   case e of
     EInt {intValue} -> pretty intValue
     EBool {boolValue} ->
-      pText $ if boolValue then "true'" else "false'"
+      pText $ if boolValue then "true" else "false"
     Variable {name} -> prettyVar name
     Parens {expression} ->
       Pretty.parens $
@@ -290,10 +291,12 @@ prettyExpression prettyVar prettyTypeVar e =
               2
               ( Pretty.line
                   <> (Pretty.vsep <<< toList)
-                    ( (prettyDefinition prettyVar prettyTypeVar <<< fst)
+                    ( ( (<> pText ";")
+                          <<< prettyDefinition prettyVar prettyTypeVar
+                          <<< fst
+                      )
                         <$> definitions
                     )
-                  <> pText ";"
               )
         , pText
             "in"

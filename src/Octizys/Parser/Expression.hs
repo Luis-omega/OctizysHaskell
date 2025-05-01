@@ -9,7 +9,8 @@ import Effectful (Eff, (:>))
 import Octizys.Cst.Expression
   ( Definition (Definition', definition, equal, name, parameters)
   , Expression
-    ( Application
+    ( Annotation
+    , Application
     , EBool
     , EFunction
     , EInt
@@ -19,6 +20,7 @@ import Octizys.Cst.Expression
     , Variable
     , applicationFunction
     , applicationRemain
+    , colon
     , condition
     , definitions
     , expression
@@ -34,6 +36,7 @@ import Octizys.Cst.Expression
     , _in
     , _let
     , _then
+    , _type
     )
   , Function (Function', arrow, body, parameters, start)
   , Parameter (Parameter', name, _type)
@@ -58,7 +61,6 @@ import Octizys.Effects.SymbolResolution.Effect
 import Octizys.Parser.Common
   ( OctizysParseError
   , between
-  , colon
   , elseKeyword
   , identifierParser
   , ifKeyword
@@ -120,7 +122,7 @@ typeAnnotationParser
   => SymbolResolution :> es
   => Eff es (InfoId, Type)
 typeAnnotationParser = do
-  colonInfo <- colon
+  colonInfo <- Common.colon
   _type <- parseType
   pure (colonInfo, _type)
 
@@ -180,6 +182,19 @@ parameterOrParensParameter =
     )
 
 
+maybeAnnotation
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Expression
+maybeAnnotation = do
+  expr <- parseExpression
+  maybeType <- optional typeAnnotationParser
+  case maybeType of
+    Just (colonInfo, _type) ->
+      pure Annotation {expression = expr, colon = colonInfo, _type}
+    Nothing -> pure expr
+
+
 parensExpressionParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
@@ -189,7 +204,7 @@ parensExpressionParser = do
     between
       leftParen
       rightParen
-      parseExpression
+      maybeAnnotation
   pure Parens {..}
 
 
@@ -264,7 +279,13 @@ definitionParser
 definitionParser = do
   (nam, inf, span) <- identifierParser
   (ei, _) <- createExpressionVariable nam (Just span)
-  parameters <- optional parametersParser
+  parameters <-
+    optional
+      ( do
+          c <- Common.colon
+          ps <- parametersParser
+          pure (c, ps)
+      )
   eq <- Common.equal
   definition <- expressionParser
   pure Definition' {name = (inf, ei), definition, equal = eq, parameters}
@@ -309,4 +330,4 @@ expressionParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
   => Eff es Expression
-expressionParser = applicationParser
+expressionParser = ifParser <|> letParser <|> applicationParser
