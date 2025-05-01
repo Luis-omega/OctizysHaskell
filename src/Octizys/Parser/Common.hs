@@ -178,7 +178,7 @@ token p = do
   pure (result, (Span' {start = p1, end = p2}, pre, after))
   where
     afterC =
-      optional (skipSimpleSpaces *> parseLineComment)
+      optional (try (skipSimpleSpaces *> parseLineComment))
         <* skipSimpleSpaces
 
 
@@ -218,22 +218,23 @@ identifierParser
   => Eff es (Text, InfoId, Span)
 identifierParser = do
   (iden, (span, pre, after)) <-
-    withPredicate1
-      ( \(s, _) ->
-          s
-            `notElem` [ "if"
-                      , "then"
-                      , "else"
-                      , "let"
-                      , "in"
-                      , "Int"
-                      , "True"
-                      , "False"
-                      , "Bool"
-                      ]
-      )
-      "keyword found expected identifier"
-      identifierOrKeyword
+    try $
+      withPredicate1
+        ( \(s, _) ->
+            s
+              `notElem` [ "if"
+                        , "then"
+                        , "else"
+                        , "let"
+                        , "in"
+                        , "Int"
+                        , "True"
+                        , "False"
+                        , "Bool"
+                        ]
+        )
+        "keyword found expected identifier"
+        identifierOrKeyword
   sourceInfo <- createInformation span pre after
   pure (iden, sourceInfo, span)
 

@@ -51,6 +51,7 @@ import Octizys.Effects.Parser.Combinators
   , some
   , takeWhile1P
   , takeWhileP
+  , try
   , (<?>)
   , (<|>)
   )
@@ -80,7 +81,7 @@ import Octizys.Parser.Common
   , tokenAndregister
   )
 import qualified Octizys.Parser.Common as Common
-import Octizys.Parser.Type (parseType)
+import Octizys.Parser.Type (parseType, typeAtom)
 import Prelude hiding (span)
 
 
@@ -147,7 +148,13 @@ parameterParser
   => Eff es Parameter
 parameterParser = do
   (nam, inf, parSpan) <- identifierParser
-  maybeType <- optional typeAnnotationParser
+  maybeType <-
+    optional
+      ( do
+          colonInfo <- Common.colon
+          _type <- typeAtom
+          pure (colonInfo, _type)
+      )
   ei <- definitionOfExpressionVariable nam parSpan
   pure Parameter' {name = (inf, ei), _type = maybeType}
 
@@ -348,7 +355,9 @@ applicationParser
   => Eff es Expression
 applicationParser = do
   function <- atomExpressionParser
-  arguments <- many atomExpressionParser
+  -- the Try is a fix, if the parser of a identifier
+  -- fails, then this will fail and we don't want that.
+  arguments <- many (try atomExpressionParser)
   case arguments of
     [] -> pure function
     (ini : las) ->

@@ -404,13 +404,15 @@ alternative p1 p2 = do
 --     (\s -> s {expected = mergeExpectations state.expected s.expected})
 --            )
 
--- | Parses zero or one occurrence of p, returning Maybe.
+{- | Parses zero or one occurrence of `p`, returning Maybe.
+If `p` consumes input and fails, this also fails.
+-}
 optional
   :: Ord e
   => Parser e :> es
   => Eff es a
   -> Eff es (Maybe a)
-optional p = try (Just <$> p) `alternative` pure Nothing
+optional p = (Just <$> p) `alternative` pure Nothing
 
 
 -- | Parses zero or more occurrences of p.
@@ -569,17 +571,31 @@ sepEndBy1 p sep = do
 infixr 1 <|>
 
 
+{- | This parser overrides the expectations for the given parser
+in case of error:
+- If the parser consumed input, we raise the original error.
+- If the parser throws a user error we don't override.
+- otherwise we override.
+-}
 label
   :: Parser e :> es
   => NonEmpty Char
   -> Eff es a
   -> Eff es a
-label expectation p =
+label expectation p = do
+  currentState <- getParseState
   catchParseError
     p
     ( \e -> do
-        throwParseError $
-          e {expected = singletonExpectations (ExpectedName expectation)}
+        errorState <- getParseState
+        if errorState.position /= currentState.position
+          then throwParseError e
+          else case e of
+            GeneratedError {} ->
+              throwParseError $
+                e {expected = singletonExpectations (ExpectedName expectation)}
+            _ ->
+              throwParseError e
     )
 
 

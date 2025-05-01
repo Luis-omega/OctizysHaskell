@@ -214,6 +214,9 @@ prettyParserError prettyError maybeName source err =
               <> Pretty.nest
                 4
                 ( Pretty.hardline
+                    <> pretty (prev <> after)
+                    <> Pretty.hardline
+                    <> pretty preText
                     <> let asList = Set.toList userErrs
                         in (Pretty.align <<< Pretty.fillSep)
                             (prettyUserError prettyError <$> asList)

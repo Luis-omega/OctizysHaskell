@@ -234,14 +234,14 @@ tests = do
       (prettyExpression pretty pretty)
     makePositiveTest
       "let capture avoid params"
-      "let f: x = x; g:x = x in g 6"
+      "let f: x = x; g:x = x; in g 6"
       ( Just
           "let ExpVarId[0]: ExpVarId[1] = ExpVarId[1]; ExpVarId[2]:ExpVarId[3] = ExpVarId[3]; in ExpVarId[2] 6"
       )
       letParser
       (prettyExpression pretty pretty)
     makePositiveTest
-      "parameters"
+      "parameters 2"
       "x:Bool->y:Int"
       (Just "ExpVarId[0]:Bool->ExpVarId[1]:Int")
       parametersParser
@@ -250,8 +250,8 @@ tests = do
     -- This means modify pretty to skip this paren
     -- at the end of arguments definition
     makePositiveTest
-      "parameters"
-      "x:Bool->y:Int->z:Bool->Int"
+      "parameters 3"
+      "x:Bool->y:Int->z:(Bool->Int)"
       (Just "ExpVarId[0]:Bool->ExpVarId[1]:Int->ExpVarId[2]:(Bool->Int)")
       parametersParser
       (prettyParameters pretty pretty)
