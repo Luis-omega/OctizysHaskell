@@ -9,7 +9,7 @@ import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolution
   , createInformation
   )
-import Octizys.Parser.Common (OctizysParseError, comments)
+import Octizys.Parser.Common (OctizysParseError, colon, comments)
 import Octizys.Parser.Expression (definitionParser)
 
 
@@ -18,7 +18,10 @@ parseModule
   => SymbolResolution :> es
   => Eff es Module
 parseModule = do
-  definitions <- many definitionParser
+  definitions <- many $ do
+    def <- definitionParser
+    colonInfo <- colon
+    pure (def, colonInfo)
   lastCommentsRaw <- comments
   case lastCommentsRaw of
     [] -> pure Module' {lastComments = Nothing, ..}

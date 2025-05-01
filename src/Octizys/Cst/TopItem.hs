@@ -8,6 +8,7 @@ import Octizys.Cst.InfoId (InfoId)
 
 
 data Module = Module'
-  { definitions :: [Definition]
+  { definitions :: [(Definition, InfoId)]
+  -- ^ The InfoId is for the colon
   , lastComments :: Maybe InfoId
   }

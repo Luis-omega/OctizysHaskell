@@ -182,6 +182,7 @@ executable octizys
     , base       ^>=4.18.2.1
     , effectful
     , octizys
+    , text
 
   -- Directories containing source files.
   hs-source-dirs:   app

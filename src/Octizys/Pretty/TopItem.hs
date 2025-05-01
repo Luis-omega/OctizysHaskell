@@ -21,4 +21,9 @@ prettyModule
       }
     ) =
     -- TODO: missing last comment!
-    vsep (prettyDefinition prettyExp prettyType <$> _definitions)
+    vsep
+      ( prettyDefinition
+          prettyExp
+          prettyType
+          <$> (fst <$> _definitions)
+      )
