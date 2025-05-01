@@ -52,14 +52,12 @@ data Type
   | -- | Represent a function type.
     -- It can have multiple items, and it must have at least one.
     Arrow
-      { info :: InfoId
-      , start :: Type
-      , remain :: NonEmpty Type
+      { start :: Type
+      , remain :: NonEmpty (InfoId, Type)
       }
   | -- | Represents a type inside parentheses.
     Parens
-      { info :: InfoId
-      , lparen :: InfoId
+      { lparen :: InfoId
       , _type :: Type
       , rparen :: InfoId
       }

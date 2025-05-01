@@ -1,254 +1,132 @@
-module Octizys.Parser.Type where
+module Octizys.Parser.Type (parseType, typeHole) where
 
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
-import Octizys.Cst.Type (Type)
+import Octizys.Cst.InfoId (InfoId)
+import Octizys.Cst.Type
+  ( Type
+      ( Arrow
+      , BoolType
+      , IntType
+      , Parens
+      , variableId
+      )
+  )
+import qualified Octizys.Cst.Type as Type
+import Octizys.Effects.Parser.Combinators
+  ( char
+  , many
+  , (<?>)
+  , (<|>)
+  )
 import Octizys.Effects.Parser.Effect (Parser)
-import Octizys.Parser.Common (OctizysParseError, uninplemented)
+import Octizys.Effects.SymbolResolution.Effect
+  ( SymbolResolution
+  , createInformation
+  , createTypeVariable
+  )
+import Octizys.Parser.Common
+  ( OctizysParseError
+  , between
+  , keyword
+  , leftParen
+  , rightParen
+  , token
+  )
+import Prelude hiding (span)
 
 
-parseType :: Parser OctizysParseError :> es => Eff es Type
-parseType = uninplemented "Type Parser not implemented"
+parseType
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Type
+parseType = typeParser
 
--- testParser :: Parser a -> Text -> Either ParserError a
--- testParser p = runParser p "test"
---
---
--- parserToEff :: Error ParserError :> es => Parser a -> Text -> Eff es a
--- parserToEff p s =
---   -- TODO : remove this hardcore of "repl"
---   case parse p "repl" s of
---     Left e -> throwError e
---     Right a -> pure a
---
---
--- withPredicate1 :: (a -> Bool) -> Text -> Parser a -> Parser a
--- withPredicate1 predicate errorMsg p = do
---   result <- lookAhead p
---   if predicate result
---     then p
---     else fail errorMsg
---
---
--- liftError
---   :: forall a e
---    . Ord e
---   => Parsec e Text (Either e a)
---   -> Parsec e Text a
--- liftError p = do
---   result <- p
---   case result of
---     Left e -> customFailure e
---     Right r -> pure r
---
---
--- -- Espacios opcionales
--- sc :: Parser ()
--- sc = L.space space1 empty empty
---
---
--- lexeme :: Parser a -> Parser a
--- lexeme = L.lexeme sc
---
---
--- symbol :: Text -> Parser Text
--- symbol = L.symbol sc
---
---
--- charParser :: Char -> Parser ()
--- charParser = void <<< lexeme <<< char
---
---
--- keyword :: Text -> Parser ()
--- keyword = void <<< symbol
---
---
--- -- ======================= Lexer ===========================
---
--- positionFromPos :: SourcePos -> Position
--- positionFromPos s = Position' {line = s.sourceLine, column = s.sourceColumn}
---
---
--- spanFromPos :: SourcePos -> SourcePos -> Span
--- spanFromPos s1 s2 =
---   let start = positionFromPos s1
---       end = positionFromPos s2
---    in Span' {..}
---
---
--- trackSpan :: Parser a -> Parser (a, Span)
--- trackSpan p = do
---   start <- getSourcePos
---   content <- p
---   end <- getSourcePos
---   pure (content, spanFromPos start end)
---
---
--- lineCommentParser :: Parser (Either () Comment)
--- lineCommentParser = do
---   result <- try (trackSpan parseLineComment)
---   case result of
---     Left _ -> pure ()
---     Right (lineComment, span) -> Line {..}
---   where
---     parseLineComment = do
---       _ <- string "--"
---       takeWhileP (!= '\n') (Just "a non line break")
---
--- blockCommentParser :: Parser (Either () Comment)
--- blockCommentParser = do
---   result <- try (trackSpan parseBlockComment)
---   case result of
---     Left _ -> pure ()
---     Right (blockComment, span) -> Block {..}
---   where
---     innerElement = do
---       start <- takeWhileP (!= '-' )
---       second <- try (Just <$> string "-}" ) <|> Nothing
---       case second of
---         Nothing -> (start <> secondPart) <> innerElement
---         Just _ ->  start
---
---     parseBlockComment =
---       -- TODO: handle nested comments.
---       do
---         _ <- string "{-"
---         content <- innerElement
---         _ <- string "-}"
---         content
---
---
---
---
--- identifierOrKeyword :: Parser Symbol
--- identifierOrKeyword = lexeme $ do
---   _head <- takeWhile1P (Just "identifier start character") isAlpha
---   remain <-
---     takeWhileP
---       (Just "identifier character")
---       (\c -> isAlphaNum c || c == '_')
---   let full_string = _head <> remain
---   liftError $ pure $ makeSymbol full_string
---
---
--- identifierParser :: Parser Symbol
--- identifierParser =
---   withPredicate1
---     ( \s ->
---         symbolToString s
---           `notElem` [ "if"
---                     , "then"
---                     , "else"
---                     , "let"
---                     , "in"
---                     ]
---     )
---     "keyword found, expected identifier"
---     identifierOrKeyword
---
---
--- colon :: Parser ()
--- colon = charParser ':'
---
---
--- semicolon :: Parser ()
--- semicolon = charParser ';'
---
---
--- equal :: Parser ()
--- equal = charParser '='
---
---
--- lambdaStart :: Parser ()
--- lambdaStart = charParser '\\'
---
---
--- rightArrow :: Parser ()
--- rightArrow = keyword "->"
---
---
--- leftParen :: Parser ()
--- leftParen = charParser '('
---
---
--- rightParen :: Parser ()
--- rightParen = charParser ')'
---
---
--- leftBrace :: Parser ()
--- leftBrace = charParser '{'
---
---
--- rightBrace :: Parser ()
--- rightBrace = charParser '}'
---
---
--- ifKeyword :: Parser ()
--- ifKeyword = keyword "if"
---
---
--- thenKeyword :: Parser ()
--- thenKeyword = keyword "then"
---
---
--- elseKeyword :: Parser ()
--- elseKeyword = keyword "else"
---
---
--- letKeyword :: Parser ()
--- letKeyword = keyword "let"
---
---
--- inKeyword :: Parser ()
--- inKeyword = keyword "in"
---
---
--- parens :: Parser a -> Parser a
--- parens = between leftParen rightParen
---
---
--- braces :: Parser a -> Parser a
--- braces = between leftBrace rightBrace
---
---
--- -- ======================= Types ===========================
---
--- typeIntParser :: Parser (Ast.Type tvar)
--- typeIntParser = makeIntType <$ symbol "int"
---
---
--- typeBoolParser :: Parser (Ast.Type tvar)
--- typeBoolParser = makeBoolType <$ symbol "bool"
---
---
--- typeConstantParser :: Parser (Ast.Type tvar)
--- typeConstantParser = typeIntParser <|> typeBoolParser
---
---
--- typeHole :: Parser Type
--- typeHole =
---   (makeTypeHole <$ lexeme (char '_'))
---     <?> "a type variable"
---
---
--- typeAtom :: Parser Type
--- typeAtom =
---   typeConstantParser
---     <|> parens typeParser
---
---
--- typeArrowParser :: Parser Type
--- typeArrowParser = do
---   initial <- typeAtom
---   remain <- many (symbol "->" >> typeAtom)
---   case remain of
---     [] -> pure initial
---     _ -> (liftError <<< pure <<< makeArrow initial) remain
---
---
--- typeParser :: Parser Type
--- typeParser = typeArrowParser
---
---
+
+-- ======================= Types ===========================
+
+typeIntParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Type
+typeIntParser = IntType <$> keyword "Int"
+
+
+typeBoolParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Type
+typeBoolParser = BoolType <$> keyword "Bool"
+
+
+typeConstantParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Type
+typeConstantParser = typeIntParser <|> typeBoolParser
+
+
+typeHole
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Type
+typeHole = do
+  (_, (span, pre, after)) <-
+    token (char '_')
+      <?> ('a' :| " type variable")
+  tId <- createTypeVariable Nothing (Just span)
+  inf <- createInformation span pre after
+  pure Type.Variable {info = inf, variableId = tId}
+
+
+parens
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Type
+parens = do
+  (lparen, _type, rparen) <-
+    between leftParen rightParen typeParser
+  pure Parens {..}
+
+
+typeAtom
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Type
+typeAtom =
+  -- We don't have type vars yet!
+  typeConstantParser
+    <|> parens
+
+
+typeArrowAndType
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es (InfoId, Type)
+typeArrowAndType = do
+  infoArrow <- keyword "->"
+  _type <- typeAtom
+  pure (infoArrow, _type)
+
+
+typeArrowParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Type
+typeArrowParser = do
+  start <- typeAtom
+  remain <- many typeArrowAndType
+  case remain of
+    [] -> pure start
+    (r : emain) -> pure Arrow {start, remain = r :| emain}
+
+
+typeParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Type
+typeParser = typeArrowParser
+
 -- -- ======================= Literals ===========================
 --
 -- boolParser :: Parser Expression
