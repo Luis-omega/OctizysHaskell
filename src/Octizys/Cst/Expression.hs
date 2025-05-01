@@ -1,6 +1,13 @@
 module Octizys.Cst.Expression
   ( Parameter (Parameter', name, _type)
-  , Definition (Definition', name, parameters, equal, definition)
+  , Definition
+    ( Definition'
+    , name
+    , parameters
+    , equal
+    , definition
+    , outputType
+    )
   , Function (Function', start, arrow, body, parameters)
   , Expression
     ( EInt
@@ -38,7 +45,7 @@ module Octizys.Cst.Expression
     ( ExpressionVariableId'
     , unExpressionVariableId
     )
-  , Parameters (Parameters', start, remain)
+  , Parameters (Parameters', unParameters)
   )
 where
 
@@ -79,12 +86,7 @@ data Parameter = Parameter'
   deriving (Show, Eq, Ord)
 
 
-data Parameters = Parameters'
-  { -- The a in "a->b"
-    start :: Parameter
-  , remain :: [(InfoId, Parameter)]
-  -- ^ The  " -> b " in "a -> b"
-  }
+newtype Parameters = Parameters' {unParameters :: [(Parameter, InfoId)]}
   deriving (Show, Eq, Ord)
 
 
@@ -92,6 +94,7 @@ data Parameters = Parameters'
 data Definition = Definition'
   { name :: (InfoId, ExpressionVariableId)
   , parameters :: Maybe (InfoId, Parameters)
+  , outputType :: Maybe (Maybe InfoId, Type)
   , equal :: InfoId
   , definition :: Expression
   }

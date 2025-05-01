@@ -18,6 +18,7 @@ import qualified Data.Text as Text
 import Effectful (Eff, runPureEff)
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.State.Static.Local (State)
+import Octizys.Cst.Expression (Parameters (Parameters'))
 import Octizys.Effects.Parser.Backend
   ( ParserError
   , ParserState
@@ -42,12 +43,14 @@ import Octizys.Parser.Expression
   , parametersParser
   , variableParser
   )
+import Octizys.Parser.TopItem (parseModule)
 import Octizys.Pretty.Comment (prettyComment)
 import Octizys.Pretty.Expression
   ( prettyExpression
   , prettyFunction
   , prettyParameters
   )
+import Octizys.Pretty.TopItem (prettyModule)
 import Prettyprinter
   ( Doc
   , Pretty (pretty)
@@ -244,7 +247,7 @@ tests = do
       "parameters 2"
       "x:Bool->y:Int"
       (Just "ExpVarId[0]:Bool->ExpVarId[1]:Int")
-      parametersParser
+      (Parameters' <$> parametersParser)
       (prettyParameters pretty pretty)
     -- TODO: remove the last parens of this test.
     -- This means modify pretty to skip this paren
@@ -253,8 +256,15 @@ tests = do
       "parameters 3"
       "x:Bool->y:Int->z:(Bool->Int)"
       (Just "ExpVarId[0]:Bool->ExpVarId[1]:Int->ExpVarId[2]:(Bool->Int)")
-      parametersParser
+      (Parameters' <$> parametersParser)
       (prettyParameters pretty pretty)
+  describe "module" $ do
+    makePositiveTest
+      "single definition"
+      "add_one: n:Int, m:Int, j:Int, Int = addition n 1"
+      (Just "ExpVarId[0]: ExpVarId[1]: Int -> Int = ExpVarId[2] ExpVarId[1] 1")
+      parseModule
+      (prettyModule pretty pretty)
 
 
 --      (\(a,source)-> pretty a <> pretty source)

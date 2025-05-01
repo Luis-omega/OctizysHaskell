@@ -4,7 +4,7 @@ import Control.Arrow ((<<<))
 import Data.List.NonEmpty (NonEmpty, toList)
 import Data.Text (Text)
 import Octizys.Cst.Expression
-  ( Definition (Definition', definition, name, parameters)
+  ( Definition (Definition', definition, name, outputType, parameters)
   , Expression
     ( Annotation
     , Application
@@ -31,7 +31,7 @@ import Octizys.Cst.Expression
   , ExpressionVariableId
   , Function (Function', body, parameters)
   , Parameter (Parameter', name, _type)
-  , Parameters (Parameters', remain, start)
+  , Parameters (Parameters', unParameters)
   )
 import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Type (TypeVariableId)
@@ -70,29 +70,32 @@ prettyParameters
   -> (TypeVariableId -> Doc ann)
   -> Parameters
   -> Doc ann
-prettyParameters prettyVar prettyTypeVar (Parameters' {start, remain}) =
-  (Pretty.nest 2 <<< Pretty.vsep)
-    ( Pretty.group
-        ( prettyParameter
-            prettyVar
-            prettyTypeVar
-            start
-        )
-        : ( prettyArg
-              <$> remain
-          )
-    )
-  where
-    prettyArg (_, p) =
-      pText "->"
-        <> Pretty.nest
-          2
-          ( Pretty.line
-              <> prettyParameter
+prettyParameters prettyVar prettyTypeVar (Parameters' {unParameters}) =
+  case unParameters of
+    [] -> mempty
+    (start : remain) ->
+      (Pretty.nest 2 <<< Pretty.vsep)
+        ( Pretty.group
+            ( prettyParameter
                 prettyVar
                 prettyTypeVar
-                p
-          )
+                (fst start)
+            )
+            : ( prettyArg
+                  <$> remain
+              )
+        )
+      where
+        prettyArg (p, _) =
+          pText ","
+            <> Pretty.nest
+              2
+              ( Pretty.line
+                  <> prettyParameter
+                    prettyVar
+                    prettyTypeVar
+                    p
+              )
 
 
 prettyDefinition
@@ -103,13 +106,13 @@ prettyDefinition
 prettyDefinition
   prettyVar
   prettyTypeVar
-  (Definition' {name = (_, v), parameters, definition}) =
+  (Definition' {name = (_, v), parameters, definition, outputType}) =
     let n = prettyVar v
         pars =
           case parameters of
             Just (_, ps) ->
               pText ""
-                <+> pText ":"
+                <+> pretty ':'
                 <> (Pretty.nest 2 <<< Pretty.group)
                   ( Pretty.line
                       <> prettyParameters
@@ -118,6 +121,14 @@ prettyDefinition
                         ps
                   )
             Nothing -> mempty
+        outType =
+          case outputType of
+            Just (_, t) ->
+              case parameters of
+                Nothing ->
+                  Pretty.group (pretty ':' <> (Pretty.line <> prettyType prettyTypeVar t))
+                Just _ -> Pretty.group (pretty ',' <> Pretty.line <> prettyType prettyTypeVar t)
+            Nothing -> mempty
         def =
           (Pretty.group <<< Pretty.nest 2)
             ( Pretty.line
@@ -125,6 +136,7 @@ prettyDefinition
             )
      in n
           <> pars
+          <> outType
           <> ( Pretty.line
                 <> pText "="
                 <> def

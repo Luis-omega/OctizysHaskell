@@ -3,12 +3,15 @@
 {-# HLINT ignore "Use tuple-section" #-}
 module Octizys.Parser.Expression where
 
+import Control.Arrow ((<<<))
+import qualified Data.Bifunctor
 import Data.Char (isDigit)
+import qualified Data.Foldable
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import Effectful (Eff, (:>))
 import Octizys.Cst.Expression
-  ( Definition (Definition', definition, equal, name, parameters)
+  ( Definition (Definition', definition, equal, name, outputType, parameters)
   , Expression
     ( Annotation
     , Application
@@ -41,7 +44,7 @@ import Octizys.Cst.Expression
     )
   , Function (Function', arrow, body, parameters, start)
   , Parameter (Parameter', name, _type)
-  , Parameters (Parameters', remain, start)
+  , Parameters (Parameters', unParameters)
   )
 import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Type (Type)
@@ -55,7 +58,7 @@ import Octizys.Effects.Parser.Combinators
   , (<?>)
   , (<|>)
   )
-import Octizys.Effects.Parser.Effect (Parser)
+import Octizys.Effects.Parser.Effect (Parser, getParseState, putParseState)
 import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolution
   , definitionOfExpressionVariable
@@ -66,6 +69,7 @@ import Octizys.Effects.SymbolResolution.Effect
 import Octizys.Parser.Common
   ( OctizysParseError
   , between
+  , comma
   , elseKeyword
   , identifierParser
   , ifKeyword
@@ -162,14 +166,18 @@ parameterParser = do
 parametersParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
-  => Eff es Parameters
+  => Eff es [(Parameter, InfoId)]
 parametersParser = do
+  originalState <- getParseState
   start <- parameterParser
-  reman <- many $ do
-    infoArrow <- rightArrow
-    _type <- parameterParser
-    pure (infoArrow, _type)
-  pure Parameters' {remain = reman, start = start}
+  maybeInfoComma <- optional (try comma)
+  case maybeInfoComma of
+    Nothing -> do
+      putParseState originalState
+      pure []
+    Just infoComma -> do
+      remain <- parametersParser <|> pure []
+      pure ((start, infoComma) : remain)
 
 
 parameterOrParensParameter
@@ -314,20 +322,36 @@ definitionParser
 definitionParser = do
   (nam, inf, span) <- identifierParser
   ei <- definitionOfExpressionVariable nam span
-  parameters <-
+  maybeParams <-
     optional
       ( do
           c <- Common.colon
-          ps <- parametersParser
+          ps <- parametersParser <?> ('p' :| "arameter")
           pure (c, ps)
+      )
+  maybeOut <-
+    optional
+      ( case maybeParams of
+          Just _ -> do
+            commaInfo <- comma
+            _type <- typeAtom
+            pure (Just commaInfo, _type)
+          Nothing -> do
+            _type <- typeAtom
+            pure (Nothing, _type)
       )
   eq <- Common.equal
   definition <- expressionParser
-  case parameters of
-    Nothing -> pure ()
-    Just (_, ps) ->
-      removeParameters (ps.start : (snd <$> ps.remain))
-  pure Definition' {name = (inf, ei), definition, equal = eq, parameters}
+  let paramsAlone :: [Parameter] = maybe [] ((fst <$>) <<< snd) maybeParams
+  removeParameters paramsAlone
+  pure
+    Definition'
+      { name = (inf, ei)
+      , definition
+      , equal = eq
+      , parameters = Data.Bifunctor.second Parameters' <$> maybeParams
+      , outputType = maybeOut
+      }
 
 
 letParser

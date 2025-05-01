@@ -305,6 +305,13 @@ rightArrow
 rightArrow = keyword "->"
 
 
+comma
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es InfoId
+comma = punctuationChar ','
+
+
 leftParen
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es

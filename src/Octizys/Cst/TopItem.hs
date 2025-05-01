@@ -12,3 +12,4 @@ data Module = Module'
   -- ^ The InfoId is for the colon
   , lastComments :: Maybe InfoId
   }
+  deriving (Show, Eq, Ord)
