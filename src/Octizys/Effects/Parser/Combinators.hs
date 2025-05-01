@@ -40,8 +40,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Effectful (Eff, (:>))
 import Octizys.Effects.Parser.Backend
-  ( Expectations
-  , Expected (ExpectedEndOfInput, ExpectedName, ExpectedRaw)
+  ( Expected (ExpectedEndOfInput, ExpectedName, ExpectedRaw)
   , ParserError
     ( GeneratedError
     , UserMadeError

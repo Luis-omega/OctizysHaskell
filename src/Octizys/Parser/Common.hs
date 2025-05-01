@@ -36,9 +36,7 @@ import Data.Char (isAlpha, isAlphaNum)
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Text as Text
-import Debug.Trace (trace)
 import Prettyprinter (Pretty (pretty))
-import Text.Show.Pretty (ppShow)
 import Prelude hiding (span)
 
 

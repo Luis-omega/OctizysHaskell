@@ -68,6 +68,10 @@ loadParser
   => Eff es ReplCommand
 loadParser = do
   _ <-
+    -- TODO: introduce new combinator here instead of keyword
+    -- keyword removes all space after the word, and we
+    -- want this to have at least one space between the
+    -- file and the command.
     try (keyword ('l' :| "oad")) <|> keyword ('l' :| [])
   path <- filePathParser
   eof
@@ -91,10 +95,10 @@ replParser = do
   ( Command
       <$> (commandParser <* eof)
     )
-    --    <|> try
-    --      ( Define
-    --          <$> (parseModule <* eof)
-    --      )
+    <|> try
+      ( Define
+          <$> (parseModule <* eof)
+      )
     <|> ( Evaluate
             <$> (parseExpression <* eof)
         )
