@@ -12,18 +12,12 @@ import Octizys.Parser.Common
 import Test.Hspec
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.Map (Map)
 import qualified Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Effectful (Eff, runPureEff)
 import Effectful.Error.Static (Error)
 import Effectful.State.Static.Local (State)
-import Octizys.Cst.Expression (ExpressionVariableId)
-import Octizys.Cst.InfoId (InfoId)
-import Octizys.Cst.Type (TypeVariableId)
-import Octizys.Effects.Generator.Effect (Generator, IntGenerator)
-import Octizys.Effects.Generator.Interpreter (IntGeneratorState)
 import Octizys.Effects.Parser.Backend
   ( ParserError
   , ParserState
@@ -34,10 +28,7 @@ import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Effects.Parser.Interpreter (runFullParser)
 import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
 import Octizys.Effects.SymbolResolution.Interpreter
-  ( SourceExpressionVariableInfo
-  , SourceInfo
-  , SourceTypeVariableInfo
-  , SymbolResolutionState
+  ( SymbolResolutionState
   , initialSymbolResolutionState
   , runSymbolResolutionFull
   )
@@ -84,10 +75,10 @@ runParser p t =
         (runFullParser t p)
 
 
-renderError :: ParserError OctizysParseError -> String
-renderError =
+renderError :: Text -> ParserError OctizysParseError -> String
+renderError source =
   render
-    <<< prettyParserError pretty (Just ('t' :| "est"))
+    <<< prettyParserError pretty (Just ('t' :| "est")) source
 
 
 render :: Doc ann -> String
@@ -98,13 +89,14 @@ render =
 
 shouldParse
   :: Eq a
-  => (a -> Doc ann)
+  => Text
+  -> (a -> Doc ann)
   -> Either (ParserError OctizysParseError) a
   -> String
   -> Expectation
-shouldParse _ (Left e) expected = do
-  expectationFailure (renderError e <> "\n" <> "Expected:" <> expected)
-shouldParse toDoc (Right result) expected =
+shouldParse input _ (Left e) expected = do
+  expectationFailure (renderError input e <> "\n" <> "Expected:" <> expected)
+shouldParse _ toDoc (Right result) expected =
   let prettyResult = render (toDoc result)
    in if prettyResult == expected
         then pure ()
@@ -167,7 +159,7 @@ makePositiveTest
       let result = runParser parser input
       let expected :: String =
             Data.Maybe.fromMaybe (Text.unpack input) maybeExpect
-      shouldParse prettier result expected
+      shouldParse input prettier result expected
 
 --  describe "expression parser" $ do
 --    testPositiveExpression "1"

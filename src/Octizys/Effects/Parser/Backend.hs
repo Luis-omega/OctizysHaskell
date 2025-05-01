@@ -1,4 +1,7 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Eta reduce" #-}
 
 {- | This module contains all the definitions needed to define the `Parser` effect.
 it is unstable.
@@ -38,7 +41,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Text
+import qualified Data.Text as Text
 import Octizys.Cst.Span (Position, makeInitialPosition)
 import qualified Octizys.Cst.Span as Span
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
@@ -127,7 +130,7 @@ instance Pretty Unexpected where
 
 
 data UserError e
-  = SimpleError {message :: Text}
+  = SimpleError {message :: Text.Text}
   | CustomError {customError :: e}
   deriving (Show, Eq, Ord)
 
@@ -159,9 +162,10 @@ data ParserError e
 prettyParserError
   :: (e -> Doc ann)
   -> Maybe (NonEmpty Char)
+  -> Text.Text
   -> ParserError e
   -> Doc ann
-prettyParserError prettyError maybeName err =
+prettyParserError prettyError maybeName source err =
   let sourceName =
         maybe
           (pretty '>')
@@ -175,6 +179,14 @@ prettyParserError prettyError maybeName err =
           <> ">column"
           <+> pretty (Span.column pos)
           <> pretty ':'
+      prev =
+        Text.takeWhileEnd ('\n' /=) $
+          getPreviousChars source err.errorPosition.offset
+      after =
+        takeWithoutLineBreaks $
+          getAfterChars source err.errorPosition.offset
+      lenPrev = Text.length prev
+      preText = Text.replicate lenPrev (Text.singleton ' ') <> Text.singleton '^'
    in case err of
         GeneratedError
           { errorPosition = pos
@@ -185,6 +197,9 @@ prettyParserError prettyError maybeName err =
               <> Pretty.nest
                 4
                 ( Pretty.hardline
+                    <> pretty (prev <> after)
+                    <> Pretty.hardline
+                    <> pretty preText
                     <> pretty @String "Unexpected"
                     <+> pretty unex
                     <> Pretty.hardline
@@ -250,13 +265,13 @@ instance Ord e => Semigroup (ParserError e) where
 
 data ParserState = ParserState'
   { position :: !Position
-  , remainStream :: !Text
+  , remainStream :: !Text.Text
   , expected :: Expectations
   }
   deriving (Show, Eq, Ord)
 
 
-makeInitialState :: Text -> ParserState
+makeInitialState :: Text.Text -> ParserState
 makeInitialState t =
   ParserState'
     { position = makeInitialPosition
@@ -269,3 +284,23 @@ addExpectation :: Expected -> ParserState -> ParserState
 addExpectation expt s =
   let newSet = coerce $ Set.insert expt (coerce s.expected)
    in s {expected = newSet}
+
+
+{- | ===
+=== Error Reporting
+===
+-}
+getPreviousChars :: Text.Text -> Int -> Text.Text
+getPreviousChars txt i = Text.take len $ Text.drop start txt
+  where
+    start = max 0 (i - 10)
+    len = min 10 i
+
+
+-- | Devuelve los 10 caracteres posteriores al índice dado.
+getAfterChars :: Text.Text -> Int -> Text.Text
+getAfterChars txt i = Text.take 10 $ Text.drop i txt
+
+
+takeWithoutLineBreaks :: Text.Text -> Text.Text
+takeWithoutLineBreaks t = Text.takeWhile ('\n' /=) t

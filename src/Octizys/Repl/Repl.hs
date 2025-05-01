@@ -11,6 +11,7 @@ module Octizys.Repl.Repl
   , runConsole
   , render
   , reportErrorShow
+  , reportErrorParser
   )
 where
 
@@ -39,10 +40,9 @@ import Octizys.Effects.Console.Interpreter
   )
 import Octizys.Effects.Parser.Backend
   ( ParserError
-  , makeInitialState
   , prettyParserError
   )
-import Octizys.Effects.Parser.Interpreter (runParserWith)
+import Octizys.Effects.Parser.Interpreter (runFullParser)
 import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
 import Octizys.Parser.Common (OctizysParseError)
 import Octizys.Pretty.Expression (prettyExpression)
@@ -81,33 +81,43 @@ render prettifier =
 
 rep
   :: ( Console :> es
-     , Error (ParserError OctizysParseError) :> es
      , SymbolResolution :> es
      )
   => Eff es ReplStatus
 rep = do
   line <- putText "repl>" >> readLine
-  let newParserState = makeInitialState line
-  (action, _) <- runParserWith newParserState replParser
-  case action of
-    Command Quit ->
-      putLine "Bye!"
-        >> exit
-    Command (LoadFile f) -> do
-      putLine $ "Unsupporte load of file: " <> f
+  maybeAction <- runFullParser line replParser
+  case maybeAction of
+    Left e -> do
+      putLine $
+        render
+          ( prettyParserError
+              pretty
+              (Just ('R' :| "epl"))
+              line
+          )
+          e
       continue
-    Evaluate expression ->
-      do
-        putLine $ render (prettyExpression pretty pretty) expression
-        -- TODO: solve this
-        -- (value, new_context) <- evaluateExpression context expression
-        -- putLine (show value)
-        -- continue new_context
-        continue
-    -- TODO: Type check/inference
-    Define d -> do
-      putLine $ render (prettyModule pretty pretty) d
-      continue
+    Right action ->
+      case action of
+        Command Quit ->
+          putLine "Bye!"
+            >> exit
+        Command (LoadFile f) -> do
+          putLine $ "Unsupporte load of file: " <> f
+          continue
+        Evaluate expression ->
+          do
+            putLine $ render (prettyExpression pretty pretty) expression
+            -- TODO: solve this
+            -- (value, new_context) <- evaluateExpression context expression
+            -- putLine (show value)
+            -- continue new_context
+            continue
+        -- TODO: Type check/inference
+        Define d -> do
+          putLine $ render (prettyModule pretty pretty) d
+          continue
 
 
 -- TODO: do this again
@@ -147,14 +157,21 @@ reportErrorShow = reportErrorWith (pretty <<< show)
 reportErrorParser
   :: forall es
    . Console :> es
-  => Eff (Error (ParserError OctizysParseError) : es) ReplStatus
+  => Text
+  -> Eff (Error (ParserError OctizysParseError) : es) ReplStatus
   -> Eff es ReplStatus
-reportErrorParser = reportErrorWith (prettyParserError pretty (Just ('R' :| "epl")))
+reportErrorParser source =
+  reportErrorWith
+    ( prettyParserError
+        pretty
+        (Just ('R' :| "epl"))
+        source
+    )
 
 
 repl :: SymbolResolution :> es => Console :> es => Eff es ()
 repl = do
-  status <- reportErrorParser rep
+  status <- rep
   case status of
     Exit -> pure ()
     Continue -> repl

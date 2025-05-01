@@ -28,11 +28,11 @@ import qualified Prettyprinter.Render.String
 import Test.Hspec
 
 
-render :: ParserError String -> String
-render =
+render :: Text -> ParserError String -> String
+render source =
   Prettyprinter.Render.String.renderString
     <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
-    <<< prettyParserError pretty (Just ('t' :| "est"))
+    <<< prettyParserError pretty (Just ('t' :| "est")) source
 
 
 runParser
@@ -47,7 +47,7 @@ runParser
   -> Either String a
 runParser p t = runPureEff $ do
   res <- runFullParser t p
-  pure $ Bifunctor.first render res
+  pure $ Bifunctor.first (render t) res
 
 
 text
