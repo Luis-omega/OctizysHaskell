@@ -119,6 +119,7 @@ library
     Octizys.Effects.Parser.Interpreter
     Octizys.Effects.SymbolResolution.Effect
     Octizys.Effects.SymbolResolution.Interpreter
+    Octizys.HistoryMap
     Octizys.Parser.Common
     Octizys.Parser.Expression
     Octizys.Parser.TopItem
@@ -132,7 +133,6 @@ library
     Octizys.Repl.Repl
 
   -- Octizys.Evaluation
-  -- Octizys.HistoryMap
   -- Octizys.Inference.Inference
   -- Octizys.Inference.Translation
 

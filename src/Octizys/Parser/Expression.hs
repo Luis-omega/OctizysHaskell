@@ -5,6 +5,7 @@ module Octizys.Parser.Expression where
 
 import Data.Char (isDigit)
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NonEmpty
 import Effectful (Eff, (:>))
 import Octizys.Cst.Expression
   ( Definition (Definition', definition, equal, name, parameters)
@@ -56,7 +57,10 @@ import Octizys.Effects.Parser.Combinators
 import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolution
-  , createExpressionVariable
+  , definitionOfExpressionVariable
+  , foundExpressionVariable
+  , removeExpressionDefinition
+  , removeTypeDefinition
   )
 import Octizys.Parser.Common
   ( OctizysParseError
@@ -133,7 +137,7 @@ variableParser
   => Eff es Expression
 variableParser = do
   (name, inf, _) <- identifierParser
-  (ei, _) <- createExpressionVariable name Nothing
+  ei <- foundExpressionVariable name
   pure Variable {info = inf, name = ei}
 
 
@@ -142,9 +146,9 @@ parameterParser
   => SymbolResolution :> es
   => Eff es Parameter
 parameterParser = do
-  (nam, inf, _) <- identifierParser
+  (nam, inf, parSpan) <- identifierParser
   maybeType <- optional typeAnnotationParser
-  (ei, _) <- createExpressionVariable nam Nothing
+  ei <- definitionOfExpressionVariable nam parSpan
   pure Parameter' {name = (inf, ei), _type = maybeType}
 
 
@@ -208,6 +212,16 @@ parensExpressionParser = do
   pure Parens {..}
 
 
+removeParameters
+  :: SymbolResolution :> es
+  => [Parameter]
+  -> Eff es ()
+removeParameters = mapM_ removeParameter
+  where
+    removeParameter (Parameter' {_type = __type, name = _name}) =
+      removeExpressionDefinition (snd _name)
+
+
 functionParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
@@ -217,6 +231,10 @@ functionParser = do
   parameters <- parameterOrParensParameter
   arrowInfo <- rightArrow
   body <- expressionParser
+  removeParameters
+    ( either (\(_, p, _) -> p) id
+        <$> NonEmpty.toList parameters
+    )
   pure
     Function'
       { start = startInfo
@@ -256,6 +274,16 @@ ifParser = do
   pure If {..}
 
 
+removeDefinitions
+  :: SymbolResolution :> es
+  => NonEmpty Definition
+  -> Eff es ()
+removeDefinitions = mapM_ removeDefinition
+  where
+    removeDefinition (Definition' {name = _name}) =
+      removeExpressionDefinition (snd _name)
+
+
 -- TODO: handle undefinition of defined variable
 -- so that the rest of the parser can
 -- introduce a fresh name, consider :
@@ -278,7 +306,7 @@ definitionParser
   => Eff es Definition
 definitionParser = do
   (nam, inf, span) <- identifierParser
-  (ei, _) <- createExpressionVariable nam (Just span)
+  ei <- definitionOfExpressionVariable nam span
   parameters <-
     optional
       ( do
@@ -288,6 +316,10 @@ definitionParser = do
       )
   eq <- Common.equal
   definition <- expressionParser
+  case parameters of
+    Nothing -> pure ()
+    Just (_, ps) ->
+      removeParameters (ps.start : (snd <$> ps.remain))
   pure Definition' {name = (inf, ei), definition, equal = eq, parameters}
 
 
@@ -306,6 +338,7 @@ letParser = do
       )
   _in <- inKeyword
   expression <- parseExpression
+  removeDefinitions (fst <$> definitions)
   pure Let {_let, definitions, _in, expression}
 
 

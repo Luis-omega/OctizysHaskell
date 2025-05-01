@@ -16,7 +16,7 @@ import qualified Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Effectful (Eff, runPureEff)
-import Effectful.Error.Static (Error)
+import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.State.Static.Local (State)
 import Octizys.Effects.Parser.Backend
   ( ParserError
@@ -28,7 +28,8 @@ import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Effects.Parser.Interpreter (runFullParser)
 import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
 import Octizys.Effects.SymbolResolution.Interpreter
-  ( SymbolResolutionState
+  ( SymbolResolutionError
+  , SymbolResolutionState
   , initialSymbolResolutionState
   , runSymbolResolutionFull
   )
@@ -64,6 +65,7 @@ type P a =
         : Error (ParserError OctizysParseError)
         : SymbolResolution
         : State SymbolResolutionState
+        : Error SymbolResolutionError
         : '[]
     )
     a
@@ -76,17 +78,22 @@ runParser
           : Error (ParserError OctizysParseError)
           : SymbolResolution
           : State SymbolResolutionState
+          : Error SymbolResolutionError
           : '[]
       )
       a
   -> Text
-  -> Either (ParserError OctizysParseError) a
-runParser p t =
-  runPureEff $
-    fst
-      <$> runSymbolResolutionFull
-        initialSymbolResolutionState
-        (runFullParser t p)
+  -> Either
+      SymbolResolutionError
+      (Either (ParserError OctizysParseError) a)
+runParser p t = do
+  out <-
+    runPureEff $
+      runErrorNoCallStack $
+        runSymbolResolutionFull
+          initialSymbolResolutionState
+          (runFullParser t p)
+  pure (fst out)
 
 
 renderError :: Text -> ParserError OctizysParseError -> String
@@ -270,7 +277,10 @@ makePositiveTest
       let result = runParser parser input
       let expected :: String =
             Data.Maybe.fromMaybe (Text.unpack input) maybeExpect
-      shouldParse input prettier result expected
+      case result of
+        Left e -> expectationFailure ("SymbolResolution bug:" <> show e)
+        Right r ->
+          shouldParse input prettier r expected
 
 --  describe "expression parser" $ do
 --    testPositiveExpression "1"

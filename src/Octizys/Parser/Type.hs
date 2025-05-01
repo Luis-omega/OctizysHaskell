@@ -23,7 +23,7 @@ import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolution
   , createInformation
-  , createTypeVariable
+  , foundTypeVariable
   )
 import Octizys.Parser.Common
   ( OctizysParseError
@@ -75,7 +75,7 @@ typeHole = do
   (_, (span, pre, after)) <-
     token (char '_')
       <?> ('a' :| " type variable")
-  tId <- createTypeVariable Nothing (Just span)
+  tId <- foundTypeVariable "_"
   inf <- createInformation span pre after
   pure Type.Variable {info = inf, variableId = tId}
 

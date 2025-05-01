@@ -26,14 +26,41 @@ import Octizys.Cst.Type (TypeVariableId)
 
 
 data SymbolResolution :: Effect where
-  CreateExpressionVariable
+  -- | While scanning we found a expression variable somewhere.
+  -- This is not a binding place, so we don't know where
+  -- it was defined.
+  FoundExpressionVariable
     :: Text
-    -> Maybe Span
-    -> SymbolResolution m (ExpressionVariableId, TypeVariableId)
-  CreateTypeVariable
-    :: Maybe Text
-    -> Maybe Span
+    -> SymbolResolution m ExpressionVariableId
+  -- | While scanning we found a type variable somewhere.
+  -- This is not a binding place, so we don't know where
+  -- it was defined.
+  FoundTypeVariable
+    :: Text
     -> SymbolResolution m TypeVariableId
+  -- | While scanning we found the definition place of a
+  -- variable.
+  DefinitionOfExpressionVariable
+    :: Text
+    -> Span
+    -> SymbolResolution m ExpressionVariableId
+  -- | While scanning we found the definition place of a
+  -- variable.
+  DefinitionOfTypeVariable
+    :: Text
+    -> Span
+    -> SymbolResolution m TypeVariableId
+  -- | Call this when a definition for a expression variable is
+  -- out of bounds
+  RemoveExpressionDefinition
+    :: ExpressionVariableId
+    -> SymbolResolution m ()
+  -- | Call this when a definition for a type variable is
+  -- out of bounds
+  RemoveTypeDefinition
+    :: TypeVariableId
+    -> SymbolResolution m ()
+  -- | Create the source information for some token/variable etc.
   CreateInformation
     :: Span
     -> [Comment]

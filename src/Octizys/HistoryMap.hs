@@ -2,8 +2,8 @@
 
 module Octizys.HistoryMap
   ( HistoryMap
-  , pushChanges
-  , popChanges
+  , pushValue
+  , popValue
   , lookup
   , empty
   )
@@ -16,39 +16,36 @@ import qualified Data.Map as Map
 import Prelude hiding (lookup)
 
 
-data HistoryMap k v = HistoryMapC
+newtype HistoryMap k v = HistoryMap'
   { innerMap :: Map k (NonEmpty v)
-  , stack :: [[k]]
   }
   deriving (Show)
 
 
-pushChanges
+pushValue
   :: forall k v
    . Ord k
-  => [(k, v)]
+  => (k, v)
   -> HistoryMap k v
   -> HistoryMap k v
-pushChanges changes dic =
-  let innerDic = innerMap dic
-      newInnerMap = foldr update innerDic changes
-      newStack = (fst <$> changes) : stack dic
-   in HistoryMapC {innerMap = newInnerMap, stack = newStack}
-  where
-    update :: (k, v) -> Map k (NonEmpty v) -> Map k (NonEmpty v)
-    update (key, value) = Map.insertWith (<>) key (value :| [])
+pushValue (key, value) dic =
+  HistoryMap'
+    ( Map.insertWith
+        (<>)
+        key
+        (value :| [])
+        (innerMap dic)
+    )
 
 
-popChanges :: Ord k => HistoryMap k v -> HistoryMap k v
-popChanges dic =
-  case stack dic of
-    [] -> dic
-    (lastItems : remain) ->
-      let innerDic = innerMap dic
-          newInnerMap = foldr updateKey innerDic lastItems
-       in HistoryMapC {innerMap = newInnerMap, stack = remain}
-  where
-    updateKey = Map.update (snd <<< uncons)
+popValue :: Ord k => k -> HistoryMap k v -> HistoryMap k v
+popValue key dic =
+  HistoryMap'
+    ( Map.update
+        (snd <<< uncons)
+        key
+        (innerMap dic)
+    )
 
 
 lookup :: Ord k => k -> HistoryMap k v -> Maybe v
@@ -59,4 +56,4 @@ lookup key dic =
 
 
 empty :: HistoryMap k v
-empty = HistoryMapC Map.empty []
+empty = HistoryMap' Map.empty
