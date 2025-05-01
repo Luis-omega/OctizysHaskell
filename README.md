@@ -28,9 +28,9 @@ A functional programming language
 ```
 factorial_aux : int -> int -> int
 = {
-    \ n acc -> 
+    \ n acc ->
         if lt n 2
-        then 
+        then
             1
         else
             let new_n = minus n 1;
@@ -39,7 +39,7 @@ factorial_aux : int -> int -> int
                 factorial_aux new_n new_acc
 }
 
-factorial : int -> int = { \ n -> factorial_aux n 1 } 
+factorial : int -> int = { \ n -> factorial_aux n 1 }
 ```
 
 # Build and Development
@@ -89,6 +89,23 @@ if [ $cabal_test_status -ne 0 ]; then
   exit $cabal_test_status
 fi
 exit 0
+```
+
+## Pre-commit hooks
+
+Be sure to add the following pre-commit hook under `.git/hooks/pre-commit`
+
+```bash
+root=$(git rev-parse --show-toplevel)
+cd $root
+
+nix flake check
+flake_check_status=$?
+
+if [ $flake_check_status -ne 0 ]; then
+  echo "Failed at flake check"
+  exit $flake_check_status
+fi
 ```
 
 ## Checks
