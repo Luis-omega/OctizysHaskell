@@ -411,7 +411,7 @@ optional
   => Parser e :> es
   => Eff es a
   -> Eff es (Maybe a)
-optional p = (Just <$> p) `alternative` pure Nothing
+optional p = try (Just <$> p) `alternative` pure Nothing
 
 
 -- | Parses zero or more occurrences of p.
@@ -420,7 +420,13 @@ many
   => Parser e :> es
   => Eff es a
   -> Eff es [a]
-many p = try (some p) `alternative` pure []
+many p = do
+  ini <- optional p
+  case ini of
+    Nothing -> pure []
+    Just y -> do
+      res <- many p
+      pure (y : res)
 
 
 -- | Parses one or more occurrences of p.
@@ -428,11 +434,11 @@ some
   :: Ord e
   => Parser e :> es
   => Eff es a
-  -> Eff es [a]
+  -> Eff es (NonEmpty a)
 some p = do
   x <- p
   xs <- many p
-  pure (x : xs)
+  pure (x :| xs)
 
 
 -- | Parses zero or more occurrences of p separated by sep.

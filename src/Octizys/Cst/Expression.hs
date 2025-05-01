@@ -96,7 +96,9 @@ data Definition = Definition'
 -- | A lambda function.
 data Function = Function'
   { start :: InfoId
-  , parameters :: NonEmpty Parameter
+  , -- This is the difference between `Definition` and `Function`
+    -- The InfoIds represents parens
+    parameters :: NonEmpty (Either (InfoId, Parameter, InfoId) Parameter)
   , arrow :: InfoId
   , body :: Expression
   }
@@ -108,23 +110,19 @@ data Expression
   | EBool {info :: InfoId, boolValue :: Bool}
   | Variable {info :: InfoId, name :: ExpressionVariableId}
   | Parens
-      { info :: InfoId
-      , lparen :: InfoId
+      { lparen :: InfoId
       , expression :: Expression
       , rparen :: InfoId
       }
   | EFunction
-      { info :: InfoId
-      , functionValue :: Function
+      { functionValue :: Function
       }
   | Application
-      { info :: InfoId
-      , applicationFunction :: Expression
+      { applicationFunction :: Expression
       , applicationRemain :: NonEmpty Expression
       }
   | If
-      { info :: InfoId
-      , _if :: InfoId
+      { _if :: InfoId
       , condition :: Expression
       , _then :: InfoId
       , ifTrue :: Expression
@@ -139,8 +137,7 @@ data Expression
       , expression :: Expression
       }
   | Annotation
-      { info :: InfoId
-      , expression :: Expression
+      { expression :: Expression
       , colon :: InfoId
       , _type :: Type
       }

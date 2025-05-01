@@ -34,7 +34,7 @@ prettyType prettyVar t =
             <> Pretty.concatWith
               (\l r -> l <> Pretty.line <> pretty @Text "->" <> r)
               ( prettyArg
-                  <$> cons _domain _codomain
+                  <$> cons _domain (snd <$> _codomain)
               )
         )
       where

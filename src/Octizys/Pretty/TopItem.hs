@@ -1,7 +1,7 @@
 module Octizys.Pretty.TopItem where
 
 import Octizys.Cst.Expression (ExpressionVariableId)
-import Octizys.Cst.TopItem (Module (Module', definitions, lastComment))
+import Octizys.Cst.TopItem (Module (Module', definitions, lastComments))
 import Octizys.Cst.Type (TypeVariableId)
 import Octizys.Pretty.Expression (prettyDefinition)
 import Prettyprinter (Doc, vsep)
@@ -16,7 +16,7 @@ prettyModule
   prettyExp
   prettyType
   ( Module'
-      { lastComment = _lastComment
+      { lastComments = _lastComment
       , definitions = _definitions
       }
     ) =

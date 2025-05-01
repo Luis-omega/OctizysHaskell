@@ -158,7 +158,13 @@ reportErrorParser
   :: forall es
    . Console :> es
   => Text
-  -> Eff (Error (ParserError OctizysParseError) : es) ReplStatus
+  -> Eff
+      ( Error
+          ( ParserError OctizysParseError
+          )
+          : es
+      )
+      ReplStatus
   -> Eff es ReplStatus
 reportErrorParser source =
   reportErrorWith
@@ -169,7 +175,10 @@ reportErrorParser source =
     )
 
 
-repl :: SymbolResolution :> es => Console :> es => Eff es ()
+repl
+  :: SymbolResolution :> es
+  => Console :> es
+  => Eff es ()
 repl = do
   status <- rep
   case status of

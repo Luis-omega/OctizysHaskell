@@ -21,6 +21,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Octizys.Effects.Parser.Effect (Parser)
+import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
 import Octizys.Parser.Common (OctizysParseError, skipSimpleSpaces)
 import Octizys.Parser.Expression (parseExpression)
 import Octizys.Parser.TopItem (parseModule)
@@ -83,6 +84,7 @@ commandParser = do
 
 replParser
   :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
   => Eff es ReplTop
 replParser = do
   _ <- skipSimpleSpaces

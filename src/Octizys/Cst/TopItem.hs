@@ -9,5 +9,5 @@ import Octizys.Cst.InfoId (InfoId)
 
 data Module = Module'
   { definitions :: [Definition]
-  , lastComment :: InfoId
+  , lastComments :: Maybe InfoId
   }

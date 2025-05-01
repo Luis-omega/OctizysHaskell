@@ -33,6 +33,7 @@ import Octizys.Cst.Expression
   , Parameter (Parameter', name, _type)
   , Parameters (Parameters', remain, start)
   )
+import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Type (TypeVariableId)
 import qualified Octizys.Cst.Type as Type
 import Octizys.Pretty.Type (needsParentsInArrow, prettyType)
@@ -157,15 +158,20 @@ prettyParameterFunction
 prettyParametersFunction
   :: (ExpressionVariableId -> Doc ann)
   -> (TypeVariableId -> Doc ann)
-  -> NonEmpty Parameter
+  -> NonEmpty (Either (InfoId, Parameter, InfoId) Parameter)
   -> Doc ann
 prettyParametersFunction prettyVar prettyTypeVar ps =
   (Pretty.vsep <<< toList)
     ( ( Pretty.group
-          <<< prettyParameterFunction prettyVar prettyTypeVar
+          <<< either prettyParens prettyParam
       )
         <$> ps
     )
+  where
+    prettyParam = prettyParameterFunction prettyVar prettyTypeVar
+    prettyParens (_, p, _) =
+      -- TODO: is it fine to do this? maybe a line in ")" at least?
+      pText "(" <+> prettyParam p <+> pText ")"
 
 
 prettyFunction
