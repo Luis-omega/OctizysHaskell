@@ -395,6 +395,8 @@ expressionParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
   => Eff es Expression
-expressionParser = ifParser <|> letParser
+expressionParser =
+  ifParser
+    <|> letParser
     <|> (EFunction <$> functionParser)
     <|> applicationParser

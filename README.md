@@ -1,5 +1,39 @@
 A functional programming language
 
+# Example
+
+This is a factorial written in the current language syntax, it can be found
+[here](test/Examples/factorial.oct), and [here it is colorized](example.html) by
+Treesitter
+
+```
+factorial_standard : n :Int , Int =
+    if lt n 2
+    then
+      1
+    else
+      mul n (factorial_standard (minus n 1));
+
+
+factorial_acc : n:Int , acc:Int, Int =
+    if lt n 2
+    then
+      acc
+    else
+      factorial_acc (minus n 1) (mul n acc);
+
+factorial_acc_sass : n:Int, acc:Int, Int =
+    if lt n 2
+    then
+      acc
+    else
+      let new_n = minus n 1;
+          new_acc = mul n acc;
+      in
+        factorial_acc_sass new_n new_acc
+    ;
+```
+
 # Roadmap
 
 - Build a simple typed lambda calculus compiler with let and definitions
