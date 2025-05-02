@@ -3,7 +3,7 @@ A functional programming language
 # Example
 
 This is a factorial written in the current language syntax, it can be found
-[here](test/Examples/factorial.oct), and [here it is colorized](index.html) by
+[here](test/Examples/factorial.oct), and [here it is colorized](https://luis-omega.github.io/OctizysHaskell/index.html) by
 Treesitter
 
 ```
