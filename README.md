@@ -3,8 +3,9 @@ A functional programming language
 # Example
 
 This is a factorial written in the current language syntax, it can be found
-[here](test/Examples/factorial.oct), and [here it is colorized](https://luis-omega.github.io/OctizysHaskell/index.html) by
-Treesitter
+[here](test/Examples/factorial.oct), and
+[here it is colorized](https://luis-omega.github.io/OctizysHaskell/index.html)
+by Treesitter
 
 ```
 factorial_standard : n :Int , Int =
@@ -33,6 +34,20 @@ factorial_acc_sass : n:Int, acc:Int, Int =
         factorial_acc_sass new_n new_acc
     ;
 ```
+
+# Editor support
+
+## Treesitter
+
+We maintain a Treesitter grammar
+[here](https://github.com/Luis-omega/tree-sitter-octizys)
+
+## Neovim
+
+There is also a neovim plugin to register the language and set some properties
+[here](https://github.com/Luis-omega/vim-octizys).
+
+Note that you still need to install the Treesitter grammar by yourself.
 
 # Roadmap
 
