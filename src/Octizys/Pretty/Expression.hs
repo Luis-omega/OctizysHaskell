@@ -30,13 +30,16 @@ import Octizys.Cst.Expression
     )
   , ExpressionVariableId
   , Function (Function', body, parameters)
-  , Parameter (Parameter', name, _type)
+  , FunctionParameter
+    ( FunctionParameterAlone
+    , FunctionParameterWithType
+    , parameter
+    )
+  , Parameter (ParameterAlone, ParameterWithType, name, _type)
   , Parameters (Parameters', unParameters)
   )
-import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Type (TypeVariableId)
-import qualified Octizys.Cst.Type as Type
-import Octizys.Pretty.Type (needsParentsInArrow, prettyType)
+import Octizys.Pretty.Type (prettyType)
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 
@@ -50,19 +53,21 @@ prettyParameter
   -> (TypeVariableId -> Doc ann)
   -> Parameter
   -> Doc ann
-prettyParameter prettyVar prettyTypeVar (Parameter' {name = (_, v), _type}) =
-  case _type of
-    Just (_, t) ->
-      prettyVar v
-        <+> pText ":"
-        <> Pretty.nest
-          2
-          ( Pretty.line
-              <> if needsParentsInArrow t
-                then Pretty.parens (prettyType prettyTypeVar t)
-                else prettyType prettyTypeVar t
-          )
-    Nothing -> prettyVar v
+prettyParameter
+  prettyVar
+  _
+  (ParameterAlone {name = (_, v)}) = prettyVar v
+prettyParameter
+  prettyVar
+  prettyTypeVar
+  (ParameterWithType {name = (_, v), _type = t}) =
+    prettyVar v
+      <+> pText ":"
+      <> Pretty.nest
+        2
+        ( Pretty.line
+            <> prettyType prettyTypeVar t
+        )
 
 
 prettyParameters
@@ -110,7 +115,7 @@ prettyDefinition
     let n = prettyVar v
         pars =
           case parameters of
-            Just (_, ps) ->
+            Just ps ->
               pText ""
                 <+> pretty ':'
                 <> (Pretty.nest 2 <<< Pretty.group)
@@ -123,68 +128,72 @@ prettyDefinition
             Nothing -> mempty
         outType =
           case outputType of
-            Just (_, t) ->
+            Just t ->
               case parameters of
                 Nothing ->
-                  Pretty.group (pretty ':' <> (Pretty.line <> prettyType prettyTypeVar t))
-                Just _ -> Pretty.group (pretty ',' <> Pretty.line <> prettyType prettyTypeVar t)
+                  Pretty.group
+                    ( pretty ':'
+                        <> (Pretty.line <> prettyType prettyTypeVar t)
+                    )
+                Just _ ->
+                  Pretty.group
+                    ( pretty ','
+                        <> Pretty.line
+                        <> prettyType prettyTypeVar t
+                    )
             Nothing -> mempty
         def =
-          (Pretty.group <<< Pretty.nest 2)
-            ( Pretty.line
-                <> prettyExpression prettyVar prettyTypeVar definition
-            )
+          ( Pretty.line
+              <> prettyExpression prettyVar prettyTypeVar definition
+          )
      in n
           <> pars
           <> outType
-          <> ( Pretty.line
+          <> (Pretty.group <<< Pretty.nest 2)
+            ( Pretty.line
                 <> pText "="
-                <> def
-             )
+                <> Pretty.group def
+            )
 
 
 prettyParameterFunction
   :: (ExpressionVariableId -> Doc ann)
   -> (TypeVariableId -> Doc ann)
-  -> Parameter
+  -> FunctionParameter
   -> Doc ann
 prettyParameterFunction
   prettyVar
   prettyTypeVar
-  (Parameter' {name = (_, v), _type}) =
-    case _type of
-      Just (_, t) ->
-        let pt =
-              prettyVar v
-                <+> pText ":"
-                <> Pretty.nest
-                  2
-                  ( Pretty.line
-                      <> prettyType prettyTypeVar t
-                  )
-         in case t of
-              Type.Parens {} -> Pretty.parens pt
-              _ -> pt
-      Nothing -> prettyVar v
+  (FunctionParameterWithType {parameter = p}) =
+    pText "("
+      <> Pretty.nest
+        2
+        ( Pretty.line
+            <> prettyParameter prettyVar prettyTypeVar p
+            <> Pretty.line
+        )
+      <> pText ")"
+prettyParameterFunction
+  prettyVar
+  prettyTypeVar
+  (FunctionParameterAlone {parameter = p}) =
+    prettyParameter prettyVar prettyTypeVar p
 
 
 prettyParametersFunction
   :: (ExpressionVariableId -> Doc ann)
   -> (TypeVariableId -> Doc ann)
-  -> NonEmpty (Either (InfoId, Parameter, InfoId) Parameter)
+  -> NonEmpty FunctionParameter
   -> Doc ann
 prettyParametersFunction prettyVar prettyTypeVar ps =
   (Pretty.vsep <<< toList)
     ( ( Pretty.group
-          <<< either prettyParens prettyParam
+          <<< prettyParam
       )
         <$> ps
     )
   where
     prettyParam = prettyParameterFunction prettyVar prettyTypeVar
-    prettyParens (_, p, _) =
-      -- TODO: is it fine to do this? maybe a line in ")" at least?
-      pText "(" <+> prettyParam p <+> pText ")"
 
 
 prettyFunction

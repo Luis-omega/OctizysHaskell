@@ -1,4 +1,9 @@
-module Octizys.Parser.Type (parseType, typeHole, typeAtom) where
+module Octizys.Parser.Type
+  ( parseType
+  , typeHole
+  , typeAtom
+  , typeAtomNoVar
+  ) where
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
@@ -90,14 +95,21 @@ parens = do
   pure Parens {..}
 
 
+typeAtomNoVar
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Type
+typeAtomNoVar = do
+  typeConstantParser
+    <|> parens
+
+
+-- We don't have type vars yet!
 typeAtom
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
   => Eff es Type
-typeAtom =
-  -- We don't have type vars yet!
-  typeConstantParser
-    <|> parens
+typeAtom = typeAtomNoVar
 
 
 typeArrowAndType
@@ -127,33 +139,3 @@ typeParser
   => SymbolResolution :> es
   => Eff es Type
 typeParser = typeArrowParser
-
--- -- ======================= Top ===========================
---
--- topParser :: Parser TopItem
--- topParser = do
---   name <- identifierParser
---   _type <-
---     (colon >> (typeParser <|> typeHole)) <?> "type signature for definition"
---   equal
---   braces
---     ( makeTopItem name _type <$> expressionParser
---     )
---     <?> "definition expression "
---
---
--- parseTop :: Error ParserError :> es => Text -> Eff es TopItem
--- parseTop = parserToEff topParser
---
---
--- -- ======================= Module ===========================
---
--- -- We don't have modules yet, this is more a `parse
--- -- a bunch of definitions one after another` right now.
--- moduleParser :: Parser [TopItem]
--- moduleParser = sc >> many (topParser <?> "a definition")
---
---
--- parseModule :: Error ParserError :> es => Text -> Eff es [TopItem]
--- parseModule = parserToEff moduleParser
---

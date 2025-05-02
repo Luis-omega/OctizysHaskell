@@ -1,5 +1,12 @@
 module Octizys.Cst.Expression
-  ( Parameter (Parameter', name, _type)
+  ( Parameter (ParameterAlone, ParameterWithType, name, _type, colon)
+  , FunctionParameter
+    ( FunctionParameterAlone
+    , FunctionParameterWithType
+    , lparen
+    , rparen
+    , parameter
+    )
   , Definition
     ( Definition'
     , name
@@ -7,6 +14,7 @@ module Octizys.Cst.Expression
     , equal
     , definition
     , outputType
+    , colon
     )
   , Function (Function', start, arrow, body, parameters)
   , Expression
@@ -77,12 +85,26 @@ instance Pretty ExpressionVariableId where
 
 
 -- | The set of parameters
-data Parameter = Parameter'
-  { name :: (InfoId, ExpressionVariableId)
-  , _type :: Maybe (InfoId, Type)
-  -- ^ The alone info is the colon, we don't put as independent field
-  -- as it appear only if the type is part of the parameter.
-  }
+data Parameter
+  = ParameterAlone {name :: (InfoId, ExpressionVariableId)}
+  | ParameterWithType
+      { name :: (InfoId, ExpressionVariableId)
+      , colon :: InfoId
+      , _type :: Type
+      }
+  deriving (Show, Eq, Ord)
+
+
+data FunctionParameter
+  = FunctionParameterWithType
+      { lparen :: InfoId
+      , parameter :: Parameter
+      , rparen :: InfoId
+      }
+  | FunctionParameterAlone
+      { parameter :: Parameter
+      -- ^ This must be only  `ParameterWithType`
+      }
   deriving (Show, Eq, Ord)
 
 
@@ -93,8 +115,9 @@ newtype Parameters = Parameters' {unParameters :: [(Parameter, InfoId)]}
 -- | Either a Let definition or a Top level definition
 data Definition = Definition'
   { name :: (InfoId, ExpressionVariableId)
-  , parameters :: Maybe (InfoId, Parameters)
-  , outputType :: Maybe (Maybe InfoId, Type)
+  , colon :: Maybe InfoId
+  , parameters :: Maybe Parameters
+  , outputType :: Maybe Type
   , equal :: InfoId
   , definition :: Expression
   }
@@ -106,7 +129,7 @@ data Function = Function'
   { start :: InfoId
   , -- This is the difference between `Definition` and `Function`
     -- The InfoIds represents parens
-    parameters :: NonEmpty (Either (InfoId, Parameter, InfoId) Parameter)
+    parameters :: NonEmpty FunctionParameter
   , arrow :: InfoId
   , body :: Expression
   }

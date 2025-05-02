@@ -7,7 +7,6 @@ import Control.Arrow ((<<<))
 import Octizys.Parser.Common
   ( OctizysParseError
   , comment
-  , token
   )
 import Test.Hspec
 
@@ -24,7 +23,7 @@ import Octizys.Effects.Parser.Backend
   , ParserState
   , prettyParserError
   )
-import Octizys.Effects.Parser.Combinators (eof, text)
+import Octizys.Effects.Parser.Combinators (eof)
 import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Effects.Parser.Interpreter (runFullParser)
 import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
@@ -237,32 +236,45 @@ tests = do
       (prettyExpression pretty pretty)
     makePositiveTest
       "let capture avoid params"
-      "let f: x = x; g:x = x; in g 6"
+      "let f: x , Int = x; g:x , Bool = x; in g 6"
       ( Just
-          "let ExpVarId[0]: ExpVarId[1] = ExpVarId[1]; ExpVarId[2]:ExpVarId[3] = ExpVarId[3]; in ExpVarId[2] 6"
+          "let ExpVarId[0]: ExpVarId[1], Int = ExpVarId[1]; ExpVarId[2]:ExpVarId[3], Bool = ExpVarId[3]; in ExpVarId[2] 6"
       )
       letParser
       (prettyExpression pretty pretty)
     makePositiveTest
       "parameters 2"
-      "x:Bool->y:Int"
-      (Just "ExpVarId[0]:Bool->ExpVarId[1]:Int")
+      -- The `,` at the end is needed as we use it to know that we parsed a
+      -- argument, if it is missing we fail!
+      "x:Bool,y:Int,"
+      (Just "ExpVarId[0]:Bool,ExpVarId[1]:Int")
       (Parameters' <$> parametersParser)
       (prettyParameters pretty pretty)
     -- TODO: remove the last parens of this test.
     -- This means modify pretty to skip this paren
-    -- at the end of arguments definition
+    -- at the end of arguments definition.
+    -- This comma is not included int the input.
     makePositiveTest
       "parameters 3"
-      "x:Bool->y:Int->z:(Bool->Int)"
-      (Just "ExpVarId[0]:Bool->ExpVarId[1]:Int->ExpVarId[2]:(Bool->Int)")
+      "x:Bool,y:Int,z:(Bool->Int),"
+      (Just "ExpVarId[0]:Bool,ExpVarId[1]:Int,ExpVarId[2]:Bool->Int")
       (Parameters' <$> parametersParser)
       (prettyParameters pretty pretty)
+    makePositiveTest
+      "factorial example"
+      "let fact = \\ n -> if lt n 2 then 1 else mul n (fact (minus n 1 )); in fact 5"
+      ( Just
+          "let ExpVarId[0] = \\ ExpVarId[1] -> if ExpVarId[2] ExpVarId[1] 2 then 1 else ExpVarId[3] ExpVarId[1] (ExpVarId[0] (ExpVarId[4] ExpVarId[1] 1 )); in ExpVarId[0] 5"
+      )
+      (letParser <* eof @OctizysParseError)
+      (prettyExpression pretty pretty)
   describe "module" $ do
     makePositiveTest
       "single definition"
-      "add_one: n:Int, m:Int, j:Int, Int = addition n 1"
-      (Just "ExpVarId[0]: ExpVarId[1]: Int -> Int = ExpVarId[2] ExpVarId[1] 1")
+      "add_one: n:Int, m:Int, j:Int, Int = addition n 1;"
+      ( Just
+          "ExpVarId[0]: ExpVarId[1]: Int, ExpVarId[2]:Int, ExpVarId[3]:Int, Int = ExpVarId[4] ExpVarId[1] 1"
+      )
       parseModule
       (prettyModule pretty pretty)
 

@@ -3,15 +3,20 @@
 {-# HLINT ignore "Use tuple-section" #-}
 module Octizys.Parser.Expression where
 
-import Control.Arrow ((<<<))
-import qualified Data.Bifunctor
 import Data.Char (isDigit)
-import qualified Data.Foldable
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import Effectful (Eff, (:>))
 import Octizys.Cst.Expression
-  ( Definition (Definition', definition, equal, name, outputType, parameters)
+  ( Definition
+      ( Definition'
+      , colon
+      , definition
+      , equal
+      , name
+      , outputType
+      , parameters
+      )
   , Expression
     ( Annotation
     , Application
@@ -43,8 +48,13 @@ import Octizys.Cst.Expression
     , _type
     )
   , Function (Function', arrow, body, parameters, start)
-  , Parameter (Parameter', name, _type)
-  , Parameters (Parameters', unParameters)
+  , FunctionParameter
+    ( FunctionParameterAlone
+    , FunctionParameterWithType
+    , parameter
+    )
+  , Parameter (ParameterAlone, ParameterWithType, colon, name, _type)
+  , Parameters (Parameters')
   )
 import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Type (Type)
@@ -64,7 +74,6 @@ import Octizys.Effects.SymbolResolution.Effect
   , definitionOfExpressionVariable
   , foundExpressionVariable
   , removeExpressionDefinition
-  , removeTypeDefinition
   )
 import Octizys.Parser.Common
   ( OctizysParseError
@@ -85,7 +94,7 @@ import Octizys.Parser.Common
   , tokenAndregister
   )
 import qualified Octizys.Parser.Common as Common
-import Octizys.Parser.Type (parseType, typeAtom)
+import Octizys.Parser.Type (parseType, typeAtom, typeAtomNoVar)
 import Prelude hiding (span)
 
 
@@ -146,61 +155,6 @@ variableParser = do
   pure Variable {info = inf, name = ei}
 
 
-parameterParser
-  :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Parameter
-parameterParser = do
-  (nam, inf, parSpan) <- identifierParser
-  maybeType <-
-    optional
-      ( do
-          colonInfo <- Common.colon
-          _type <- typeAtom
-          pure (colonInfo, _type)
-      )
-  ei <- definitionOfExpressionVariable nam parSpan
-  pure Parameter' {name = (inf, ei), _type = maybeType}
-
-
-parametersParser
-  :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es [(Parameter, InfoId)]
-parametersParser = do
-  originalState <- getParseState
-  start <- parameterParser
-  maybeInfoComma <- optional (try comma)
-  case maybeInfoComma of
-    Nothing -> do
-      putParseState originalState
-      pure []
-    Just infoComma -> do
-      remain <- parametersParser <|> pure []
-      pure ((start, infoComma) : remain)
-
-
-parameterOrParensParameter
-  :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff
-      es
-      ( NonEmpty
-          (Either (InfoId, Parameter, InfoId) Parameter)
-      )
-parameterOrParensParameter =
-  some
-    ( ( Left
-          <$> between
-            leftParen
-            rightParen
-            parameterParser
-      )
-        <|> Right
-        <$> parameterParser
-    )
-
-
 maybeAnnotation
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
@@ -224,39 +178,7 @@ parensExpressionParser = do
       leftParen
       rightParen
       maybeAnnotation
-  pure Parens {..}
-
-
-removeParameters
-  :: SymbolResolution :> es
-  => [Parameter]
-  -> Eff es ()
-removeParameters = mapM_ removeParameter
-  where
-    removeParameter (Parameter' {_type = __type, name = _name}) =
-      removeExpressionDefinition (snd _name)
-
-
-functionParser
-  :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Function
-functionParser = do
-  startInfo <- lambdaStart
-  parameters <- parameterOrParensParameter
-  arrowInfo <- rightArrow
-  body <- expressionParser
-  removeParameters
-    ( either (\(_, p, _) -> p) id
-        <$> NonEmpty.toList parameters
-    )
-  pure
-    Function'
-      { start = startInfo
-      , parameters
-      , arrow = arrowInfo
-      , body
-      }
+  pure Parens {lparen, rparen, expression}
 
 
 atomExpressionParser
@@ -267,11 +189,125 @@ atomExpressionParser =
   boolParser
     <|> intParser
     <|> parensExpressionParser
-    -- Keep it at the end, it prevents the capture
-    -- of keywords by variableParser
-    -- Maybe we should check inside variableParser
-    -- but this is a cheap trick
     <|> variableParser
+
+
+applicationParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Expression
+applicationParser = do
+  function <- atomExpressionParser
+  -- the Try is a fix, if the parser of a identifier
+  -- fails, then this will fail and we don't want that.
+  arguments <- many (try atomExpressionParser)
+  case arguments of
+    [] -> pure function
+    (ini : las) ->
+      pure
+        Application
+          { applicationFunction = function
+          , applicationRemain = ini :| las
+          }
+
+
+parameterAlone
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Parameter
+parameterAlone = do
+  (nam, inf, parSpan) <- identifierParser
+  ei <- definitionOfExpressionVariable nam parSpan
+  pure $ ParameterAlone (inf, ei)
+
+
+parameterParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Parameter
+parameterParser = do
+  (nam, inf, parSpan) <- identifierParser
+  maybeType <-
+    optional
+      ( do
+          colonInfo <- Common.colon
+          _type <- typeAtom
+          pure (colonInfo, _type)
+      )
+  ei <- definitionOfExpressionVariable nam parSpan
+  case maybeType of
+    Just (colonInfo, t) ->
+      pure ParameterWithType {name = (inf, ei), colon = colonInfo, _type = t}
+    Nothing -> pure $ ParameterAlone (inf, ei)
+
+
+parametersParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es [(Parameter, InfoId)]
+parametersParser = do
+  originalState <- getParseState
+  start <- parameterParser
+  maybeInfoComma <- optional (try comma)
+  case maybeInfoComma of
+    Nothing -> do
+      putParseState originalState
+      pure []
+    Just infoComma -> do
+      remain <- parametersParser <|> pure []
+      pure ((start, infoComma) : remain)
+
+
+functionParametersParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff
+      es
+      (NonEmpty FunctionParameter)
+functionParametersParser =
+  some
+    ( ( (\(a, b, c) -> FunctionParameterWithType a b c)
+          <$> between
+            leftParen
+            rightParen
+            parameterParser
+      )
+        <|> (FunctionParameterAlone <$> parameterAlone)
+    )
+
+
+removeParameters
+  :: SymbolResolution :> es
+  => [Parameter]
+  -> Eff es ()
+removeParameters = mapM_ removeParameter
+  where
+    removeParameter (ParameterWithType {_type = __type, name = _name}) =
+      removeExpressionDefinition (snd _name)
+    removeParameter (ParameterAlone {name = _name}) =
+      removeExpressionDefinition (snd _name)
+
+
+functionParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es Function
+functionParser = do
+  startInfo <- lambdaStart
+  parameters <- functionParametersParser
+  arrowInfo <- rightArrow
+  body <- expressionParser
+  removeParameters
+    ( parameter
+        <$> NonEmpty.toList parameters
+    )
+  pure
+    Function'
+      { start = startInfo
+      , parameters
+      , arrow = arrowInfo
+      , body
+      }
 
 
 ifParser
@@ -298,22 +334,6 @@ removeDefinitions = mapM_ removeDefinition
       removeExpressionDefinition (snd _name)
 
 
--- TODO: handle undefinition of defined variable
--- so that the rest of the parser can
--- introduce a fresh name, consider :
--- let f x = g x
---     g x = f x
---
--- f and g should be visible in f and g bodies, but
--- x should be different for f and g
---
--- What happens if :
---
--- let f x = g x
---     g y = h y x
---     h w = w
---
--- The x in h souldn't be registered as the one in f.
 definitionParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
@@ -321,35 +341,27 @@ definitionParser
 definitionParser = do
   (nam, inf, span) <- identifierParser
   ei <- definitionOfExpressionVariable nam span
-  maybeParams <-
-    optional
-      ( do
-          c <- Common.colon
-          ps <- parametersParser <?> ('p' :| "arameter")
-          pure (c, ps)
-      )
-  maybeOut <-
-    optional
-      ( case maybeParams of
-          Just _ -> do
-            commaInfo <- comma
-            _type <- typeAtom
-            pure (Just commaInfo, _type)
-          Nothing -> do
-            _type <- typeAtom
-            pure (Nothing, _type)
-      )
+  maybeColonInfo <- optional Common.colon
+  (maybeParams, maybeOutput) <- case maybeColonInfo of
+    Nothing -> pure (Nothing, Nothing)
+    Just _ -> do
+      maybeParams <-
+        optional parametersParser <?> ('p' :| "arameter")
+      maybeOut <-
+        optional typeAtomNoVar
+      pure (maybeParams, maybeOut)
   eq <- Common.equal
   definition <- expressionParser
-  let paramsAlone :: [Parameter] = maybe [] ((fst <$>) <<< snd) maybeParams
+  let paramsAlone :: [Parameter] = maybe [] (fst <$>) maybeParams
   removeParameters paramsAlone
   pure
     Definition'
       { name = (inf, ei)
+      , colon = maybeColonInfo
+      , parameters = Parameters' <$> maybeParams
+      , outputType = maybeOutput
       , definition
       , equal = eq
-      , parameters = Data.Bifunctor.second Parameters' <$> maybeParams
-      , outputType = maybeOut
       }
 
 
@@ -370,25 +382,6 @@ letParser = do
   expression <- parseExpression
   removeDefinitions (fst <$> definitions)
   pure Let {_let, definitions, _in, expression}
-
-
-applicationParser
-  :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Expression
-applicationParser = do
-  function <- atomExpressionParser
-  -- the Try is a fix, if the parser of a identifier
-  -- fails, then this will fail and we don't want that.
-  arguments <- many (try atomExpressionParser)
-  case arguments of
-    [] -> pure function
-    (ini : las) ->
-      pure
-        Application
-          { applicationFunction = function
-          , applicationRemain = ini :| las
-          }
 
 
 expressionParser
