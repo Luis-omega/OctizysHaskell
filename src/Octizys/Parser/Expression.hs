@@ -267,7 +267,6 @@ atomExpressionParser =
   boolParser
     <|> intParser
     <|> parensExpressionParser
-    <|> (EFunction <$> functionParser)
     -- Keep it at the end, it prevents the capture
     -- of keywords by variableParser
     -- Maybe we should check inside variableParser
@@ -396,4 +395,6 @@ expressionParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
   => Eff es Expression
-expressionParser = ifParser <|> letParser <|> applicationParser
+expressionParser = ifParser <|> letParser
+    <|> (EFunction <$> functionParser)
+    <|> applicationParser

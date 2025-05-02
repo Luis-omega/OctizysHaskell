@@ -1,24 +1,20 @@
-factorial_standard : int -> int = {
-  \ n -> 
-    if lt n 2 
-    then 
-      1 
-    else 
-      mul n (factorial_standard (minus n 1))
-}
+factorial_standard : n :Int , Int =
+    if lt n 2
+    then
+      1
+    else
+      mul n (factorial_standard (minus n 1));
 
-factorial_acc : int -> int -> int = {
-  \ n acc ->
-    if lt n 2 
+
+factorial_acc : n:Int , acc:Int, Int =
+    if lt n 2
     then
       acc
     else
-      factorial_acc (minus n 1) (mul n acc)
-}
+      factorial_acc (minus n 1) (mul n acc);
 
-factorial_acc_sass : int -> int -> int = {
-  \ n acc ->
-    if lt n 2 
+factorial_acc_sass : n:Int, acc:Int, Int =
+    if lt n 2
     then
       acc
     else
@@ -26,5 +22,5 @@ factorial_acc_sass : int -> int -> int = {
           new_acc = mul n acc;
       in
         factorial_acc_sass new_n new_acc
-}
+    ;
 
