@@ -20,15 +20,11 @@ import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, runErrorNoCallStackWith)
 
 -- import Octizys.Evaluation (EvaluationError)
--- import Octizys.Inference.Translation
---   ( TranslationState
---   , TranslationWarning
---   , buildInferenceContext
---   )
--- import qualified Octizys.Inference.Translation as Inference
+import qualified Octizys.Inference.Inference as Inference
+import qualified Octizys.Effects.SymbolResolution.Effect as SRS
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.Text (Text)
+import Data.Text (Text,pack)
 import Octizys.Effects.Console.Effect
   ( Console
   , putText
@@ -43,9 +39,9 @@ import Octizys.Effects.Parser.Backend
   , prettyParserError
   )
 import Octizys.Effects.Parser.Interpreter (runFullParser)
-import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
+import Octizys.Effects.SymbolResolution.Effect (SymbolResolution, getSymbolResolutionState, SymbolResolutionState, putSymbolResolutionState)
 import Octizys.Parser.Common (OctizysParseError)
-import Octizys.Pretty.Expression (prettyExpression)
+import Octizys.Pretty.Expression (prettyExpression, prettyDefinition)
 import Octizys.Pretty.TopItem (prettyModule)
 import Octizys.Repl.Ast
   ( ReplCommand (LoadFile, Quit)
@@ -59,6 +55,10 @@ import Prettyprinter
   , layoutPretty
   )
 import qualified Prettyprinter.Render.Text
+import qualified Octizys.Inference.Inference as Inference
+import Effectful.State.Static.Local (State, runState)
+import qualified Data.Map as Map
+import Octizys.Inference.Inference (definitionCstToAst)
 
 
 data ReplStatus = Continue | Exit
@@ -82,6 +82,8 @@ render prettifier =
 rep
   :: ( Console :> es
      , SymbolResolution :> es
+     , State Inference.InferenceState :> es
+     , Error Inference.InferenceError :> es
      )
   => Eff es ReplStatus
 rep = do
@@ -109,6 +111,9 @@ rep = do
         Evaluate expression ->
           do
             putLine $ render (prettyExpression pretty pretty) expression
+            (ast,_type) <- Inference.infer expression
+            putLine $ pack $ show ast
+            putLine $ pack $ show _type
             -- TODO: solve this
             -- (value, new_context) <- evaluateExpression context expression
             -- putLine (show value)
@@ -116,7 +121,9 @@ rep = do
             continue
         -- TODO: Type check/inference
         Define d -> do
-          putLine $ render (prettyModule pretty pretty) d
+          putLine $ render (prettyDefinition pretty pretty) d
+          ast <- definitionCstToAst d
+          putLine $ pack $ show ast
           continue
 
 
@@ -174,13 +181,40 @@ reportErrorParser source =
         source
     )
 
+makeInferenceState ::
+  SymbolResolutionState -> Inference.InferenceState
+makeInferenceState srs =
+  Inference.InferenceStateC
+    { Inference.expVarTable = SRS.expVarTable srs
+    , Inference.typeVarToType = Map.empty
+    , Inference.realVariablesMax = SRS.genVarExp srs
+    , Inference.nextTypeVar = SRS.genVarType srs
+    }
+
+
+-- TODO: verify change of state
+makeSymbolResolutionState ::
+  Inference.InferenceState -> SymbolResolutionState -> SymbolResolutionState
+makeSymbolResolutionState is old =
+  old
+    { SRS.expVarTable = Inference.expVarTable is
+    , SRS.genVarExp = Inference.realVariablesMax is
+    , SRS.genVarType = Inference.nextTypeVar is
+    }
 
 repl
   :: SymbolResolution :> es
   => Console :> es
   => Eff es ()
 repl = do
-  status <- rep
+  symbolState <- getSymbolResolutionState
+  let newInferenceState = makeInferenceState symbolState
+  (status,inferState) <-
+    runState
+    newInferenceState
+    (reportErrorShow rep)
+  let newSymbolState = makeSymbolResolutionState  inferState symbolState
+  putSymbolResolutionState newSymbolState
   case status of
     Exit -> pure ()
     Continue -> repl

@@ -24,6 +24,46 @@ import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Span (Span)
 import Octizys.Cst.Type (TypeVariableId)
 
+import Data.Map (Map)
+import Octizys.HistoryMap
+
+data SourceInfo = SourceInfo'
+  { span :: Span
+  , preComments :: [Comment]
+  , afterComment :: Maybe Comment
+  }
+  deriving (Show, Eq, Ord)
+
+
+data SourceTypeVariableInfo = SourceTypeVariableInfo'
+  { name :: Maybe Text
+  , typeVariableId :: TypeVariableId
+  , typeDefinitionSpan :: Maybe Span
+  }
+  deriving (Show, Eq, Ord)
+
+
+data SourceExpressionVariableInfo = SourceExpressionVariableInfo'
+  { name :: Text
+  , expressionVariableId :: ExpressionVariableId
+  , expDefinitionSpan :: Maybe Span
+  , typeId :: TypeVariableId
+  }
+  deriving (Show, Eq, Ord)
+
+
+data SymbolResolutionState = SymbolResolutionState'
+  { genVarType :: Int
+  , genVarExp :: Int
+  , genInfoId :: Int
+  , expVarTable :: Map ExpressionVariableId SourceExpressionVariableInfo
+  , typeVarTable :: Map TypeVariableId SourceTypeVariableInfo
+  , infoTable :: Map InfoId SourceInfo
+  , -- All the definition places associated with a variable name
+    expNamesToId :: HistoryMap Text ExpressionVariableId
+  , typeNamesToId :: HistoryMap Text TypeVariableId
+  }
+
 
 data SymbolResolution :: Effect where
   -- | While scanning we found a expression variable somewhere.
@@ -66,6 +106,10 @@ data SymbolResolution :: Effect where
     -> [Comment]
     -> Maybe Comment
     -> SymbolResolution m InfoId
+  GetSymbolResolutionState
+    ::  SymbolResolution m SymbolResolutionState
+  PutSymbolResolutionState
+    :: SymbolResolutionState ->  SymbolResolution m ()
 
 
 $(makeEffect ''SymbolResolution)

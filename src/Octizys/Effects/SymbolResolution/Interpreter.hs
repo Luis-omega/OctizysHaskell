@@ -35,31 +35,47 @@ import Effectful
 import Effectful.Dispatch.Dynamic
 import Effectful.State.Static.Local
 
-import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 
 import Effectful.Error.Static (Error, throwError)
-import Octizys.Cst.Comment (Comment)
 import Octizys.Cst.Expression (ExpressionVariableId (ExpressionVariableId'))
 import Octizys.Cst.InfoId (InfoId (InfoId'))
 import Octizys.Cst.Span (Span)
 import Octizys.Cst.Type (TypeVariableId (TypeVariableId'))
 import Octizys.Cst.VariableId (VariableId (VariableId'))
 import Octizys.Effects.SymbolResolution.Effect
-  ( SymbolResolution
-      ( CreateInformation
-      , DefinitionOfExpressionVariable
-      , DefinitionOfTypeVariable
-      , FoundExpressionVariable
-      , FoundTypeVariable
-      , RemoveExpressionDefinition
-      , RemoveTypeDefinition
+  ( SourceExpressionVariableInfo
+      ( SourceExpressionVariableInfo'
+      , expDefinitionSpan
+      , expressionVariableId
+      , name
+      , typeId
       )
+  , SourceTypeVariableInfo (name, typeDefinitionSpan, typeVariableId, SourceTypeVariableInfo')
+  , SymbolResolution
+    ( CreateInformation
+    , DefinitionOfExpressionVariable
+    , DefinitionOfTypeVariable
+    , FoundExpressionVariable
+    , FoundTypeVariable
+    , RemoveExpressionDefinition
+    , RemoveTypeDefinition, GetSymbolResolutionState, PutSymbolResolutionState
+    )
+  , SymbolResolutionState
+    ( SymbolResolutionState'
+    , expNamesToId
+    , expVarTable
+    , genInfoId
+    , genVarExp
+    , genVarType
+    , infoTable
+    , typeNamesToId
+    , typeVarTable
+    ), SourceInfo (SourceInfo', span, afterComment, preComments)
   )
 import Octizys.HistoryMap
-  ( HistoryMap
-  , empty
+  ( empty
   , lookup
   , popValue
   , pushValue
@@ -76,44 +92,6 @@ data SymbolResolutionError
   | CantFindTypeVariableThatMustBeIn TypeVariableId Text
   | AttemptToDeleteAnonymousVariable SourceTypeVariableInfo
   deriving (Show, Eq, Ord)
-
-
-data SourceInfo = SourceInfo'
-  { span :: Span
-  , preComments :: [Comment]
-  , afterComment :: Maybe Comment
-  }
-  deriving (Show, Eq, Ord)
-
-
-data SourceTypeVariableInfo = SourceTypeVariableInfo'
-  { name :: Maybe Text
-  , typeVariableId :: TypeVariableId
-  , typeDefinitionSpan :: Maybe Span
-  }
-  deriving (Show, Eq, Ord)
-
-
-data SourceExpressionVariableInfo = SourceExpressionVariableInfo'
-  { name :: Text
-  , expressionVariableId :: ExpressionVariableId
-  , expDefinitionSpan :: Maybe Span
-  , typeId :: TypeVariableId
-  }
-  deriving (Show, Eq, Ord)
-
-
-data SymbolResolutionState = SymbolResolutionState'
-  { genVarType :: Int
-  , genVarExp :: Int
-  , genInfoId :: Int
-  , expVarTable :: Map ExpressionVariableId SourceExpressionVariableInfo
-  , typeVarTable :: Map TypeVariableId SourceTypeVariableInfo
-  , infoTable :: Map InfoId SourceInfo
-  , -- All the definition places associated with a variable name
-    expNamesToId :: HistoryMap Text ExpressionVariableId
-  , typeNamesToId :: HistoryMap Text TypeVariableId
-  }
 
 
 initialSymbolResolutionState :: SymbolResolutionState
@@ -372,6 +350,8 @@ runSymbolResolution = interpret \_ -> \case
         info = SourceInfo' span pre after
     put s1 {infoTable = Map.insert infoId info infoTable}
     pure infoId
+  GetSymbolResolutionState -> get
+  PutSymbolResolutionState s -> put s
 
 
 runSymbolResolutionFull
@@ -380,3 +360,4 @@ runSymbolResolutionFull
   -> Eff (SymbolResolution : State SymbolResolutionState : es) a
   -> Eff es (a, SymbolResolutionState)
 runSymbolResolutionFull s action = runState s $ runSymbolResolution action
+
