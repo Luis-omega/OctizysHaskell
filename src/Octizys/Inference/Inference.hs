@@ -10,7 +10,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
-import Effectful.State.Static.Local (State, gets, modify)
+import Effectful.State.Static.Local (State, get, gets, modify)
 import Octizys.Cst.Expression
   ( Definition
       ( definition
@@ -85,9 +85,21 @@ type TypeVarToType =
   Map TypeVariableId Ast.Type
 
 
+data Constraint
+  = IsType Ast.Type
+  | IsMetaVariable TypeVariableId
+  | UnInitialized
+  deriving (Show, Ord, Eq)
+
+
+newtype MetaVariable = MetaVariable' {unMetaVariable :: TypeVariableId}
+  deriving (Show, Ord, Eq)
+
+
 data InferenceState = InferenceState'
   { expVarTable :: ExpressionVarToInfo
   , typeVarToType :: TypeVarToType
+  , metaVariables :: Map MetaVariable Constraint
   , realVariablesMax :: Int
   -- ^ The counter give to us by the previous
   -- process, we know all the type variables made
@@ -102,6 +114,7 @@ initialInferenceState =
   InferenceState'
     { expVarTable = mempty
     , typeVarToType = mempty
+    , metaVariables = mempty
     , realVariablesMax = 0
     , nextTypeVar = 0
     }
@@ -109,7 +122,7 @@ initialInferenceState =
 
 -- Update the
 
--- | Looks on the associationMap, raise Error if not found
+-- | Looks on the associationMap
 lookupExpressionVar
   :: ( Error InferenceError :> es
      , State InferenceState :> es
@@ -124,7 +137,17 @@ lookupExpressionVar var = do
       typeVarsToTypes <- gets typeVarToType
       case Map.lookup typeVar typeVarsToTypes of
         Just value -> pure value
-        Nothing -> throwError (UnboundTypeVar typeVar)
+        Nothing -> do
+          newMeta <- freshMetaVariable
+          let asType = AstT.Variable (unMetaVariable newMeta)
+          modify
+            ( \s ->
+                s
+                  { typeVarToType =
+                      Map.insert typeVar asType typeVarsToTypes
+                  }
+            )
+          pure asType
     Nothing -> throwError (UnboundExpressionVar var)
 
 
@@ -160,27 +183,54 @@ unifyVar
   -> Ast.Type
   -> Eff es ()
 unifyVar v t = do
-  state <- gets typeVarToType
-  case Map.lookup v state of
+  st <- get
+  case Map.lookup v st.typeVarToType of
     Just existing -> unify existing t
     Nothing -> do
-      let updateFn s = s {typeVarToType = Map.insert v t (typeVarToType s)}
-      Effectful.State.Static.Local.modify updateFn
+      case Map.lookup (MetaVariable' v) st.metaVariables of
+        Just existing ->
+          case existing of
+            UnInitialized ->
+              let updateFn s =
+                    s
+                      { metaVariables =
+                          Map.insert
+                            (MetaVariable' v)
+                            (IsType t)
+                            s.metaVariables
+                      }
+               in modify updateFn
+            IsType t2 -> unify t2 t
+            IsMetaVariable metaId -> unifyVar metaId t
+        Nothing -> throwError $ UnboundTypeVar v
 
 
 -- | Generate a new fresh meta variable
-freshMetaVar
+freshTypeVarId
   :: State InferenceState :> es
-  => Eff es AstT.Type
-freshMetaVar = do
+  => Eff es TypeVariableId
+freshTypeVarId = do
   next <- gets nextTypeVar
   modify (\s -> s {nextTypeVar = next + 1})
   pure
-    ( AstT.Variable
-        ( Cst.TypeVariableId'
-            (VariableId' next)
-        )
+    ( Cst.TypeVariableId'
+        (VariableId' next)
     )
+
+
+freshMetaVariable
+  :: State InferenceState :> es
+  => Eff es MetaVariable
+freshMetaVariable = do
+  newId <- freshTypeVarId
+  modify
+    ( \s ->
+        s
+          { metaVariables =
+              Map.insert (MetaVariable' newId) UnInitialized (metaVariables s)
+          }
+    )
+  pure (MetaVariable' newId)
 
 
 definitionParametersToParameters
@@ -281,6 +331,10 @@ definitionCstToAst d = do
         pure newExp
 
 
+metaToVar :: MetaVariable -> Ast.Type
+metaToVar = AstT.Variable <<< unMetaVariable
+
+
 infer
   :: ( Error InferenceError :> es
      , State InferenceState :> es
@@ -336,8 +390,8 @@ infer e =
       { applicationFunction = fun
       , applicationRemain = args
       } -> do
-        initDom <- freshMetaVar
-        initCodom <- freshMetaVar
+        initDom <- metaToVar <$> freshMetaVariable
+        initCodom <- metaToVar <$> freshMetaVariable
         (newFun, funType) <-
           check
             fun
@@ -347,8 +401,8 @@ infer e =
               }
         foldM
           ( \t arg -> do
-              domain <- freshMetaVar
-              codomain <- freshMetaVar
+              domain <- metaToVar <$> freshMetaVariable
+              codomain <- metaToVar <$> freshMetaVariable
               unify
                 (snd t)
                 Ast.Arrow
@@ -403,3 +457,11 @@ check e t = do
   (newExpression, newType) <- infer e
   unify t newType
   pure (newExpression, newType)
+
+-- TODO: Implement substitucion
+-- substituteMetaVariables ::
+--   ( Error InferenceError :> es
+--      , State InferenceState :> es
+--      )
+--   => Expression
+-- substituteMetaVariables = undefined
