@@ -248,8 +248,16 @@ tests = do
       -- argument, if it is missing we fail!
       "x:Bool,y:Int,"
       (Just "ExpVarId[0]:Bool,ExpVarId[1]:Int")
-      (Parameters' <$> parametersParser)
-      (prettyParameters pretty pretty)
+      ((Parameters' <$>) <$> parametersParser)
+      ( \(x :: Maybe Parameters) ->
+          maybe
+            ( pretty
+                @Text
+                "Failed to parse"
+            )
+            (prettyParameters pretty pretty)
+            x
+      )
     -- TODO: remove the last parens of this test.
     -- This means modify pretty to skip this paren
     -- at the end of arguments definition.
@@ -258,8 +266,16 @@ tests = do
       "parameters 3"
       "x:Bool,y:Int,z:(Bool->Int),"
       (Just "ExpVarId[0]:Bool,ExpVarId[1]:Int,ExpVarId[2]:Bool->Int")
-      (Parameters' <$> parametersParser)
-      (prettyParameters pretty pretty)
+      ((Parameters' <$>) <$> parametersParser)
+      ( \(x :: Maybe Parameters) ->
+          maybe
+            ( pretty
+                @Text
+                "Failed to parse"
+            )
+            (prettyParameters pretty pretty)
+            x
+      )
     makePositiveTest
       "factorial example"
       "let fact = \\ n -> if lt n 2 then 1 else mul n (fact (minus n 1 )); in fact 5"

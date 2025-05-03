@@ -1,7 +1,7 @@
 module Octizys.Pretty.Expression where
 
 import Control.Arrow ((<<<))
-import Data.List.NonEmpty (NonEmpty, toList)
+import Data.List.NonEmpty (NonEmpty (..), toList)
 import Data.Text (Text)
 import Octizys.Cst.Expression
   ( Definition (Definition', definition, name, outputType, parameters)
@@ -77,8 +77,7 @@ prettyParameters
   -> Doc ann
 prettyParameters prettyVar prettyTypeVar (Parameters' {unParameters}) =
   case unParameters of
-    [] -> mempty
-    (start : remain) ->
+    (start :| remain) ->
       (Pretty.nest 2 <<< Pretty.vsep)
         ( Pretty.group
             ( prettyParameter

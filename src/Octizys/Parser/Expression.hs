@@ -3,6 +3,7 @@
 {-# HLINT ignore "Use tuple-section" #-}
 module Octizys.Parser.Expression where
 
+import Control.Monad (join)
 import Data.Char (isDigit)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -241,11 +242,11 @@ parameterParser = do
     Nothing -> pure $ ParameterAlone (inf, ei)
 
 
-parametersParser
+parametersParserAux
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
   => Eff es [(Parameter, InfoId)]
-parametersParser = do
+parametersParserAux = do
   originalState <- getParseState
   start <- parameterParser
   maybeInfoComma <- optional (try comma)
@@ -254,8 +255,19 @@ parametersParser = do
       putParseState originalState
       pure []
     Just infoComma -> do
-      remain <- parametersParser <|> pure []
+      remain <- parametersParserAux <|> pure []
       pure ((start, infoComma) : remain)
+
+
+parametersParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es (Maybe (NonEmpty (Parameter, InfoId)))
+parametersParser = do
+  result <- parametersParserAux
+  pure $ case result of
+    (x : y) -> Just (x :| y)
+    _ -> Nothing
 
 
 functionParametersParser
@@ -278,7 +290,7 @@ functionParametersParser =
 
 removeParameters
   :: SymbolResolution :> es
-  => [Parameter]
+  => NonEmpty Parameter
   -> Eff es ()
 removeParameters = mapM_ removeParameter
   where
@@ -299,7 +311,7 @@ functionParser = do
   body <- expressionParser
   removeParameters
     ( parameter
-        <$> NonEmpty.toList parameters
+        <$> parameters
     )
   pure
     Function'
@@ -346,19 +358,21 @@ definitionParser = do
     Nothing -> pure (Nothing, Nothing)
     Just _ -> do
       maybeParams <-
-        optional parametersParser <?> ('p' :| "arameter")
+        join <$> (optional parametersParser <?> ('p' :| "arameter"))
       maybeOut <-
         optional typeAtomNoVar
       pure (maybeParams, maybeOut)
   eq <- Common.equal
   definition <- expressionParser
-  let paramsAlone :: [Parameter] = maybe [] (fst <$>) maybeParams
-  removeParameters paramsAlone
+  case maybeParams of
+    Nothing -> pure ()
+    Just l -> removeParameters (fst <$> l)
   pure
     Definition'
       { name = (inf, ei)
       , colon = maybeColonInfo
-      , parameters = Parameters' <$> maybeParams
+      , parameters =
+          Parameters' <$> maybeParams
       , outputType = maybeOutput
       , definition
       , equal = eq

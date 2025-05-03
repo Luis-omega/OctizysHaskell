@@ -101,6 +101,8 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
+    Octizys.Ast.Expression
+    Octizys.Ast.Type
     Octizys.Cst.Comment
     Octizys.Cst.Expression
     Octizys.Cst.Fixpoint
@@ -120,6 +122,7 @@ library
     Octizys.Effects.SymbolResolution.Effect
     Octizys.Effects.SymbolResolution.Interpreter
     Octizys.HistoryMap
+    Octizys.Inference.Inference
     Octizys.Parser.Common
     Octizys.Parser.Expression
     Octizys.Parser.TopItem
@@ -133,7 +136,6 @@ library
     Octizys.Repl.Repl
 
   -- Octizys.Evaluation
-  -- Octizys.Inference.Inference
   -- Octizys.Inference.Translation
 
   -- Modules included in this library but not exported.

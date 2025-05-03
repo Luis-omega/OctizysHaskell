@@ -108,7 +108,7 @@ data FunctionParameter
   deriving (Show, Eq, Ord)
 
 
-newtype Parameters = Parameters' {unParameters :: [(Parameter, InfoId)]}
+newtype Parameters = Parameters' {unParameters :: NonEmpty (Parameter, InfoId)}
   deriving (Show, Eq, Ord)
 
 

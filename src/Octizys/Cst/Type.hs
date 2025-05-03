@@ -37,7 +37,6 @@ newtype TypeVariableId = TypeVariableId' {unTypeVariableId :: VariableId}
 
 {- | `Type` has multiple design choices inside it.
 
-  * To be fault tolerant
   * To store source information in a separate place, so
     we can mutate or do other things on it without
     modifying the tree.
