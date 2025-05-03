@@ -6,7 +6,6 @@ module Octizys.Parser.Expression where
 import Control.Monad (join)
 import Data.Char (isDigit)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as NonEmpty
 import Effectful (Eff, (:>))
 import Octizys.Cst.Expression
   ( Definition
