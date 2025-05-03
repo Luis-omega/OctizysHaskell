@@ -17,16 +17,17 @@ where
 
 import Control.Arrow ((<<<))
 import Effectful (Eff, (:>))
-import Effectful.Error.Static (Error, runErrorNoCallStackWith)
+import Effectful.Error.Static (Error, catchError, runErrorNoCallStackWith)
 
 -- import Octizys.Evaluation (EvaluationError)
 
 import qualified Octizys.Effects.SymbolResolution.Effect as SRS
 import qualified Octizys.Inference.Inference as Inference
 
+import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text, pack)
-import Effectful.State.Static.Local (State, get, put)
+import Effectful.State.Static.Local (State, get, put, runState)
 import Octizys.Effects.Console.Effect
   ( Console
   , putText
@@ -47,6 +48,12 @@ import Octizys.Effects.SymbolResolution.Effect
   , getSymbolResolutionState
   , putSymbolResolutionState
   )
+import Octizys.Effects.SymbolResolution.Interpreter
+  ( SymbolResolutionError
+  , initialSymbolResolutionState
+  , runSymbolResolution
+  , runSymbolResolutionFull
+  )
 import Octizys.Inference.Inference (definitionCstToAst)
 import Octizys.Parser.Common (OctizysParseError)
 import Octizys.Pretty.Expression (prettyDefinition, prettyExpression)
@@ -63,6 +70,7 @@ import Prettyprinter
   , layoutPretty
   )
 import qualified Prettyprinter.Render.Text
+import Text.Show.Pretty (ppShow)
 
 
 data ReplStatus = Continue | Exit
@@ -118,8 +126,8 @@ rep = do
             updateInferenceState
             (ast, _type) <- Inference.infer expression
             updateSymbolState
-            putLine $ pack $ show ast
-            putLine $ pack $ show _type
+            putLine $ pack $ ppShow ast
+            putLine $ pack $ ppShow _type
             -- TODO: solve this
             -- (value, new_context) <- evaluateExpression context expression
             -- putLine (show value)
@@ -193,7 +201,7 @@ reportErrorShow
    . (Console :> es, Show e)
   => Eff (Error e : es) ReplStatus
   -> Eff es ReplStatus
-reportErrorShow = reportErrorWith (pretty <<< show)
+reportErrorShow = reportErrorWith (pretty <<< ppShow)
 
 
 reportErrorParser
@@ -218,13 +226,22 @@ reportErrorParser source =
 
 
 repl
-  :: SymbolResolution :> es
-  => State Inference.InferenceState :> es
-  => Error Inference.InferenceError :> es
-  => Console :> es
+  :: Console :> es
   => Eff es ()
-repl = do
-  status <- rep
-  case status of
-    Exit -> pure ()
-    Continue -> repl
+repl =
+  ( void
+      <<< runState Inference.initialInferenceState
+      <<< runState initialSymbolResolutionState
+  )
+    loop
+  where
+    loop = do
+      status <-
+        ( reportErrorShow @SymbolResolutionError
+            <<< reportErrorShow @Inference.InferenceError
+            <<< runSymbolResolution
+          )
+          rep
+      case status of
+        Exit -> pure ()
+        Continue -> loop
