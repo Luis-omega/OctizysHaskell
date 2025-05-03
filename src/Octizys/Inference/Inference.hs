@@ -10,7 +10,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
-import Effectful.State.Static.Local (State, gets)
+import Effectful.State.Static.Local (State, gets, modify)
 import Octizys.Cst.Expression
   ( Definition
       ( definition
@@ -62,6 +62,7 @@ import qualified Octizys.Ast.Expression as Ast
 import qualified Octizys.Ast.Expression as AstE
 import qualified Octizys.Ast.Type as Ast
 import qualified Octizys.Ast.Type as AstT
+import Octizys.Cst.VariableId (VariableId (VariableId'))
 
 
 data InferenceError
@@ -72,7 +73,7 @@ data InferenceError
   | -- This is a bug in the translation process or
     -- in the inference
     UnboundTypeVar TypeVariableId
-  | CantUnify Type Type
+  | CantUnify Ast.Type Ast.Type
   deriving (Show)
 
 
@@ -123,24 +124,52 @@ unify
   => Ast.Type
   -> Ast.Type
   -> Eff es ()
-unify = undefined
+unify t1 t2
+  | t1 == t2 = pure ()
+unify (Ast.Arrow s1 r1) (Ast.Arrow s2 r2) = do
+  unify s1 s2
+  unifyList (NonEmpty.toList r1) (NonEmpty.toList r2)
+  where
+    unifyList [] [] = pure ()
+    unifyList (x : xs) (y : ys) = unify x y >> unifyList xs ys
+    unifyList _ _ = throwError (CantUnify (AstT.Arrow s1 r1) (AstT.Arrow s2 r2))
+unify (AstT.Variable v1) (AstT.Variable v2)
+  | v1 == v2 = pure ()
+unify (AstT.Variable v) t = unifyVar v t
+unify t (AstT.Variable v) = unifyVar v t
+unify t1 t2 = throwError (CantUnify t1 t2)
 
 
-{- | Update (by unification) the type in the type var associated
-with the variable
--}
-updateExpressionVars
+-- Helper
+unifyVar
   :: ( Error InferenceError :> es
      , State InferenceState :> es
      )
-  => [(ExpressionVariableId, Type)]
+  => TypeVariableId
+  -> Ast.Type
   -> Eff es ()
-updateExpressionVars = undefined
+unifyVar v t = do
+  state <- gets typeVarToType
+  case Map.lookup v state of
+    Just existing -> unify existing t
+    Nothing -> do
+      let updateFn s = s {typeVarToType = Map.insert v t (typeVarToType s)}
+      Effectful.State.Static.Local.modify updateFn
 
 
 -- | Generate a new fresh meta variable
-freshMetaVar :: Eff es Ast.Type
-freshMetaVar = undefined
+freshMetaVar
+  :: State InferenceState :> es
+  => Eff es AstT.Type
+freshMetaVar = do
+  next <- gets nextTypeVar
+  modify (\s -> s {nextTypeVar = next + 1})
+  pure
+    ( AstT.Variable
+        ( Cst.TypeVariableId'
+            (VariableId' next)
+        )
+    )
 
 
 definitionParametersToParameters
