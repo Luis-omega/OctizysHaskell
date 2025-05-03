@@ -52,15 +52,23 @@ import Octizys.Effects.SymbolResolution.Effect
       , name
       , typeId
       )
-  , SourceTypeVariableInfo (name, typeDefinitionSpan, typeVariableId, SourceTypeVariableInfo')
+  , SourceInfo (SourceInfo', afterComment, preComments, span)
+  , SourceTypeVariableInfo
+    ( SourceTypeVariableInfo'
+    , name
+    , typeDefinitionSpan
+    , typeVariableId
+    )
   , SymbolResolution
     ( CreateInformation
     , DefinitionOfExpressionVariable
     , DefinitionOfTypeVariable
     , FoundExpressionVariable
     , FoundTypeVariable
+    , GetSymbolResolutionState
+    , PutSymbolResolutionState
     , RemoveExpressionDefinition
-    , RemoveTypeDefinition, GetSymbolResolutionState, PutSymbolResolutionState
+    , RemoveTypeDefinition
     )
   , SymbolResolutionState
     ( SymbolResolutionState'
@@ -72,7 +80,7 @@ import Octizys.Effects.SymbolResolution.Effect
     , infoTable
     , typeNamesToId
     , typeVarTable
-    ), SourceInfo (SourceInfo', span, afterComment, preComments)
+    )
   )
 import Octizys.HistoryMap
   ( empty
@@ -360,4 +368,3 @@ runSymbolResolutionFull
   -> Eff (SymbolResolution : State SymbolResolutionState : es) a
   -> Eff es (a, SymbolResolutionState)
 runSymbolResolutionFull s action = runState s $ runSymbolResolution action
-

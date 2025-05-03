@@ -244,7 +244,7 @@ prettyExpression prettyVar prettyTypeVar e =
   case e of
     EInt {intValue} -> pretty intValue
     EBool {boolValue} ->
-      pText $ if boolValue then "true" else "false"
+      pText $ if boolValue then "True" else "False"
     Variable {name} -> prettyVar name
     Parens {expression} ->
       Pretty.parens $

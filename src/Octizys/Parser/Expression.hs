@@ -113,8 +113,8 @@ boolParser
   => SymbolResolution :> es
   => Eff es Expression
 boolParser =
-  ((`EBool` True) <$> keyword "true")
-    <|> ((`EBool` False) <$> keyword "false")
+  ((`EBool` True) <$> keyword "True")
+    <|> ((`EBool` False) <$> keyword "False")
 
 
 intParser
@@ -186,10 +186,10 @@ atomExpressionParser
   => SymbolResolution :> es
   => Eff es Expression
 atomExpressionParser =
-  boolParser
-    <|> intParser
-    <|> parensExpressionParser
-    <|> variableParser
+  (boolParser <?> ('a' :| " boolean"))
+    <|> (intParser <?> ('a' :| " integer"))
+    <|> (parensExpressionParser <?> 'a' :| " expression in parenthesis")
+    <|> (variableParser <?> 'a' :| " variable")
 
 
 applicationParser

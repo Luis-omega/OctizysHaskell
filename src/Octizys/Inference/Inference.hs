@@ -85,15 +85,26 @@ type TypeVarToType =
   Map TypeVariableId Ast.Type
 
 
-data InferenceState = InferenceStateC
+data InferenceState = InferenceState'
   { expVarTable :: ExpressionVarToInfo
   , typeVarToType :: TypeVarToType
   , realVariablesMax :: Int
   -- ^ The counter give to us by the previous
-  -- process, we know all the variables made
+  -- process, we know all the type variables made
   -- from users are below this number.
   , nextTypeVar :: Int
   }
+  deriving (Show, Ord, Eq)
+
+
+initialInferenceState :: InferenceState
+initialInferenceState =
+  InferenceState'
+    { expVarTable = mempty
+    , typeVarToType = mempty
+    , realVariablesMax = 0
+    , nextTypeVar = 0
+    }
 
 
 -- Update the

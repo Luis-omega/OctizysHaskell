@@ -20,11 +20,13 @@ import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, runErrorNoCallStackWith)
 
 -- import Octizys.Evaluation (EvaluationError)
-import qualified Octizys.Inference.Inference as Inference
+
 import qualified Octizys.Effects.SymbolResolution.Effect as SRS
+import qualified Octizys.Inference.Inference as Inference
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.Text (Text,pack)
+import Data.Text (Text, pack)
+import Effectful.State.Static.Local (State, get, put)
 import Octizys.Effects.Console.Effect
   ( Console
   , putText
@@ -39,9 +41,15 @@ import Octizys.Effects.Parser.Backend
   , prettyParserError
   )
 import Octizys.Effects.Parser.Interpreter (runFullParser)
-import Octizys.Effects.SymbolResolution.Effect (SymbolResolution, getSymbolResolutionState, SymbolResolutionState, putSymbolResolutionState)
+import Octizys.Effects.SymbolResolution.Effect
+  ( SymbolResolution
+  , SymbolResolutionState
+  , getSymbolResolutionState
+  , putSymbolResolutionState
+  )
+import Octizys.Inference.Inference (definitionCstToAst)
 import Octizys.Parser.Common (OctizysParseError)
-import Octizys.Pretty.Expression (prettyExpression, prettyDefinition)
+import Octizys.Pretty.Expression (prettyDefinition, prettyExpression)
 import Octizys.Pretty.TopItem (prettyModule)
 import Octizys.Repl.Ast
   ( ReplCommand (LoadFile, Quit)
@@ -55,10 +63,6 @@ import Prettyprinter
   , layoutPretty
   )
 import qualified Prettyprinter.Render.Text
-import qualified Octizys.Inference.Inference as Inference
-import Effectful.State.Static.Local (State, runState)
-import qualified Data.Map as Map
-import Octizys.Inference.Inference (definitionCstToAst)
 
 
 data ReplStatus = Continue | Exit
@@ -111,7 +115,9 @@ rep = do
         Evaluate expression ->
           do
             putLine $ render (prettyExpression pretty pretty) expression
-            (ast,_type) <- Inference.infer expression
+            updateInferenceState
+            (ast, _type) <- Inference.infer expression
+            updateSymbolState
             putLine $ pack $ show ast
             putLine $ pack $ show _type
             -- TODO: solve this
@@ -122,9 +128,38 @@ rep = do
         -- TODO: Type check/inference
         Define d -> do
           putLine $ render (prettyDefinition pretty pretty) d
+          updateInferenceState
           ast <- definitionCstToAst d
           putLine $ pack $ show ast
+          updateSymbolState
           continue
+  where
+    updateInferenceState
+      :: SymbolResolution :> es
+      => State Inference.InferenceState :> es
+      => Eff es ()
+    updateInferenceState = do
+      currentSymbolState <- SRS.getSymbolResolutionState
+      currentInference <- get
+      put
+        currentInference
+          { Inference.expVarTable = SRS.expVarTable currentSymbolState
+          , Inference.realVariablesMax =
+              SRS.genVarType currentSymbolState + 1
+          , Inference.nextTypeVar = SRS.genVarType currentSymbolState + 1
+          }
+    updateSymbolState
+      :: SymbolResolution :> es
+      => State Inference.InferenceState :> es
+      => Eff es ()
+    updateSymbolState = do
+      currentInference <- get
+      currentSymbolState <- SRS.getSymbolResolutionState
+      putSymbolResolutionState
+        currentSymbolState
+          { SRS.expVarTable = Inference.expVarTable currentInference
+          , SRS.genVarType = Inference.nextTypeVar currentInference + 1
+          }
 
 
 -- TODO: do this again
@@ -181,40 +216,15 @@ reportErrorParser source =
         source
     )
 
-makeInferenceState ::
-  SymbolResolutionState -> Inference.InferenceState
-makeInferenceState srs =
-  Inference.InferenceStateC
-    { Inference.expVarTable = SRS.expVarTable srs
-    , Inference.typeVarToType = Map.empty
-    , Inference.realVariablesMax = SRS.genVarExp srs
-    , Inference.nextTypeVar = SRS.genVarType srs
-    }
-
-
--- TODO: verify change of state
-makeSymbolResolutionState ::
-  Inference.InferenceState -> SymbolResolutionState -> SymbolResolutionState
-makeSymbolResolutionState is old =
-  old
-    { SRS.expVarTable = Inference.expVarTable is
-    , SRS.genVarExp = Inference.realVariablesMax is
-    , SRS.genVarType = Inference.nextTypeVar is
-    }
 
 repl
   :: SymbolResolution :> es
+  => State Inference.InferenceState :> es
+  => Error Inference.InferenceError :> es
   => Console :> es
   => Eff es ()
 repl = do
-  symbolState <- getSymbolResolutionState
-  let newInferenceState = makeInferenceState symbolState
-  (status,inferState) <-
-    runState
-    newInferenceState
-    (reportErrorShow rep)
-  let newSymbolState = makeSymbolResolutionState  inferState symbolState
-  putSymbolResolutionState newSymbolState
+  status <- rep
   case status of
     Exit -> pure ()
     Continue -> repl

@@ -27,6 +27,7 @@ import Octizys.Cst.Type (TypeVariableId)
 import Data.Map (Map)
 import Octizys.HistoryMap
 
+
 data SourceInfo = SourceInfo'
   { span :: Span
   , preComments :: [Comment]
@@ -107,9 +108,9 @@ data SymbolResolution :: Effect where
     -> Maybe Comment
     -> SymbolResolution m InfoId
   GetSymbolResolutionState
-    ::  SymbolResolution m SymbolResolutionState
+    :: SymbolResolution m SymbolResolutionState
   PutSymbolResolutionState
-    :: SymbolResolutionState ->  SymbolResolution m ()
+    :: SymbolResolutionState -> SymbolResolution m ()
 
 
 $(makeEffect ''SymbolResolution)

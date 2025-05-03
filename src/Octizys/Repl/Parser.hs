@@ -23,7 +23,7 @@ import qualified Data.Text as Text
 import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
 import Octizys.Parser.Common (OctizysParseError, skipSimpleSpaces)
-import Octizys.Parser.Expression (parseExpression, definitionParser)
+import Octizys.Parser.Expression (definitionParser, parseExpression)
 import Octizys.Parser.TopItem (parseModule)
 import Octizys.Repl.Ast
   ( ReplCommand (LoadFile, Quit)

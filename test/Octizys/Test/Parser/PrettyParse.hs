@@ -163,15 +163,15 @@ tests = do
   -- TODO: test offsets!
   describe "expressions parser" $ do
     makePositiveTest
-      "bool true"
-      "true"
-      (Just "true")
+      "bool True"
+      "True"
+      Nothing
       boolParser
       (prettyExpression pretty pretty)
     makePositiveTest
-      "bool false"
-      "false"
-      (Just "false")
+      "bool False"
+      "False"
+      Nothing
       boolParser
       (prettyExpression pretty pretty)
     makePositiveTest
