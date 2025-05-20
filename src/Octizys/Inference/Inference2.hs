@@ -23,6 +23,7 @@ import Octizys.Cst.VariableId (VariableId (VariableId'))
 import Octizys.Effects.SymbolResolution.Interpreter
   ( SourceExpressionVariableInfo (typeId)
   )
+import Prettyprinter (Pretty (pretty), (<+>))
 import Prelude hiding (lookup)
 
 
@@ -40,6 +41,11 @@ data InferenceError
 
 data Constraint = EqConstraint AstT.Type AstT.Type
   deriving (Show, Ord, Eq)
+
+
+instance Pretty Constraint where
+  pretty (EqConstraint t1 t2) =
+    pretty t1 <+> "~" <+> pretty t2
 
 
 data Output = Output'
@@ -257,8 +263,7 @@ definitionCstToAst d = do
 
 
 infer
-  :: 
-  State InferenceState :> es
+  :: State InferenceState :> es
   => Error InferenceError :> es
   => CstE.Expression
   -> Eff es Output
@@ -460,3 +465,26 @@ check expr ty =
           EqConstraint inferedType ty
       pure $ addConstraint newConstraint infered
 
+
+-- | Replaces a type variable inside a expression with another type.
+subs
+  :: TypeVariableId
+  -- ^ The `Type` variable to be replaced.
+  -> AstT.Type
+  -- ^ The new value.
+  -> AstT.Type
+  -- ^ The value in which we substitute the variable.
+  -> AstT.Type
+subs vid newType oldType =
+  case oldType of
+    AstT.BoolType -> oldType
+    AstT.IntType -> oldType
+    AstT.Arrow {start, remain} ->
+      AstT.Arrow
+        { start = subs vid newType start
+        , remain = subs vid newType <$> remain
+        }
+    AstT.Variable {variableId = oldVid} ->
+      if oldVid == vid
+        then newType
+        else oldType

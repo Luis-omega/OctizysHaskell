@@ -130,8 +130,8 @@ rep = do
             updateInferenceState
             out <- Inference.infer expression
             updateSymbolState
-            putLine $ pack $ ppShow out.constraints
-            putLine $ pack $ ppShow out.expression
+            putLine $ render pretty out.constraints
+            putLine $ render pretty out.expression
             -- TODO: solve this
             -- (value, new_context) <- evaluateExpression context expression
             -- putLine (show value)
