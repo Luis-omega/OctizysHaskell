@@ -123,6 +123,7 @@ library
     Octizys.Effects.SymbolResolution.Interpreter
     Octizys.HistoryMap
     Octizys.Inference.Inference
+    Octizys.Inference.Inference2
     Octizys.Parser.Common
     Octizys.Parser.Expression
     Octizys.Parser.TopItem

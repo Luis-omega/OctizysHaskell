@@ -16,10 +16,6 @@ data Type
       { start :: Type
       , remain :: NonEmpty Type
       }
-  | -- | Represents a type inside parentheses.
-    Parens
-      { _type :: Type
-      }
   | -- | All variables are translated at parsing time to a internal
     -- identifier. You can think of it as a pointer in symbol table.
     Variable {variableId :: TypeVariableId}

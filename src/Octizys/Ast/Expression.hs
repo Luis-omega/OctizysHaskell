@@ -2,6 +2,7 @@ module Octizys.Ast.Expression where
 
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
+import Effectful.Dispatch.Dynamic (HasCallStack)
 import Octizys.Ast.Type (Type)
 import Octizys.Cst.Expression (ExpressionVariableId)
 
@@ -46,3 +47,7 @@ data Expression
       , inferType :: Type
       }
   deriving (Show, Eq, Ord)
+
+
+getType :: HasCallStack => Expression -> Type
+getType e = e.inferType

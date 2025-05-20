@@ -17,12 +17,16 @@ where
 
 import Control.Arrow ((<<<))
 import Effectful (Eff, (:>))
-import Effectful.Error.Static (Error, catchError, runErrorNoCallStackWith)
+import Effectful.Error.Static
+  ( Error
+  , catchError
+  , runErrorNoCallStackWith
+  )
 
 -- import Octizys.Evaluation (EvaluationError)
 
 import qualified Octizys.Effects.SymbolResolution.Effect as SRS
-import qualified Octizys.Inference.Inference as Inference
+import qualified Octizys.Inference.Inference2 as Inference
 
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -54,7 +58,7 @@ import Octizys.Effects.SymbolResolution.Interpreter
   , runSymbolResolution
   , runSymbolResolutionFull
   )
-import Octizys.Inference.Inference (definitionCstToAst)
+import Octizys.Inference.Inference2 (definitionCstToAst)
 import Octizys.Parser.Common (OctizysParseError)
 import Octizys.Pretty.Expression (prettyDefinition, prettyExpression)
 import Octizys.Pretty.TopItem (prettyModule)
@@ -124,10 +128,10 @@ rep = do
           do
             putLine $ render (prettyExpression pretty pretty) expression
             updateInferenceState
-            (ast, _type) <- Inference.infer expression
+            out <- Inference.infer expression
             updateSymbolState
-            putLine $ pack $ ppShow ast
-            putLine $ pack $ ppShow _type
+            putLine $ pack $ ppShow out.constraints
+            putLine $ pack $ ppShow out.expression
             -- TODO: solve this
             -- (value, new_context) <- evaluateExpression context expression
             -- putLine (show value)
@@ -154,7 +158,10 @@ rep = do
           { Inference.expVarTable = SRS.expVarTable currentSymbolState
           , Inference.realVariablesMax =
               SRS.genVarType currentSymbolState + 1
-          , Inference.nextTypeVar = SRS.genVarType currentSymbolState + 1
+          , Inference.constraintMap =
+              currentInference.constraintMap
+                { Inference.nextTypeVar = SRS.genVarType currentSymbolState + 1
+                }
           }
     updateSymbolState
       :: SymbolResolution :> es
@@ -166,7 +173,9 @@ rep = do
       putSymbolResolutionState
         currentSymbolState
           { SRS.expVarTable = Inference.expVarTable currentInference
-          , SRS.genVarType = Inference.nextTypeVar currentInference + 1
+          , SRS.genVarType =
+              currentInference.constraintMap.nextTypeVar
+                + 1
           }
 
 

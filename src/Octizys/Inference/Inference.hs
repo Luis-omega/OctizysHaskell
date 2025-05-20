@@ -58,6 +58,8 @@ import Octizys.Effects.SymbolResolution.Interpreter
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Set (Set)
+import qualified Data.Set as Set
 import qualified Octizys.Ast.Expression as Ast
 import qualified Octizys.Ast.Expression as AstE
 import qualified Octizys.Ast.Type as Ast
@@ -458,10 +460,109 @@ check e t = do
   unify t newType
   pure (newExpression, newType)
 
--- TODO: Implement substitucion
--- substituteMetaVariables ::
---   ( Error InferenceError :> es
+
+findTypeBoundTypeVariables
+  :: Ast.Type -> Set TypeVariableId
+findTypeBoundTypeVariables t =
+  case t of
+    AstT.BoolType -> mempty
+    AstT.IntType -> mempty
+    AstT.Arrow {start, remain} ->
+      foldr
+        (\x acc -> Set.union acc (findTypeBoundTypeVariables x))
+        (findTypeBoundTypeVariables start)
+        remain
+    AstT.Variable {variableId} -> Set.singleton variableId
+
+
+findExpressionBoundTypeVariables
+  :: Ast.Expression
+  -> Set TypeVariableId
+findExpressionBoundTypeVariables e =
+  case e of
+    Ast.EInt {} -> mempty
+    Ast.EBool {} -> mempty
+    AstE.Variable {inferType} ->
+      findTypeBoundTypeVariables inferType
+    Ast.Function {parameters, inferType} ->
+      Set.union
+        (findTypeBoundTypeVariables inferType)
+        ( foldr
+            ( (\x acc -> Set.union acc (findTypeBoundTypeVariables x))
+                <<< snd
+            )
+            mempty
+            parameters
+        )
+    Ast.Application {applicationFunction, applicationArgument} ->
+      Set.union
+        (findExpressionBoundTypeVariables applicationFunction)
+        (findExpressionBoundTypeVariables applicationArgument)
+    Ast.If {condition, ifTrue, ifFalse, inferType} ->
+      Set.union
+        ( Set.union
+            ( Set.union
+                (findExpressionBoundTypeVariables condition)
+                (findExpressionBoundTypeVariables ifTrue)
+            )
+            (findExpressionBoundTypeVariables ifFalse)
+        )
+        (findTypeBoundTypeVariables inferType)
+    Ast.Let {definitions, expression, inferType} ->
+      foldr
+        ( \d acc ->
+            Set.union
+              (Set.union acc (findExpressionBoundTypeVariables d.definition))
+              (findTypeBoundTypeVariables d.inferType)
+        )
+        ( Set.union
+            (findExpressionBoundTypeVariables expression)
+            (findTypeBoundTypeVariables inferType)
+        )
+        definitions
+    Ast.Annotation {expression, _type, inferType} ->
+      Set.union
+        ( Set.union
+            (findExpressionBoundTypeVariables expression)
+            (findTypeBoundTypeVariables _type)
+        )
+        (findTypeBoundTypeVariables inferType)
+
+
+substituteVariableInType
+  :: TypeVariableId
+  -> Ast.Type
+  -> Ast.Type
+  -> Ast.Type
+substituteVariableInType = undefined
+
+
+substituteVariable
+  :: TypeVariableId
+  -> Expression
+  -> Expression
+substituteVariable = undefined
+
+-- substituteMetaVariables
+--   :: ( Error InferenceError :> es
 --      , State InferenceState :> es
 --      )
---   => Expression
--- substituteMetaVariables = undefined
+--   => [Ast.Expression]
+--   -> Eff es [Ast.Expression]
+-- substituteMetaVariables exps = do
+--   let meaningfulVariables =
+--         foldr
+--           ( \x acc ->
+--               Set.union acc (findExpressionBoundTypeVariables x)
+--           )
+--           exps
+--   metaVars <- gets metaVariables
+--   loop (sortOn Map.toList metaVars) meaningfulVariables
+--   where
+--     loop [] m = pure ()
+--     loop (x : y) m = do
+--       if Set.elem x m then
+--         substituteVariable x
+--       else
+--       substituteVariable x y m
+--       loop y m
