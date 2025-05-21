@@ -64,4 +64,4 @@ instance Pretty Type where
         if needsParentsInArrow ty
           then Pretty.parens (pretty ty)
           else pretty ty
-  pretty Variable {variableId = v} = pretty '_' <> pretty v
+  pretty Variable {variableId = v} = pretty v

@@ -81,7 +81,7 @@ newtype ExpressionVariableId = ExpressionVariableId' {unExpressionVariableId :: 
 
 instance Pretty ExpressionVariableId where
   pretty (ExpressionVariableId' ex) =
-    pretty @Text "ExpVarId[" <> pretty ex <> pretty @Text "]"
+    pretty @Text "_e" <> pretty ex
 
 
 -- | The set of parameters
