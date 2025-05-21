@@ -3,8 +3,11 @@ module Octizys.Ast.Expression where
 import Control.Arrow ((<<<))
 import Data.Foldable (Foldable (fold), foldl')
 import Data.List.NonEmpty (NonEmpty, toList)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Set (Set, difference, fromList)
 import Data.Text (Text)
+import Debug.Trace (trace)
 import Effectful.Dispatch.Dynamic (HasCallStack)
 import Octizys.Ast.Type (Type, freeVariables)
 import Octizys.Cst.Expression (ExpressionVariableId)
@@ -27,12 +30,19 @@ definitionFreeTypeVars d =
 
 
 instance Pretty Definition where
-  pretty Definition' {name, definition, inferType} =
-    pretty name
-      <+> ":"
-      <+> pretty inferType
-      <+> "="
-      <+> pretty definition
+  pretty = prettyDefinition pretty
+
+
+prettyDefinition
+  :: (ExpressionVariableId -> Doc ann)
+  -> Definition
+  -> Doc ann
+prettyDefinition prettyVar Definition' {name, definition, inferType} =
+  prettyVar name
+    <+> ":"
+    <+> pretty inferType
+    <+> "="
+    <+> prettyExpression prettyVar definition
 
 
 data Expression
@@ -99,19 +109,21 @@ pText = pretty @Text
 
 
 prettyParameterFunction
-  :: (ExpressionVariableId, Type)
+  :: (ExpressionVariableId -> Doc ann)
+  -> (ExpressionVariableId, Type)
   -> Doc ann
-prettyParameterFunction (expr, t) =
-  Pretty.parens (pretty expr <+> ":" <+> pretty t)
+prettyParameterFunction prettyVar (expr, t) =
+  Pretty.parens (prettyVar expr <+> ":" <+> pretty t)
 
 
 prettyParametersFunction
-  :: NonEmpty (ExpressionVariableId, Type)
+  :: (ExpressionVariableId -> Doc ann)
+  -> NonEmpty (ExpressionVariableId, Type)
   -> Doc ann
-prettyParametersFunction ps =
+prettyParametersFunction prettyVar ps =
   (Pretty.vsep <<< toList)
     ( ( Pretty.group
-          <<< prettyParameterFunction
+          <<< prettyParameterFunction prettyVar
       )
         <$> ps
     )
@@ -131,119 +143,142 @@ needsParentsInApplication e =
 
 
 instance Pretty Expression where
-  pretty EInt {intValue} = pretty @Text intValue
-  pretty EBool {boolValue} = pretty boolValue
-  pretty Variable {name, inferType} =
-    Pretty.parens (pretty name <+> ":" <+> pretty inferType)
-  pretty Function {parameters, body, inferType} =
-    Pretty.parens
-      ( Pretty.parens
-          ( Pretty.vsep
-              [ pText "\\"
-                  <> Pretty.nest
-                    2
-                    ( Pretty.line
-                        <> prettyParametersFunction
-                          parameters
-                    )
-              , pText "->"
-                  <> ( Pretty.group
-                        <<< Pretty.nest 2
-                     )
-                    ( Pretty.line
-                        <> pretty body
-                    )
-              ]
-          )
-          <+> ":"
-          <+> pretty inferType
-      )
-  pretty Application {applicationFunction, applicationArgument, inferType} =
-    Pretty.parens
-      ( Pretty.parens
-          ( (Pretty.group <<< Pretty.nest 2)
-              ( Pretty.line'
-                  <> prettyArg applicationFunction
-                  <> prettyArg applicationArgument
-              )
-          )
-          <+> ":"
-          <+> pretty inferType
-      )
-    where
-      prettyArg expr =
-        if needsParentsInApplication expr
-          then
-            Pretty.parens
-              ( pretty
-                  expr
-              )
-          else pretty expr
-  pretty If {condition, ifTrue, ifFalse, inferType} =
-    Pretty.parens
-      ( Pretty.parens
-          ( (Pretty.group <<< Pretty.vsep)
-              [ pText "if"
-                  <> Pretty.nest
-                    2
-                    ( Pretty.line
-                        <> pretty condition
-                    )
-              , pText "then"
-                  <> Pretty.nest
-                    2
-                    ( Pretty.line
-                        <> pretty ifTrue
-                    )
-              , pText "else"
-                  <> Pretty.nest
-                    2
-                    ( Pretty.line
-                        <> pretty ifFalse
-                    )
-              ]
-          )
-          <+> ":"
-          <+> pretty inferType
-      )
-  pretty Let {definitions, expression, inferType} =
-    Pretty.parens
-      ( Pretty.parens
-          ( (Pretty.group <<< Pretty.vsep)
-              [ pText "let"
-                  <> Pretty.nest
-                    2
-                    ( Pretty.line
-                        <> (Pretty.vsep <<< toList)
-                          ( ( (<> pText ";")
-                                <<< pretty
-                            )
-                              <$> definitions
-                          )
-                    )
-              , pText
-                  "in"
-                  <> Pretty.nest
-                    2
-                    ( Pretty.line
-                        <> pretty expression
-                    )
-              ]
-          )
-          <+> ":"
-          <+> pretty inferType
-      )
-  pretty Annotation {expression, inferType} =
-    (Pretty.parens <<< Pretty.group)
-      ( pretty expression
-          <> Pretty.line
-          <> Pretty.nest
-            2
-            ( pText ":"
-                <> Pretty.line
-                <> pretty inferType
+  pretty = prettyExpression pretty
+
+
+prettyExpressionWithDic
+  :: forall a ann
+   . Map ExpressionVariableId a
+  -> (a -> Doc ann)
+  -> Expression
+  -> Doc ann
+prettyExpressionWithDic mp toDoc = prettyExpression go
+  where
+    go :: (ExpressionVariableId -> Doc ann)
+    go eid =
+      maybe
+        (pretty @Text "NoFound[" <> pretty eid <> pretty ']')
+        toDoc
+        (Map.lookup eid mp)
+
+
+prettyExpression
+  :: (ExpressionVariableId -> Doc ann) -> Expression -> Doc ann
+prettyExpression _ EInt {intValue} = pretty @Text intValue
+prettyExpression _ EBool {boolValue} = pretty boolValue
+prettyExpression prettyVar Variable {name, inferType} =
+  Pretty.parens (prettyVar name <+> ":" <+> pretty inferType)
+prettyExpression prettyVar Function {parameters, body, inferType} =
+  Pretty.parens
+    ( Pretty.parens
+        ( Pretty.vsep
+            [ pText "\\"
+                <> Pretty.nest
+                  2
+                  ( Pretty.line
+                      <> prettyParametersFunction
+                        prettyVar
+                        parameters
+                  )
+            , pText "->"
+                <> ( Pretty.group
+                      <<< Pretty.nest 2
+                   )
+                  ( Pretty.line
+                      <> prettyExpression prettyVar body
+                  )
+            ]
+        )
+        <+> ":"
+        <+> pretty inferType
+    )
+prettyExpression prettyVar Application {applicationFunction, applicationArgument, inferType} =
+  Pretty.parens
+    ( Pretty.parens
+        ( (Pretty.group <<< Pretty.nest 2)
+            ( Pretty.line'
+                <> prettyArg applicationFunction
+                <> prettyArg applicationArgument
             )
-      )
+        )
+        <+> ":"
+        <+> pretty inferType
+    )
+  where
+    prettyArg expr =
+      if needsParentsInApplication expr
+        then
+          Pretty.parens
+            ( prettyExpression
+                prettyVar
+                expr
+            )
+        else prettyExpression prettyVar expr
+prettyExpression prettyVar If {condition, ifTrue, ifFalse, inferType} =
+  Pretty.parens
+    ( Pretty.parens
+        ( (Pretty.group <<< Pretty.vsep)
+            [ pText "if"
+                <> Pretty.nest
+                  2
+                  ( Pretty.line
+                      <> prettyExpression prettyVar condition
+                  )
+            , pText "then"
+                <> Pretty.nest
+                  2
+                  ( Pretty.line
+                      <> prettyExpression prettyVar ifTrue
+                  )
+            , pText "else"
+                <> Pretty.nest
+                  2
+                  ( Pretty.line
+                      <> prettyExpression prettyVar ifFalse
+                  )
+            ]
+        )
+        <+> ":"
+        <+> pretty inferType
+    )
+prettyExpression prettyVar Let {definitions, expression, inferType} =
+  Pretty.parens
+    ( Pretty.parens
+        ( (Pretty.group <<< Pretty.vsep)
+            [ pText "let"
+                <> Pretty.nest
+                  2
+                  ( Pretty.line
+                      <> (Pretty.vsep <<< toList)
+                        ( ( (<> pText ";")
+                              <<< prettyDefinition prettyVar
+                          )
+                            <$> definitions
+                        )
+                  )
+            , pText
+                "in"
+                <> Pretty.nest
+                  2
+                  ( Pretty.line
+                      <> prettyExpression prettyVar expression
+                  )
+            ]
+        )
+        <+> ":"
+        <+> pretty inferType
+    )
+prettyExpression prettyVar Annotation {expression, inferType} =
+  (Pretty.parens <<< Pretty.group)
+    ( prettyExpression prettyVar expression
+        <> Pretty.line
+        <> Pretty.nest
+          2
+          ( pText ":"
+              <> Pretty.line
+              <> pretty inferType
+          )
+    )
 
 
 getType :: HasCallStack => Expression -> Type

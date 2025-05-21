@@ -2,6 +2,8 @@ module Octizys.Pretty.Expression where
 
 import Control.Arrow ((<<<))
 import Data.List.NonEmpty (NonEmpty (..), toList)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Text (Text)
 import Octizys.Cst.Expression
   ( Definition (Definition', definition, name, outputType, parameters)
@@ -337,3 +339,20 @@ prettyExpression prettyVar prettyTypeVar e =
                   <> prettyType prettyTypeVar _type
               )
         )
+
+
+prettyExpressionWithDic
+  :: forall a ann
+   . Map ExpressionVariableId a
+  -> (a -> Doc ann)
+  -> Expression
+  -> Doc ann
+-- TODO: provide a dic for type variables.
+prettyExpressionWithDic mp toDoc = prettyExpression go pretty
+  where
+    go :: (ExpressionVariableId -> Doc ann)
+    go eid =
+      maybe
+        (pretty @Text "NoFound[" <> pretty eid <> pretty ']')
+        toDoc
+        (Map.lookup eid mp)

@@ -31,11 +31,15 @@ import qualified Octizys.Inference.Inference as Inference
 import Control.Monad (unless, when)
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (Text, pack)
-import Effectful.State.Static.Local (State, get, put, runState)
+import Effectful.State.Static.Local (State, get, gets, put, runState)
 import Octizys.Ast.Expression (freeTypeVars, getType)
+import qualified Octizys.Ast.Expression as Ast
 import Octizys.Ast.Type (freeVariables)
+import qualified Octizys.Ast.Type as Ast
+import qualified Octizys.Cst.Expression as Cst
 import Octizys.Effects.Console.Effect
   ( Console
   , putText
@@ -63,7 +67,7 @@ import Octizys.Effects.SymbolResolution.Interpreter
   , runSymbolResolution
   )
 import Octizys.Parser.Common (OctizysParseError)
-import Octizys.Pretty.Expression (prettyDefinition, prettyExpression)
+import qualified Octizys.Pretty.Expression as Cst
 import Octizys.Repl.Ast
   ( ReplCommand (LoadFile, Quit)
   , ReplTop (Command, Define, Evaluate)
@@ -95,6 +99,32 @@ render prettifier =
   Prettyprinter.Render.Text.renderStrict
     <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
     <<< prettifier
+
+
+prettyExpression
+  :: State Inference.InferenceState :> es
+  => Ast.Expression
+  -> Eff es (Doc ann)
+prettyExpression e = do
+  ist <- gets Inference.expVarTable
+  pure $
+    Ast.prettyExpressionWithDic
+      ist
+      (\x -> pretty @Text x.name)
+      e
+
+
+prettyCstExpression
+  :: SymbolResolution :> es
+  => Cst.Expression
+  -> Eff es (Doc ann)
+prettyCstExpression e = do
+  srs <- SRS.getSymbolResolutionState
+  pure $
+    Cst.prettyExpressionWithDic
+      srs.expVarTable
+      (\x -> pretty @Text x.name)
+      e
 
 
 rep
@@ -129,12 +159,15 @@ rep = do
           continue
         Evaluate expression ->
           do
-            putLine $ render (prettyExpression pretty pretty) expression
+            docExp <- prettyCstExpression expression
+            putLine $ render id docExp
             updateInferenceState
             final <- Inference.solveExpressionType expression
             updateSymbolState
-            putLine $ render pretty final
-
+            docFinal <- prettyExpression final
+            putLine $ render id docFinal
+            -- ist <- gets Inference.expVarTable
+            -- putLine $ pack $ ppShow (Map.toList ist)
             -- TODO: solve this
             -- (value, new_context) <- evaluateExpression context expression
             -- putLine (show value)
@@ -142,7 +175,7 @@ rep = do
             continue
         -- TODO: Type check/inference
         Define d -> do
-          putLine $ render (prettyDefinition pretty pretty) d
+          putLine $ render (Cst.prettyDefinition pretty pretty) d
           updateInferenceState
           ast <- definitionCstToAst d
           putLine $ pack $ show ast
