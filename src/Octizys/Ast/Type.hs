@@ -1,8 +1,9 @@
 module Octizys.Ast.Type where
 
 import Control.Arrow ((<<<))
-import Data.List (intercalate)
-import Data.List.NonEmpty (NonEmpty, cons, toList)
+import Data.Foldable (foldl')
+import Data.List.NonEmpty (NonEmpty, cons)
+import Data.Set (Set, singleton)
 import Data.Text (Text)
 import Octizys.Cst.Type (TypeVariableId)
 import Prettyprinter (Pretty (pretty))
@@ -25,6 +26,16 @@ data Type
     -- identifier. You can think of it as a pointer in symbol table.
     Variable {variableId :: TypeVariableId}
   deriving (Show, Eq, Ord)
+
+
+freeVariables :: Type -> Set TypeVariableId
+freeVariables (Arrow {start, remain}) =
+  foldl'
+    (<>)
+    (freeVariables start)
+    (freeVariables <$> remain)
+freeVariables (Variable d) = singleton d
+freeVariables _ = mempty
 
 
 needsParentsInArrow :: Type -> Bool

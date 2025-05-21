@@ -1,11 +1,14 @@
 module Octizys.Ast.Expression where
 
 import Control.Arrow ((<<<))
+import Data.Foldable (Foldable (fold), foldl')
 import Data.List.NonEmpty (NonEmpty, toList)
+import Data.Set (Set, difference, fromList)
 import Data.Text (Text)
 import Effectful.Dispatch.Dynamic (HasCallStack)
-import Octizys.Ast.Type (Type)
+import Octizys.Ast.Type (Type, freeVariables)
 import Octizys.Cst.Expression (ExpressionVariableId)
+import Octizys.Cst.Type (TypeVariableId)
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 
@@ -16,6 +19,11 @@ data Definition = Definition'
   , inferType :: Type
   }
   deriving (Show, Eq, Ord)
+
+
+definitionFreeTypeVars :: Definition -> Set TypeVariableId
+definitionFreeTypeVars d =
+  freeTypeVars d.definition <> freeVariables d.inferType
 
 
 instance Pretty Definition where
@@ -59,6 +67,31 @@ data Expression
       , inferType :: Type
       }
   deriving (Show, Eq, Ord)
+
+
+freeTypeVars :: Expression -> Set TypeVariableId
+freeTypeVars (EInt {inferType}) = freeVariables inferType
+freeTypeVars (EBool {inferType}) = freeVariables inferType
+freeTypeVars (Variable {inferType}) = freeVariables inferType
+freeTypeVars (Function {inferType, body, parameters}) =
+  difference
+    (freeVariables inferType <> freeTypeVars body)
+    (foldl' (\a (_, y) -> a <> freeVariables y) mempty parameters)
+freeTypeVars (Application {inferType, applicationFunction, applicationArgument}) =
+  freeVariables inferType
+    <> freeTypeVars applicationFunction
+    <> freeTypeVars applicationArgument
+freeTypeVars (If {inferType, condition, ifTrue, ifFalse}) =
+  freeVariables inferType
+    <> freeTypeVars ifTrue
+    <> freeTypeVars ifFalse
+    <> freeTypeVars condition
+freeTypeVars (Let {inferType, definitions, expression}) =
+  freeVariables inferType
+    <> freeTypeVars expression
+    <> foldMap definitionFreeTypeVars definitions
+freeTypeVars Annotation {expression, _type, inferType} =
+  freeTypeVars expression <> freeVariables _type <> freeVariables inferType
 
 
 pText :: Text -> Doc ann

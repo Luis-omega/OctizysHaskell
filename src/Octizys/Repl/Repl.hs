@@ -28,10 +28,14 @@ import qualified Octizys.Effects.SymbolResolution.Effect as SRS
 import Octizys.Inference.Inference (definitionCstToAst)
 import qualified Octizys.Inference.Inference as Inference
 
+import Control.Monad (unless, when)
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.Set as Set
 import Data.Text (Text, pack)
 import Effectful.State.Static.Local (State, get, put, runState)
+import Octizys.Ast.Expression (freeTypeVars, getType)
+import Octizys.Ast.Type (freeVariables)
 import Octizys.Effects.Console.Effect
   ( Console
   , putText
@@ -42,7 +46,8 @@ import Octizys.Effects.Console.Interpreter
   , runConsole
   )
 import Octizys.Effects.Logger.ConsoleInterpreter (runLog)
-import Octizys.Effects.Logger.Effect (LogLevel (Debug), Logger)
+import Octizys.Effects.Logger.Effect (LogLevel (Debug, Info), Logger)
+import qualified Octizys.Effects.Logger.Effect as Logger
 import Octizys.Effects.Parser.Backend
   ( ParserError
   , prettyParserError
@@ -126,14 +131,10 @@ rep = do
           do
             putLine $ render (prettyExpression pretty pretty) expression
             updateInferenceState
-            out <- Inference.infer expression
+            final <- Inference.solveExpressionType expression
             updateSymbolState
-            putLine $ render pretty out.constraints
-            putLine $ render pretty out.expression
-            subst <- Inference.findSubstitutions out.constraints
-            putLine $ render pretty subst
-            let final = Inference.expSubs subst out.expression
             putLine $ render pretty final
+
             -- TODO: solve this
             -- (value, new_context) <- evaluateExpression context expression
             -- putLine (show value)
@@ -215,6 +216,14 @@ reportErrorShow
 reportErrorShow = reportErrorWith (pretty <<< ppShow)
 
 
+reportErrorPretty
+  :: forall e es
+   . (Console :> es, Pretty e)
+  => Eff (Error e : es) ReplStatus
+  -> Eff es ReplStatus
+reportErrorPretty = reportErrorWith pretty
+
+
 reportErrorParser
   :: forall es
    . Console :> es
@@ -236,12 +245,13 @@ reportErrorParser source =
     )
 
 
+-- TODO: add good prettifier with a dictionary
 repl
   :: Console :> es
   => Eff es ()
 repl =
   ( void
-      <<< runLog Debug
+      <<< runLog Logger.Error
       <<< runState Inference.initialInferenceState
       <<< runState initialSymbolResolutionState
   )
@@ -250,7 +260,7 @@ repl =
     loop = do
       status <-
         ( reportErrorShow @SymbolResolutionError
-            <<< reportErrorShow @Inference.InferenceError
+            <<< reportErrorPretty @Inference.InferenceError
             <<< runSymbolResolution
           )
           rep

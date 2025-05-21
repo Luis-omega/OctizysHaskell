@@ -7,15 +7,17 @@ import qualified Octizys.Cst.Expression as CstE
 import qualified Octizys.Cst.Type as CstT
 
 import Control.Arrow ((<<<))
-import Control.Monad (foldM)
+import Control.Monad (foldM, unless)
 import qualified Data.Bifunctor
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map (Map, lookup)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
 import Effectful.State.Static.Local (State, gets, modify)
+import Octizys.Ast.Expression (freeTypeVars)
 import qualified Octizys.Ast.Expression as AstE
 import qualified Octizys.Ast.Type as AstT
 import Octizys.Cst.Expression (ExpressionVariableId)
@@ -25,7 +27,7 @@ import Octizys.Cst.Type
   )
 import qualified Octizys.Cst.Type as Cst
 import Octizys.Cst.VariableId (VariableId (VariableId'))
-import Octizys.Effects.Logger.Effect (Logger, debug)
+import Octizys.Effects.Logger.Effect (Logger, debug, errorLog)
 import Octizys.Effects.SymbolResolution.Interpreter
   ( SourceExpressionVariableInfo (typeId)
   )
@@ -44,7 +46,44 @@ data InferenceError
     -- in the inference
     UnboundTypeVar TypeVariableId
   | CantUnify AstT.Type AstT.Type
+  | ContainsFreeVariablesAfterSolving
+      AstE.Expression
+      (Set.Set TypeVariableId)
+      [Constraint]
   deriving (Show)
+
+
+instance Pretty InferenceError where
+  pretty (FunctionWithoutParams e) =
+    pretty @Text
+      "A function without parameters was found, this is a bug, please report it to octizys team"
+      <> prettyExpression pretty pretty e
+  pretty (UnboundExpressionVar e) =
+    pretty @Text
+      "Unknow expression variable found, this is a bug ,please report it!"
+      <> pretty e
+  pretty (UnboundTypeVar e) =
+    pretty @Text "Unknow type variable found, this is a bug ,please report it!"
+      <> pretty e
+  pretty (CantUnify t1 t2) =
+    pretty @Text "Can't unify types"
+      <> Pretty.nest
+        2
+        ( Pretty.line
+            <> pretty @Text "First type:"
+            <> pretty t1
+            <> Pretty.line
+            <> pretty @Text "Second type:"
+            <> pretty t2
+        )
+  pretty (ContainsFreeVariablesAfterSolving e free constraints) =
+    pretty @Text "We couldn't solve the type variables: "
+      <+> Pretty.nest 2 (prettySet free)
+      <> Pretty.nest 2 (Pretty.line <> pretty e)
+      <> Pretty.nest 2 (Pretty.line <> pretty constraints)
+    where
+      prettySet s =
+        Pretty.list ((\x -> pretty '_' <> pretty x) <$> Set.toList s)
 
 
 data Constraint = EqConstraint AstT.Type AstT.Type
@@ -736,3 +775,32 @@ expSubs l e =
         , AstE._type = typeSubs l _type
         , AstE.expression = expSubs l expression
         }
+
+
+logSolver
+  :: Logger :> es
+  => Text
+  -> Doc ann
+  -> Eff es ()
+logSolver header msg = debug (pretty @Text "Solver:" <> pretty header <+> Pretty.nest 2 msg)
+
+
+solveExpressionType
+  :: State InferenceState :> es
+  => Error InferenceError :> es
+  => Logger :> es
+  => CstE.Expression
+  -> Eff es AstE.Expression
+solveExpressionType expression = do
+  logSolver "Got:" $ prettyExpression pretty pretty expression
+  out <- infer expression
+  logSolver "constraints:" $ pretty out.constraints
+  logSolver "afterInfer:" $ pretty out.expression
+  subst <- findSubstitutions out.constraints
+  logSolver "substitutions:" $ pretty subst
+  let final = expSubs subst out.expression
+  let free = freeTypeVars final
+  unless
+    (Set.null free)
+    (throwError $ ContainsFreeVariablesAfterSolving final free out.constraints)
+  pure final
