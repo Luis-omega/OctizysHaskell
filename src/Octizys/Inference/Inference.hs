@@ -213,6 +213,11 @@ definitionCstToAst
   -> Eff es ([Constraint], AstE.Definition)
 definitionCstToAst d = do
   outBody <- infer d.definition
+  -- In
+  -- let f : a, b -> c = body
+  -- We need to associate the type of `f` with
+  -- `a -> b-> c` and `body` with `c`
+  nameTypeVar <- lookupExpressionVar (snd d.name)
   let newBody = outBody.expression
       newBodyType = AstE.getType newBody
       -- In case the definition has a type annotation:
@@ -232,20 +237,17 @@ definitionCstToAst d = do
               , inferType = newBodyType
               , definition = newBody
               }
+          -- `f ~ body`
+          fullDefinitionConstraint =
+            EqConstraint (AstT.Variable nameTypeVar) newBodyType
        in pure
-            ( annotationConstratint <> outBody.constraints
+            ( fullDefinitionConstraint
+                : annotationConstratint <> outBody.constraints
             , newExp
             )
     Just oldParams -> do
       newParams <- definitionParametersToParameters oldParams
       let
-        constraints =
-          annotationConstratint
-            <> outBody.constraints
-            <> concat
-              ( NonEmpty.toList
-                  ((\(x, _, _) -> x) <$> newParams)
-              )
         newType =
           case newParams of
             ((_, _, _type) :| []) ->
@@ -276,6 +278,17 @@ definitionCstToAst d = do
                   , inferType = newType
                   }
             }
+        -- `f ~ a -> b -> c`
+        fullDefinitionConstraint =
+          EqConstraint (AstT.Variable nameTypeVar) newType
+        constraints =
+          fullDefinitionConstraint
+            : annotationConstratint
+              <> outBody.constraints
+              <> concat
+                ( NonEmpty.toList
+                    ((\(x, _, _) -> x) <$> newParams)
+                )
        in
         pure (constraints, newExp)
 
@@ -498,6 +511,24 @@ check expr ty = do
                   , inferType = AstT.BoolType
                   }
             }
+      -- TODO:
+      -- ( CstE.EFunction
+      --     (CstE.Function' {parameters, body})
+      --   , AstT.Arrow {start, remain}
+      --   ) -> do
+      --     bodyOut <- infer body
+      --     go
+      --       bodyOut
+      --       parameters
+      --       (NonEmpty.cons start remain)
+      --     where
+      --       go bOut [] (last :| []) =
+      --         pure $ EqConstraint (AstE.getType bOut.expression) last
+      --       go bOut (x:[]) (last :| []) = do
+      --         xId <- lookupExpressionVar
+      --         newArrow = AstT.Arrow {
+      --           AstT.start =
+      --                               }
       (_, _) -> do
         inferred <- infer expr
         let
@@ -600,7 +631,40 @@ unify
 unify x y =
   if x == y
     then pure []
-    else throwError $ CantUnify x y
+    else case (x, y) of
+      (AstT.Arrow {}, AstT.Arrow {}) -> do
+        startU <- unify x.start y.start
+        args <- go x.remain y.remain
+        pure (startU <> args)
+        where
+          go (lastX :| []) (lastY :| []) = unify lastX lastY
+          go (headX :| (headX2 : lastX)) (lastY :| []) =
+            unify
+              ( AstT.Arrow
+                  { AstT.start =
+                      headX
+                  , AstT.remain = headX2 :| lastX
+                  }
+              )
+              lastY
+          go (lastX :| []) (headY :| (headY2 : lastY)) =
+            unify
+              lastX
+              ( AstT.Arrow
+                  { AstT.start =
+                      headY
+                  , AstT.remain = headY2 :| lastY
+                  }
+              )
+          go (someX :| (headX : moreX)) (someY :| (headY : moreY)) = do
+            heads <- unify someX someY
+            remains <- go (headX :| moreX) (headY :| moreY)
+            pure (heads <> remains)
+      (AstT.Variable _, _) ->
+        pure [EqConstraint x y]
+      (_, AstT.Variable _) ->
+        pure [EqConstraint y x]
+      _ -> throwError $ CantUnify x y
 
 
 typeSubs :: [Substitution] -> AstT.Type -> AstT.Type

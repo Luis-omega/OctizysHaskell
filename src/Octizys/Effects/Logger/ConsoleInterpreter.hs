@@ -52,4 +52,3 @@ runLog minLevel = interpret $ \_ action ->
           render
             ( pretty '[' <> pretty lvl <> pretty ']' <> msg
             )
-

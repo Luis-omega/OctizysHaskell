@@ -11,7 +11,7 @@
 module Octizys.Effects.Logger.Effect where
 
 import Control.Arrow ((<<<))
-import Effectful (Effect, (:>), Eff)
+import Effectful (Eff, Effect, (:>))
 import Effectful.TH (makeEffect)
 import Prettyprinter (Doc, Pretty (pretty))
 
@@ -41,30 +41,29 @@ data Logger :: Effect where
 $(makeEffect ''Logger)
 
 
-errorLog :: 
-  (Logger :> es)
-  =>
-  Doc ann -> 
-  Eff es ()
-errorLog = logMessage Debug 
+errorLog
+  :: Logger :> es
+  => Doc ann
+  -> Eff es ()
+errorLog = logMessage Debug
 
-debug :: 
-  (Logger :> es)
-  =>
-  Doc ann -> 
-  Eff es ()
-debug = logMessage Debug 
 
-info :: 
-  (Logger :> es)
-  =>
-  Doc ann -> 
-  Eff es ()
-info = logMessage Debug 
+debug
+  :: Logger :> es
+  => Doc ann
+  -> Eff es ()
+debug = logMessage Debug
 
-traceLog :: 
-  (Logger :> es)
-  =>
-  Doc ann -> 
-  Eff es ()
-traceLog = logMessage Debug 
+
+info
+  :: Logger :> es
+  => Doc ann
+  -> Eff es ()
+info = logMessage Debug
+
+
+traceLog
+  :: Logger :> es
+  => Doc ann
+  -> Eff es ()
+traceLog = logMessage Debug
