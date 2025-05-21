@@ -138,7 +138,6 @@ library
     Octizys.Repl.Repl
 
   -- Octizys.Evaluation
-  -- Octizys.Inference.Translation
 
   -- Modules included in this library but not exported.
   -- other-modules:
