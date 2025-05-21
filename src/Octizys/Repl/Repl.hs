@@ -19,14 +19,14 @@ import Control.Arrow ((<<<))
 import Effectful (Eff, (:>))
 import Effectful.Error.Static
   ( Error
-  , catchError
   , runErrorNoCallStackWith
   )
 
 -- import Octizys.Evaluation (EvaluationError)
 
 import qualified Octizys.Effects.SymbolResolution.Effect as SRS
-import qualified Octizys.Inference.Inference2 as Inference
+import Octizys.Inference.Inference (definitionCstToAst)
+import qualified Octizys.Inference.Inference as Inference
 
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -41,6 +41,8 @@ import Octizys.Effects.Console.Interpreter
   ( putLine
   , runConsole
   )
+import Octizys.Effects.Logger.ConsoleInterpreter (runLog)
+import Octizys.Effects.Logger.Effect (LogLevel (Debug), Logger)
 import Octizys.Effects.Parser.Backend
   ( ParserError
   , prettyParserError
@@ -48,20 +50,15 @@ import Octizys.Effects.Parser.Backend
 import Octizys.Effects.Parser.Interpreter (runFullParser)
 import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolution
-  , SymbolResolutionState
-  , getSymbolResolutionState
   , putSymbolResolutionState
   )
 import Octizys.Effects.SymbolResolution.Interpreter
   ( SymbolResolutionError
   , initialSymbolResolutionState
   , runSymbolResolution
-  , runSymbolResolutionFull
   )
-import Octizys.Inference.Inference2 (definitionCstToAst)
 import Octizys.Parser.Common (OctizysParseError)
 import Octizys.Pretty.Expression (prettyDefinition, prettyExpression)
-import Octizys.Pretty.TopItem (prettyModule)
 import Octizys.Repl.Ast
   ( ReplCommand (LoadFile, Quit)
   , ReplTop (Command, Define, Evaluate)
@@ -100,6 +97,7 @@ rep
      , SymbolResolution :> es
      , State Inference.InferenceState :> es
      , Error Inference.InferenceError :> es
+     , Logger :> es
      )
   => Eff es ReplStatus
 rep = do
@@ -132,6 +130,10 @@ rep = do
             updateSymbolState
             putLine $ render pretty out.constraints
             putLine $ render pretty out.expression
+            subst <- Inference.findSubstitutions out.constraints
+            putLine $ render pretty subst
+            let final = Inference.expSubs subst out.expression
+            putLine $ render pretty final
             -- TODO: solve this
             -- (value, new_context) <- evaluateExpression context expression
             -- putLine (show value)
@@ -239,6 +241,7 @@ repl
   => Eff es ()
 repl =
   ( void
+      <<< runLog Debug
       <<< runState Inference.initialInferenceState
       <<< runState initialSymbolResolutionState
   )

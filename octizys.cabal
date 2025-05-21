@@ -115,6 +115,8 @@ library
     Octizys.Effects.Console.Interpreter
     Octizys.Effects.Generator.Effect
     Octizys.Effects.Generator.Interpreter
+    Octizys.Effects.Logger.ConsoleInterpreter
+    Octizys.Effects.Logger.Effect
     Octizys.Effects.Parser.Backend
     Octizys.Effects.Parser.Combinators
     Octizys.Effects.Parser.Effect
@@ -123,7 +125,6 @@ library
     Octizys.Effects.SymbolResolution.Interpreter
     Octizys.HistoryMap
     Octizys.Inference.Inference
-    Octizys.Inference.Inference2
     Octizys.Parser.Common
     Octizys.Parser.Expression
     Octizys.Parser.TopItem
