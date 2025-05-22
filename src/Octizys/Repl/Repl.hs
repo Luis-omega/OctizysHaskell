@@ -28,17 +28,11 @@ import qualified Octizys.Effects.SymbolResolution.Effect as SRS
 import Octizys.Inference.Inference (definitionCstToAst)
 import qualified Octizys.Inference.Inference as Inference
 
-import Control.Monad (unless, when)
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Data.Text (Text, pack)
 import Effectful.State.Static.Local (State, get, gets, put, runState)
-import Octizys.Ast.Expression (freeTypeVars, getType)
 import qualified Octizys.Ast.Expression as Ast
-import Octizys.Ast.Type (freeVariables)
-import qualified Octizys.Ast.Type as Ast
 import qualified Octizys.Cst.Expression as Cst
 import Octizys.Effects.Console.Effect
   ( Console
@@ -50,7 +44,7 @@ import Octizys.Effects.Console.Interpreter
   , runConsole
   )
 import Octizys.Effects.Logger.ConsoleInterpreter (runLog)
-import Octizys.Effects.Logger.Effect (LogLevel (Debug, Info), Logger)
+import Octizys.Effects.Logger.Effect (Logger)
 import qualified Octizys.Effects.Logger.Effect as Logger
 import Octizys.Effects.Parser.Backend
   ( ParserError
@@ -81,7 +75,9 @@ import Prettyprinter
   )
 import qualified Prettyprinter.Render.Text
 import Text.Show.Pretty (ppShow)
+import Octizys.Ast.Evaluation (EvaluationError, EvaluationState)
 
+import qualified Octizys.Ast.Evaluation  as Evaluation
 
 data ReplStatus = Continue | Exit
 
@@ -132,6 +128,8 @@ rep
      , SymbolResolution :> es
      , State Inference.InferenceState :> es
      , Error Inference.InferenceError :> es
+     , Error EvaluationError :> es
+     , State EvaluationState :> es
      , Logger :> es
      )
   => Eff es ReplStatus
@@ -164,6 +162,7 @@ rep = do
             updateInferenceState
             final <- Inference.solveExpressionType expression
             updateSymbolState
+            updateEvaluationState
             docFinal <- prettyExpression final
             putLine $ render id docFinal
             -- ist <- gets Inference.expVarTable
@@ -180,6 +179,7 @@ rep = do
           ast <- definitionCstToAst d
           putLine $ pack $ show ast
           updateSymbolState
+          updateEvaluationState
           continue
   where
     updateInferenceState
@@ -213,22 +213,18 @@ rep = do
               currentInference.constraintMap.nextTypeVar
                 + 1
           }
+    updateEvaluationState
+      :: State EvaluationState :> es
+      => State Inference.InferenceState :> es
+      => Eff es ()
+    updateEvaluationState = do
+      currentInference <- gets @Inference.InferenceState Inference.expVarTable
+      currentEvaluationState <- get @EvaluationState
+      put
+        currentEvaluationState
+          { Evaluation.varToExp =undefined currentInference
+          }
 
-
--- TODO: do this again
--- (_, newTranslationState) <-
---   runState
---     (translationState context)
---     (buildInferenceContext [d])
--- -- TODO: Raise a error
--- putLine $ "New State:\n" <> ppShow newTranslationState
--- putLine "Define is not supported yet!"
---   >> continue
---     ( context
---         { translationState =
---             newTranslationState
---         }
---     )
 
 reportErrorWith
   :: forall e es ann
@@ -285,6 +281,7 @@ repl
 repl =
   ( void
       <<< runLog Logger.Error
+      <<< runState Evaluation.initialEvaluationState
       <<< runState Inference.initialInferenceState
       <<< runState initialSymbolResolutionState
   )
@@ -293,6 +290,7 @@ repl =
     loop = do
       status <-
         ( reportErrorShow @SymbolResolutionError
+            <<< reportErrorPretty @EvaluationError
             <<< reportErrorPretty @Inference.InferenceError
             <<< runSymbolResolution
           )

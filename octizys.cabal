@@ -103,6 +103,7 @@ library
   exposed-modules:
     Octizys.Ast.Expression
     Octizys.Ast.Type
+    Octizys.Ast.Evaluation
     Octizys.Cst.Comment
     Octizys.Cst.Expression
     Octizys.Cst.Fixpoint
@@ -136,8 +137,6 @@ library
     Octizys.Repl.Ast
     Octizys.Repl.Parser
     Octizys.Repl.Repl
-
-  -- Octizys.Evaluation
 
   -- Modules included in this library but not exported.
   -- other-modules:
