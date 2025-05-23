@@ -7,16 +7,12 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Octizys.Repl.Repl
-  ( repl
-  , runConsole
-  , render
-  , reportErrorShow
-  , reportErrorParser
+  ( runRepl
   )
 where
 
 import Control.Arrow ((<<<))
-import Effectful (Eff, (:>))
+import Effectful (Eff, runEff, (:>))
 import Effectful.Error.Static
   ( Error
   , runErrorNoCallStackWith
@@ -77,6 +73,8 @@ import Prettyprinter
 import qualified Prettyprinter.Render.Text
 import Text.Show.Pretty (ppShow)
 
+import Cli (ReplOptions (showCst, showInference), logLevel)
+import Control.Monad (when)
 import qualified Octizys.Ast.Evaluation as Evaluation
 
 
@@ -133,8 +131,9 @@ rep
      , State EvaluationState :> es
      , Logger :> es
      )
-  => Eff es ReplStatus
-rep = do
+  => ReplOptions
+  -> Eff es ReplStatus
+rep opts = do
   line <- putText "repl>" >> readLine
   maybeAction <- runFullParser line replParser
   case maybeAction of
@@ -159,13 +158,18 @@ rep = do
         Evaluate expression ->
           do
             docExp <- prettyCstExpression expression
-            putLine $ render id docExp
             updateInferenceState
+            when opts.showCst (putLine $ render id docExp)
             final <- Inference.solveExpressionType expression
             updateSymbolState
-            updateEvaluationState
-            docFinal <- prettyExpression final
-            putLine $ render id docFinal
+            -- FIXME
+            -- updateEvaluationState
+            when
+              opts.showInference
+              ( do
+                  docFinal <- prettyExpression final
+                  putLine $ render id docFinal
+              )
             -- ist <- gets Inference.expVarTable
             -- putLine $ pack $ ppShow (Map.toList ist)
             -- TODO: solve this
@@ -178,9 +182,10 @@ rep = do
           putLine $ render (Cst.prettyDefinition pretty pretty) d
           updateInferenceState
           ast <- definitionCstToAst d
-          putLine $ pack $ show ast
           updateSymbolState
-          updateEvaluationState
+          -- FIXME
+          -- updateEvaluationState
+          when opts.showCst (putLine $ pack $ show ast)
           continue
   where
     updateInferenceState
@@ -275,13 +280,13 @@ reportErrorParser source =
     )
 
 
--- TODO: add good prettifier with a dictionary
 repl
   :: Console :> es
-  => Eff es ()
-repl =
+  => Logger :> es
+  => ReplOptions
+  -> Eff es ()
+repl opts =
   ( void
-      <<< runLog Logger.Error
       <<< runState Evaluation.initialEvaluationState
       <<< runState Inference.initialInferenceState
       <<< runState initialSymbolResolutionState
@@ -295,7 +300,17 @@ repl =
             <<< reportErrorPretty @Inference.InferenceError
             <<< runSymbolResolution
           )
-          rep
+          (rep opts)
       case status of
         Exit -> pure ()
         Continue -> loop
+
+
+runRepl :: ReplOptions -> IO ()
+runRepl options =
+  ( runEff
+      <<< runConsole
+      <<< runLog options.logLevel
+  )
+    (repl options)
+

@@ -1,5 +1,5 @@
 module Octizys.Compiler.Compiler(compile) where
 
-compile :: Int
-compile = undefined
+compile :: IO ()
+compile = print @String "compiler stub!"
 

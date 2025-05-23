@@ -2,32 +2,18 @@
 
 module Main where
 
-import Control.Arrow ((<<<))
-import qualified Data.Text as Text
-import Effectful (Eff, runEff, (:>))
-import Effectful.Error.Static (Error, runErrorNoCallStackWith)
+import Cli (Command (CompileCmd, ReplCmd), parseArguments)
 import Octizys.Compiler.Compiler (compile)
-import Octizys.Effects.Console.Effect (Console)
-import Octizys.Effects.Console.Interpreter (putLine, runConsole)
-import Octizys.Repl.Repl (repl)
-
-
-reportErrorShow
-  :: Show e
-  => Console :> es
-  => Eff (Error e : es) a
-  -> Eff es ()
-reportErrorShow ef =
-  runErrorNoCallStackWith
-    (putLine <<< Text.pack <<< show)
-    (do _ <- ef; pure ())
+import Octizys.Repl.Repl (runRepl)
+import Options.Applicative (execParser, fullDesc, helper, info, (<**>))
 
 
 main :: IO ()
 main = do
-  _ <- run repl
-  pure ()
-  where
-    run =
-      runEff
-        <<< runConsole
+  command <-
+    execParser
+      (info (parseArguments <**> helper) fullDesc)
+  case command of
+    ReplCmd opts -> runRepl opts
+    CompileCmd _ -> compile
+

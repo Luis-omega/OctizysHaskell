@@ -1,5 +1,12 @@
 run:
-  rlwrap cabal run
+  just repl
+
+repl:
+  rlwrap cabal run octizys -- repl --logLevel=error --showCst --showInference
+
+compile *paths:
+  cabal run octizys -- compile --logLevel=debug {{paths}}
+
 
 test:
   cabal test
