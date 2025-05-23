@@ -6,6 +6,7 @@ import Control.Arrow ((<<<))
 import qualified Data.Text as Text
 import Effectful (Eff, runEff, (:>))
 import Effectful.Error.Static (Error, runErrorNoCallStackWith)
+import Octizys.Compiler.Compiler (compile)
 import Octizys.Effects.Console.Effect (Console)
 import Octizys.Effects.Console.Interpreter (putLine, runConsole)
 import Octizys.Repl.Repl (repl)

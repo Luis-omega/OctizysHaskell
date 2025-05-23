@@ -1,8 +1,0 @@
-cradle:
-  cabal:
-    - path: "src"
-      component: "lib:octizys"
-    - path: "app/Main.hs"
-      component: "octizys:exe:octizys"
-    - path: "test"
-      component: "octizys:test:octizys-test"

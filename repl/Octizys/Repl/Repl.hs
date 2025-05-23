@@ -32,6 +32,7 @@ import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text, pack)
 import Effectful.State.Static.Local (State, get, gets, put, runState)
+import Octizys.Ast.Evaluation (EvaluationError, EvaluationState)
 import qualified Octizys.Ast.Expression as Ast
 import qualified Octizys.Cst.Expression as Cst
 import Octizys.Effects.Console.Effect
@@ -75,9 +76,9 @@ import Prettyprinter
   )
 import qualified Prettyprinter.Render.Text
 import Text.Show.Pretty (ppShow)
-import Octizys.Ast.Evaluation (EvaluationError, EvaluationState)
 
-import qualified Octizys.Ast.Evaluation  as Evaluation
+import qualified Octizys.Ast.Evaluation as Evaluation
+
 
 data ReplStatus = Continue | Exit
 
@@ -222,7 +223,7 @@ rep = do
       currentEvaluationState <- get @EvaluationState
       put
         currentEvaluationState
-          { Evaluation.varToExp =undefined currentInference
+          { Evaluation.varToExp = undefined currentInference
           }
 
 

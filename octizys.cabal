@@ -101,9 +101,9 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
+    Octizys.Ast.Evaluation
     Octizys.Ast.Expression
     Octizys.Ast.Type
-    Octizys.Ast.Evaluation
     Octizys.Cst.Comment
     Octizys.Cst.Expression
     Octizys.Cst.Fixpoint
@@ -134,9 +134,6 @@ library
     Octizys.Pretty.Expression
     Octizys.Pretty.TopItem
     Octizys.Pretty.Type
-    Octizys.Repl.Ast
-    Octizys.Repl.Parser
-    Octizys.Repl.Repl
 
   -- Modules included in this library but not exported.
   -- other-modules:
@@ -169,25 +166,36 @@ executable octizys
   import:
     warnings
     , common_extensions
+    , common_plugings
 
   -- .hs or .lhs file containing the Main module.
   main-is:          Main.hs
 
   -- Modules included in this executable, other than Main.
-  -- other-modules:
+  other-modules:
+    Octizys.Compiler.Compiler
+    Octizys.Repl.Ast
+    Octizys.Repl.Parser
+    Octizys.Repl.Repl
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
   build-depends:
-    , base       ^>=4.18.2.1
+    , base                  ^>=4.18.2.1
     , effectful
+    , effectful-core
+    , effectful-plugin
+    , effectful-th
     , octizys
+    , optparse-applicative
+    , pretty-show
+    , prettyprinter
     , text
 
   -- Directories containing source files.
-  hs-source-dirs:   app
+  hs-source-dirs:   app repl compiler
 
   -- Base language which the package is written in.
   default-language: Haskell2010

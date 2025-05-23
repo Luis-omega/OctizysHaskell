@@ -66,4 +66,3 @@ evaluateExpression If {condition, ifTrue, ifFalse} = do
 evaluateExpression Let {expression} =
   evaluateExpression expression
 evaluateExpression Annotation {expression} = evaluateExpression expression
-
