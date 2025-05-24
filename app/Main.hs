@@ -2,7 +2,11 @@
 
 module Main where
 
-import Cli (Command (CompileCmd, ReplCmd), parseArguments)
+import Cli
+  ( Command (CompileCmd, ReplCmd)
+  , CompileOptions (CompileOptions, files, logLevel)
+  , parseArguments
+  )
 import Octizys.Compiler.Compiler (compile)
 import Octizys.Repl.Repl (runRepl)
 import Options.Applicative (execParser, fullDesc, helper, info, (<**>))
@@ -15,4 +19,5 @@ main = do
       (info (parseArguments <**> helper) fullDesc)
   case command of
     ReplCmd opts -> runRepl opts
-    CompileCmd _ -> compile
+    CompileCmd (CompileOptions {logLevel = _logLevel, files = _files}) -> compile _files _logLevel
+
