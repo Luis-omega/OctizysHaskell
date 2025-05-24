@@ -24,6 +24,12 @@ import Octizys.Ast.Expression (freeTypeVars)
 import qualified Octizys.Ast.Expression as AstE
 import qualified Octizys.Ast.Type as AstT
 import Octizys.Cst.Expression (ExpressionVariableId)
+import Octizys.Cst.InfoId
+  ( HasInfoSpan (getInfoSpan)
+  , InfoId
+  , InfoSpan (OneInfo, TwoInfo)
+  , infoSpanEnd
+  )
 import Octizys.Cst.Type
   ( Type
   , TypeVariableId
@@ -48,12 +54,12 @@ data InferenceError
   | -- This is a bug in the translation process or
     -- in the inference
     UnboundTypeVar TypeVariableId
-  | CantUnify AstT.Type AstT.Type
+  | CantUnify Constraint
   | ContainsFreeVariablesAfterSolving
       AstE.Expression
       (Set.Set TypeVariableId)
       [Constraint]
-  | RecursiveSubstitution TypeVariableId AstT.Type
+  | RecursiveSubstitution ConstraintReason InfoSpan TypeVariableId AstT.Type
   deriving (Show)
 
 
@@ -69,41 +75,85 @@ instance Pretty InferenceError where
   pretty (UnboundTypeVar e) =
     pretty @Text "Unknow type variable found, this is a bug ,please report it!"
       <> pretty e
-  pretty (CantUnify t1 t2) =
+  pretty (CantUnify c) =
     pretty @Text "Can't unify types"
       <> Pretty.nest
         2
         ( Pretty.line
             <> pretty @Text "First type:"
-            <> pretty t1
+            <> pretty c.constraintType1
             <> Pretty.line
             <> pretty @Text "Second type:"
-            <> pretty t2
+            <> pretty c.constraintType2
+            <> Pretty.line
+            <> pretty @Text "Reason:"
+            <> pretty (show c.reason)
         )
   pretty (ContainsFreeVariablesAfterSolving e free constraints) =
-    pretty @Text "We couldn't solve the type variables: "
+    pretty @Text "Couldn't solve the type variables: "
       <+> Pretty.nest 2 (prettySet free)
       <> Pretty.nest 2 (Pretty.line <> pretty e)
-      <> Pretty.nest 2 (Pretty.line <> pretty constraints)
+      <> Pretty.nest
+        2
+        ( Pretty.line
+            <> Pretty.list (prettyConstraintWithReason <$> constraints)
+        )
     where
       prettySet s =
         Pretty.list (pretty <$> Set.toList s)
-  pretty (RecursiveSubstitution tid ty) =
+  pretty (RecursiveSubstitution rsn info tid ty) =
     pretty @Text "Found recursive type definition of"
       <+> pretty tid
       <+> pretty @Text "for the type"
       <+> pretty ty
       <> Pretty.line
       <> "If compiler tries to solve this we would loop forever."
+      <> Pretty.line
+      <> pretty (show rsn)
 
 
-data Constraint = EqConstraint AstT.Type AstT.Type
+data ConstraintReason
+  = -- | The condition inside an if should be a boolean type
+    IfConditionShouldBeBool
+  | -- | The cases inside a if should have the same type.
+    IfCasesShouldMatch
+  | ApplicationShouldBeOnArrows
+  | ArgumentShouldBeOfDomainType
+  | TypeAnnotation
+  | -- | A parameter was found with type annotation
+    ParameterTypeAnnotation
+  | -- | A variable was defined without arguments, we must be sure
+    -- that it's body has the same type as the one assigned to the name.
+    -- `let f = body` => `type f ~ type body`
+    DefinitionVariableAndBodyShouldBeEqual
+  | -- | f : Type
+    DefinitionTypeAnnotation
+  | -- | f : x , y , Type
+    DefinitionTypeAnnotationWithArgs
+  | -- | We already know the type of a variable, it can be
+    -- because is a builtin or we are in the repl and we solved
+    -- it previously.
+    IsKnowType
+  deriving (Show, Eq, Ord)
+
+
+data Constraint = EqConstraint
+  { constraintType1 :: AstT.Type
+  , constraintType2 :: AstT.Type
+  , reason :: ConstraintReason
+  , info :: InfoSpan
+  }
   deriving (Show, Ord, Eq)
 
 
 instance Pretty Constraint where
-  pretty (EqConstraint t1 t2) =
+  pretty (EqConstraint t1 t2 _ _) =
     pretty t1 <+> "~" <+> pretty t2
+
+
+prettyConstraintWithReason :: Constraint -> Doc ann
+prettyConstraintWithReason c =
+  pretty c <+> pretty (show c.reason)
 
 
 data Output = Output'
@@ -248,7 +298,8 @@ cstToAstType t =
 
 
 definitionParametersToParameters
-  :: ( Error InferenceError :> es
+  :: forall es
+   . ( Error InferenceError :> es
      , State InferenceState :> es
      )
   => CstE.Parameters
@@ -261,19 +312,27 @@ definitionParametersToParameters
           )
       )
 definitionParametersToParameters params =
-  mapM transParam (fst <$> CstE.unParameters params)
+  mapM transParam (CstE.unParameters params)
   where
-    transParam p = do
+    transParam
+      :: (CstE.Parameter, InfoId)
+      -> Eff es ([Constraint], ExpressionVariableId, AstT.Type)
+    transParam (p, inf) = do
       pType <- lookupExpressionVar (snd p.name)
       case p of
-        CstE.ParameterAlone {} ->
-          pure ([], snd p.name, AstT.Variable pType)
-        CstE.ParameterWithType {} -> do
+        CstE.ParameterAlone {name = pName} ->
+          pure ([], snd pName, AstT.Variable pType)
+        CstE.ParameterWithType {name = pName} -> do
           let annotationType = cstToAstType p._type
               tableType = AstT.Variable pType
               constraintType =
-                EqConstraint annotationType tableType
-          pure ([constraintType], snd p.name, tableType)
+                EqConstraint
+                  { constraintType1 = annotationType
+                  , constraintType2 = tableType
+                  , reason = ParameterTypeAnnotation
+                  , info = OneInfo inf
+                  }
+          pure ([constraintType], snd pName, tableType)
 
 
 definitionCstToAst
@@ -294,12 +353,23 @@ definitionCstToAst d = do
       newBodyType = AstE.getType newBody
       -- In case the definition has a type annotation:
       -- let f :: Annotation = ..
-      annotationConstratint =
+      annotationConstraint =
         case d.outputType of
           Nothing -> []
           Just expectedType ->
             let newExpectedType = cstToAstType expectedType
-             in [EqConstraint newBodyType newExpectedType]
+             in [ EqConstraint
+                    { constraintType1 = newBodyType
+                    , constraintType2 = newExpectedType
+                    , reason = DefinitionTypeAnnotation
+                    , info =
+                        TwoInfo
+                          (fst d.name)
+                          ( infoSpanEnd $
+                              getInfoSpan expectedType
+                          )
+                    }
+                ]
   case d.parameters of
     Nothing ->
       let newExp =
@@ -311,10 +381,15 @@ definitionCstToAst d = do
               }
           -- `f ~ body`
           fullDefinitionConstraint =
-            EqConstraint (AstT.Variable nameTypeVar) newBodyType
+            EqConstraint
+              { constraintType1 = AstT.Variable nameTypeVar
+              , constraintType2 = newBodyType
+              , reason = DefinitionVariableAndBodyShouldBeEqual
+              , info = getInfoSpan d
+              }
        in pure
             ( fullDefinitionConstraint
-                : annotationConstratint <> outBody.constraints
+                : annotationConstraint <> outBody.constraints
             , newExp
             )
     Just oldParams -> do
@@ -352,10 +427,17 @@ definitionCstToAst d = do
             }
         -- `f ~ a -> b -> c`
         fullDefinitionConstraint =
-          EqConstraint (AstT.Variable nameTypeVar) newType
+          EqConstraint
+            { constraintType1 = AstT.Variable nameTypeVar
+            , constraintType2 = newType
+            , reason = DefinitionTypeAnnotationWithArgs
+            , -- TODO: adjust this, in case we have outputType we
+              -- should choose it.
+              info = TwoInfo (fst d.name) d.equal
+            }
         constraints =
           fullDefinitionConstraint
-            : annotationConstratint
+            : annotationConstraint
               <> outBody.constraints
               <> concat
                 ( NonEmpty.toList
@@ -408,7 +490,7 @@ infer expr = do
                   , inferType = AstT.BoolType
                   }
             }
-      CstE.Variable {name} -> do
+      CstE.Variable {name, info} -> do
         eid <- lookupExpressionVar name
         maybeType <- lookupKnowType name
         inferLog (pretty @Text "looked " <> pretty name)
@@ -417,7 +499,14 @@ infer expr = do
           Just knowTy ->
             pure $
               Output'
-                { constraints = [EqConstraint (AstT.Variable eid) knowTy]
+                { constraints =
+                    [ EqConstraint
+                        { constraintType1 = AstT.Variable eid
+                        , constraintType2 = knowTy
+                        , reason = IsKnowType
+                        , info = OneInfo info
+                        }
+                    ]
                 , expression =
                     AstE.Variable
                       { name = name
@@ -471,46 +560,58 @@ infer expr = do
         , applicationRemain = args
         } -> do
           initialOut <- infer fun
-          foldM
-            ( \preOut arg -> do
-                domain <- AstT.Variable <$> freshTypeVar
-                codomain <- AstT.Variable <$> freshTypeVar
-                let
-                  preIsArrow =
-                    EqConstraint
-                      (AstE.getType preOut.expression)
-                      ( AstT.Arrow
+          let initialSpan = getInfoSpan fun
+          (out, _) <- foldM go (initialOut, initialSpan) args
+          pure out
+          where
+            go (preOut, preSpan) arg = do
+              domain <- AstT.Variable <$> freshTypeVar
+              codomain <- AstT.Variable <$> freshTypeVar
+              let
+                preIsArrow =
+                  EqConstraint
+                    { constraintType1 = AstE.getType preOut.expression
+                    , constraintType2 =
+                        AstT.Arrow
                           { start = domain
                           , remain = codomain :| []
                           }
-                      )
-                outArgDomain <- check arg domain
-                let
-                  newApp =
-                    AstE.Application
-                      { applicationFunction = preOut.expression
-                      , applicationArgument = outArgDomain.expression
-                      , inferType = codomain
-                      }
-                pure $
-                  Output'
+                    , reason = ApplicationShouldBeOnArrows
+                    , info = preSpan <> getInfoSpan arg
+                    }
+              outArgDomain <- check arg domain ArgumentShouldBeOfDomainType
+              let
+                outInfo = getInfoSpan arg
+                newApp =
+                  AstE.Application
+                    { applicationFunction = preOut.expression
+                    , applicationArgument = outArgDomain.expression
+                    , inferType = codomain
+                    }
+              pure
+                ( Output'
                     { constraints =
                         preIsArrow : (outArgDomain.constraints <> preOut.constraints)
                     , expression = newApp
                     }
-            )
-            initialOut
-            args
-      CstE.If {condition = cond, ifTrue = _then, ifFalse = _else} -> do
-        condOut <- check cond AstT.BoolType
-        thenOut <- infer _then
-        elseOut <- infer _else
-        -- TODO: get a error message about why the inference
-        -- was needed
+                , outInfo
+                )
+      CstE.If {condition = cond, ifTrue, ifFalse, _then, _else} -> do
+        condOut <- check cond AstT.BoolType IfConditionShouldBeBool
+        thenOut <- infer ifTrue
+        elseOut <- infer ifFalse
         let thenIsElse =
               EqConstraint
-                (AstE.getType thenOut.expression)
-                (AstE.getType elseOut.expression)
+                { constraintType1 = AstE.getType thenOut.expression
+                , constraintType2 = AstE.getType elseOut.expression
+                , reason = IfCasesShouldMatch
+                , info =
+                    TwoInfo
+                      _then
+                      ( infoSpanEnd $
+                          getInfoSpan ifFalse
+                      )
+                }
             newIf =
               AstE.If
                 { condition = condOut.expression
@@ -549,7 +650,7 @@ infer expr = do
               }
       CstE.Annotation {expression = exprr, _type = ann} -> do
         let newTypeAnn = cstToAstType ann
-        check exprr newTypeAnn
+        check exprr newTypeAnn TypeAnnotation
   inferLog (pretty @Text "Out:" <> pretty out)
   pure out
 
@@ -567,8 +668,9 @@ check
   => Logger :> es
   => CstE.Expression
   -> AstT.Type
+  -> ConstraintReason
   -> Eff es Output
-check expr ty = do
+check expr ty reason = do
   checkLog
     ( pretty @Text "Got exp:"
         <> prettyExpression pretty pretty expr
@@ -622,7 +724,12 @@ check expr ty = do
           inferredType =
             AstE.getType inferred.expression
           newConstraint =
-            EqConstraint inferredType ty
+            EqConstraint
+              { constraintType1 = inferredType
+              , constraintType2 = ty
+              , reason = reason
+              , info = getInfoSpan expr
+              }
         pure $ addConstraint newConstraint inferred
   checkLog (pretty @Text "Out:" <> pretty out)
   pure out
@@ -631,23 +738,25 @@ check expr ty = do
 -- | Replaces a type variable inside a expression with another type.
 subs
   :: Error InferenceError :> es
-  => TypeVariableId
+  => ConstraintReason
+  -> InfoSpan
+  -> TypeVariableId
   -- ^ The `Type` variable to be replaced.
   -> AstT.Type
   -- ^ The new value.
   -> AstT.Type
   -- ^ The value in which we substitute the variable.
   -> Eff es AstT.Type
-subs vid newType oldType =
+subs reason info vid newType oldType =
   let freeInType = AstT.freeVariables newType
    in if Set.member vid freeInType
-        then throwError $ RecursiveSubstitution vid newType
+        then throwError $ RecursiveSubstitution reason info vid newType
         else case oldType of
           AstT.BoolType -> pure oldType
           AstT.IntType -> pure oldType
           AstT.Arrow {start, remain} -> do
-            newStart <- subs vid newType start
-            newRemain <- forM remain (subs vid newType)
+            newStart <- subs reason info vid newType start
+            newRemain <- forM remain (subs reason info vid newType)
             pure $
               AstT.Arrow
                 { start = newStart
@@ -662,23 +771,33 @@ subs vid newType oldType =
 
 subsInConstraint
   :: Error InferenceError :> es
-  => TypeVariableId
+  => ConstraintReason
+  -> InfoSpan
+  -> TypeVariableId
   -> AstT.Type
   -> Constraint
   -> Eff es Constraint
-subsInConstraint vid t (EqConstraint l r) =
-  EqConstraint <$> subs vid t l <*> subs vid t r
+subsInConstraint rsn info vid t c = do
+  newT1 <- subs rsn info vid t c.constraintType1
+  newT2 <- subs rsn info vid t c.constraintType2
+  pure
+    c
+      { constraintType1 = newT1
+      , constraintType2 = newT2
+      }
 
 
 data Substitution = Substitution'
   { variableId :: TypeVariableId
   , value :: AstT.Type
+  , reason :: ConstraintReason
+  , info :: InfoSpan
   }
   deriving (Show, Eq, Ord)
 
 
 instance Pretty Substitution where
-  pretty (Substitution' var value) =
+  pretty (Substitution' var value _ _) =
     pretty '_'
       <> pretty var
       <+> pretty '~'
@@ -695,24 +814,30 @@ findSubstitutions (x : ys) = do
   subsInInitial initialSet initialSet
   where
     go =
-      case x of
-        EqConstraint left right ->
-          case left of
+      case x.constraintType1 of
+        AstT.Variable t -> do
+          lst <-
+            forM ys (subsInConstraint x.reason x.info t x.constraintType2)
+              >>= findSubstitutions
+          pure
+            ( Substitution' t x.constraintType2 x.reason x.info
+                : lst
+            )
+        _ ->
+          case x.constraintType2 of
             AstT.Variable t -> do
               lst <-
-                forM ys (subsInConstraint t right) >>= findSubstitutions
-              pure (Substitution' t right : lst)
-            _ ->
-              case right of
-                AstT.Variable t -> do
-                  lst <-
-                    forM ys (subsInConstraint t left) >>= findSubstitutions
-                  pure (Substitution' t left : lst)
-                _ -> do
-                  unifySubs <- unify left right
-                  findSubstitutions (unifySubs <> ys)
+                forM ys (subsInConstraint x.reason x.info t x.constraintType1)
+                  >>= findSubstitutions
+              pure
+                ( Substitution' t x.constraintType1 x.reason x.info
+                    : lst
+                )
+            _ -> do
+              unifySubs <- unify x
+              findSubstitutions (unifySubs <> ys)
     subsSub s s2 = do
-      newVal <- subs s.variableId s.value s2.value
+      newVal <- subs s.reason s.info s.variableId s.value s2.value
       pure s2 {value = newVal}
     subsInInitial [] end = pure end
     subsInInitial (z : zs) ss =
@@ -721,45 +846,50 @@ findSubstitutions (x : ys) = do
 
 unify
   :: Error InferenceError :> es
-  => AstT.Type
-  -> AstT.Type
+  => Constraint
   -> Eff es [Constraint]
-unify x y =
-  if x == y
-    then pure []
-    else case (x, y) of
-      (AstT.Arrow {}, AstT.Arrow {}) -> do
-        startU <- unify x.start y.start
-        args <- go x.remain y.remain
-        pure (startU <> args)
-        where
-          go (lastX :| []) (lastY :| []) = unify lastX lastY
-          go (headX :| (headX2 : lastX)) (lastY :| []) =
-            unify
-              ( AstT.Arrow
-                  { AstT.start =
-                      headX
-                  , AstT.remain = headX2 :| lastX
-                  }
-              )
-              lastY
-          go (lastX :| []) (headY :| (headY2 : lastY)) =
-            unify
-              lastX
-              ( AstT.Arrow
-                  { AstT.start =
-                      headY
-                  , AstT.remain = headY2 :| lastY
-                  }
-              )
-          go (someX :| (headX : moreX)) (someY :| (headY : moreY)) = do
-            heads <- unify someX someY
-            remains <- go (headX :| moreX) (headY :| moreY)
-            pure (heads <> remains)
-      (AstT.Variable _, _) -> do
-        pure [EqConstraint x y]
-      (_, AstT.Variable _) -> unify y x
-      _ -> throwError $ CantUnify x y
+unify c =
+  let
+    x = c.constraintType1
+    y = c.constraintType2
+   in
+    if x == y
+      then pure []
+      else case (x, y) of
+        (AstT.Arrow {remain = remainX}, AstT.Arrow {remain = remainY}) -> do
+          startU <- unifyWith x.start y.start
+          args <- go remainX remainY
+          pure (startU <> args)
+          where
+            go (lastX :| []) (lastY :| []) = unifyWith lastX lastY
+            go (headX :| (headX2 : lastX)) (lastY :| []) =
+              unifyWith
+                ( AstT.Arrow
+                    { AstT.start =
+                        headX
+                    , AstT.remain = headX2 :| lastX
+                    }
+                )
+                lastY
+            go (lastX :| []) (headY :| (headY2 : lastY)) =
+              unifyWith
+                lastX
+                ( AstT.Arrow
+                    { AstT.start =
+                        headY
+                    , AstT.remain = headY2 :| lastY
+                    }
+                )
+            go (someX :| (headX : moreX)) (someY :| (headY : moreY)) = do
+              heads <- unifyWith someX someY
+              remains <- go (headX :| moreX) (headY :| moreY)
+              pure (heads <> remains)
+        (AstT.Variable _, _) -> do
+          pure [c]
+        (_, AstT.Variable _) -> unifyWith y x
+        _ -> throwError $ CantUnify c
+  where
+    unifyWith z w = unify c {constraintType1 = z, constraintType2 = w}
 
 
 typeSubs
@@ -768,7 +898,10 @@ typeSubs
   -> AstT.Type
   -> Eff es AstT.Type
 typeSubs listOfSubstitutions t =
-  foldM (\ty (Substitution' l r) -> subs l r ty) t listOfSubstitutions
+  foldM
+    (\ty (Substitution' l r rsn info) -> subs rsn info l r ty)
+    t
+    listOfSubstitutions
 
 
 defSubs

@@ -58,8 +58,14 @@ module Octizys.Cst.Expression
 where
 
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
-import Octizys.Cst.InfoId (InfoId)
+import Octizys.Cst.InfoId
+  ( HasInfoSpan (getInfoSpan)
+  , InfoId
+  , InfoSpan (OneInfo, TwoInfo)
+  , infoSpanEnd
+  )
 import Octizys.Cst.Type (Type)
 import Octizys.Cst.VariableId (VariableId)
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
@@ -95,6 +101,11 @@ data Parameter
   deriving (Show, Eq, Ord)
 
 
+instance HasInfoSpan Parameter where
+  getInfoSpan ParameterAlone {name = inf} = OneInfo (fst inf)
+  getInfoSpan ParameterWithType {name = inf} = OneInfo (fst inf)
+
+
 data FunctionParameter
   = FunctionParameterWithType
       { lparen :: InfoId
@@ -106,6 +117,11 @@ data FunctionParameter
       -- ^ This must be only  `ParameterWithType`
       }
   deriving (Show, Eq, Ord)
+
+
+instance HasInfoSpan FunctionParameter where
+  getInfoSpan FunctionParameterWithType {lparen, rparen} = TwoInfo lparen rparen
+  getInfoSpan FunctionParameterAlone {parameter} = getInfoSpan parameter
 
 
 newtype Parameters = Parameters' {unParameters :: NonEmpty (Parameter, InfoId)}
@@ -124,6 +140,15 @@ data Definition = Definition'
   deriving (Show, Eq, Ord)
 
 
+instance HasInfoSpan Definition where
+  getInfoSpan d =
+    TwoInfo
+      (fst d.name)
+      ( infoSpanEnd $
+          getInfoSpan d.definition
+      )
+
+
 -- | A lambda function.
 data Function = Function'
   { start :: InfoId
@@ -134,6 +159,10 @@ data Function = Function'
   , body :: Expression
   }
   deriving (Show, Eq, Ord)
+
+
+instance HasInfoSpan Function where
+  getInfoSpan f = TwoInfo f.start (infoSpanEnd $ getInfoSpan f.body)
 
 
 data Expression
@@ -173,3 +202,20 @@ data Expression
       , _type :: Type
       }
   deriving (Show, Eq, Ord)
+
+
+instance HasInfoSpan Expression where
+  getInfoSpan EInt {info} = OneInfo info
+  getInfoSpan EBool {info} = OneInfo info
+  getInfoSpan Variable {info} = OneInfo info
+  getInfoSpan Parens {lparen, rparen} = TwoInfo lparen rparen
+  getInfoSpan EFunction {functionValue} = getInfoSpan functionValue
+  getInfoSpan Application {applicationFunction, applicationRemain} =
+    getInfoSpan applicationFunction
+      <> getInfoSpan (NonEmpty.last applicationRemain)
+  getInfoSpan If {_if, ifFalse} =
+    TwoInfo _if (infoSpanEnd $ getInfoSpan ifFalse)
+  getInfoSpan Let {_let, expression} =
+    TwoInfo _let (infoSpanEnd $ getInfoSpan expression)
+  getInfoSpan Annotation {expression, _type} =
+    getInfoSpan expression <> getInfoSpan _type

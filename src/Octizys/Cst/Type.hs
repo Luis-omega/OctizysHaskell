@@ -16,9 +16,15 @@ module Octizys.Cst.Type
     )
   ) where
 
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty, last)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
-import Octizys.Cst.InfoId (InfoId)
+import Octizys.Cst.InfoId
+  ( HasInfoSpan (getInfoSpan)
+  , InfoId
+  , InfoSpan (OneInfo, TwoInfo)
+  , infoSpanStart
+  )
 import Octizys.Cst.VariableId (VariableId)
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
 import Prettyprinter (Pretty (pretty))
@@ -68,3 +74,12 @@ data Type
     -- identifier. You can think of it as a pointer in symbol table.
     Variable {info :: InfoId, variableId :: TypeVariableId}
   deriving (Show, Eq, Ord)
+
+
+instance HasInfoSpan Type where
+  getInfoSpan BoolType {info} = OneInfo info
+  getInfoSpan IntType {info} = OneInfo info
+  getInfoSpan Arrow {start, remain} =
+    getInfoSpan start <> getInfoSpan (snd (NonEmpty.last remain))
+  getInfoSpan Parens {lparen, rparen} = TwoInfo lparen rparen
+  getInfoSpan Variable {info} = OneInfo info
