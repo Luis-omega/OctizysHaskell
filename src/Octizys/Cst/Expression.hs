@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use guards" #-}
 module Octizys.Cst.Expression
   ( Parameter (ParameterAlone, ParameterWithType, name, _type, colon)
   , FunctionParameter
@@ -54,17 +57,21 @@ module Octizys.Cst.Expression
     , unExpressionVariableId
     )
   , Parameters (Parameters', unParameters)
+  , locateInfoSpan
   )
 where
 
+import Control.Applicative (Alternative ((<|>)))
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import Octizys.Cst.InfoId
   ( HasInfoSpan (getInfoSpan)
   , InfoId
   , InfoSpan (OneInfo, TwoInfo)
   , infoSpanEnd
+  , infoSpanStart
   )
 import Octizys.Cst.Type (Type)
 import Octizys.Cst.VariableId (VariableId)
@@ -106,6 +113,10 @@ instance HasInfoSpan Parameter where
   getInfoSpan ParameterWithType {name = inf} = OneInfo (fst inf)
 
 
+parameterLocateInfoSpan :: InfoSpan -> Function -> Maybe InfoId
+parameterLocateInfoSpan = undefined
+
+
 data FunctionParameter
   = FunctionParameterWithType
       { lparen :: InfoId
@@ -122,6 +133,10 @@ data FunctionParameter
 instance HasInfoSpan FunctionParameter where
   getInfoSpan FunctionParameterWithType {lparen, rparen} = TwoInfo lparen rparen
   getInfoSpan FunctionParameterAlone {parameter} = getInfoSpan parameter
+
+
+functionParameterLocateInfoSpan :: InfoSpan -> Function -> InfoId
+functionParameterLocateInfoSpan = undefined
 
 
 newtype Parameters = Parameters' {unParameters :: NonEmpty (Parameter, InfoId)}
@@ -163,6 +178,13 @@ data Function = Function'
 
 instance HasInfoSpan Function where
   getInfoSpan f = TwoInfo f.start (infoSpanEnd $ getInfoSpan f.body)
+
+
+locateFunctionSpan :: InfoSpan -> Function -> Maybe Expression
+locateFunctionSpan s f@Function' {start} =
+  if infoSpanStart s == start
+    then Just $ EFunction f
+    else Nothing
 
 
 data Expression
@@ -219,3 +241,41 @@ instance HasInfoSpan Expression where
     TwoInfo _let (infoSpanEnd $ getInfoSpan expression)
   getInfoSpan Annotation {expression, _type} =
     getInfoSpan expression <> getInfoSpan _type
+
+
+locateInfoSpan :: InfoSpan -> Expression -> Maybe Expression
+locateInfoSpan s e@EInt {info} =
+  if infoSpanStart s == info || infoSpanEnd s == info then Just e else Nothing
+locateInfoSpan s e@EBool {info} =
+  if infoSpanStart s == info || infoSpanEnd s == info then Just e else Nothing
+locateInfoSpan s e@Variable {info} =
+  if infoSpanStart s == info || infoSpanEnd s == info then Just e else Nothing
+locateInfoSpan s e@Parens {lparen, expression} =
+  if infoSpanStart s == lparen
+    then Just e
+    else locateInfoSpan s expression
+locateInfoSpan s (EFunction f) = locateFunctionSpan s f
+locateInfoSpan s e@Application {applicationFunction, applicationRemain} =
+  if getInfoSpan e == s
+    then Just e
+    else
+      if getInfoSpan applicationFunction == s
+        then Just applicationFunction
+        else case mapMaybe (locateInfoSpan s) (NonEmpty.toList applicationRemain) of
+          x : _ -> Just x
+          _ -> Nothing
+locateInfoSpan s e@If {_if, condition, ifTrue, ifFalse} =
+  if getInfoSpan e == s
+    then Just e
+    else
+      locateInfoSpan s condition
+        <|> locateInfoSpan s ifTrue
+        <|> locateInfoSpan s ifFalse
+locateInfoSpan s e@Let {expression} =
+  if getInfoSpan e == s
+    then Just e
+    else locateInfoSpan s expression
+locateInfoSpan s e@Annotation {expression} =
+  if getInfoSpan e == s
+    then Just e
+    else locateInfoSpan s expression

@@ -134,6 +134,7 @@ library
     Octizys.Pretty.Expression
     Octizys.Pretty.TopItem
     Octizys.Pretty.Type
+    Octizys.Report
 
   -- Modules included in this library but not exported.
   -- other-modules:

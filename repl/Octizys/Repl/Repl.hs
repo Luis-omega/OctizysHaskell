@@ -15,6 +15,7 @@ import Control.Arrow ((<<<))
 import Effectful (Eff, runEff, (:>))
 import Effectful.Error.Static
   ( Error
+  , runErrorNoCallStack
   , runErrorNoCallStackWith
   )
 
@@ -31,6 +32,7 @@ import Effectful.State.Static.Local (State, get, gets, put, runState)
 import Octizys.Ast.Evaluation (EvaluationError)
 import qualified Octizys.Ast.Expression as Ast
 import qualified Octizys.Cst.Expression as Cst
+import qualified Octizys.Cst.Type as Cst
 import Octizys.Effects.Console.Effect
   ( Console
   , putText
@@ -75,9 +77,17 @@ import Text.Show.Pretty (ppShow)
 import Cli (ReplOptions (logLevel, showCst, showInference))
 import Control.Monad (forM_, when)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Octizys.Ast.Evaluation as Evaluation
 import Octizys.Ast.Expression (buildDefinitionsMap)
 import Octizys.Cst.Expression (ExpressionVariableId)
+import Octizys.Cst.InfoId (InfoSpan)
+import Octizys.Report
+  ( LongDescription (LongDescription', afterDescription, preDescription, source)
+  , Report (Report', descriptions, reportKind, shortDescription)
+  , ReportKind (ReportError)
+  , prettyReport
+  )
 import qualified Prettyprinter as Pretty
 
 
@@ -168,7 +178,6 @@ rep
   :: ( Console :> es
      , SymbolResolution :> es
      , State Inference.InferenceState :> es
-     , Error Inference.InferenceError :> es
      , Error EvaluationError :> es
      , State DefinedSymbols :> es
      , Logger :> es
@@ -209,19 +218,27 @@ rep opts = do
                   docExp <- prettyCstExpression expression
                   putLine $ render id docExp
               )
-            ast <- Inference.solveExpressionType expression
-            updateSymbolState
-            when
-              opts.showInference
-              ( do
-                  docFinal <- prettyExpression ast
-                  putLine $ render id docFinal
-              )
-            context <- updateDefinedSymbols ast
-            result <- Evaluation.evaluateExpression context ast
-            docResult <- prettyExpression result
-            putLine $ render id docResult
-            continue
+            maybeAst <- runErrorNoCallStack (Inference.solveExpressionType expression)
+            case maybeAst of
+              Left e ->
+                reportInferenceError
+                  line
+                  (Left expression)
+                  e
+                  >> continue
+              Right ast -> do
+                updateSymbolState
+                when
+                  opts.showInference
+                  ( do
+                      docFinal <- prettyExpression ast
+                      putLine $ render id docFinal
+                  )
+                context <- updateDefinedSymbols ast
+                result <- Evaluation.evaluateExpression context ast
+                docResult <- prettyExpression result
+                putLine $ render id docResult
+                continue
         Define d -> do
           when
             opts.showCst
@@ -230,16 +247,19 @@ rep opts = do
                 putLine $ render id docExp
             )
           updateInferenceState
-          ast <- Inference.solveDefinitionType d
-          updateSymbolState
-          when
-            opts.showInference
-            ( do
-                docAst <- prettyDefinition ast
-                putLine $ render id docAst
-            )
-          _ <- addDefinedSymbol ast
-          continue
+          maybeAst <- runErrorNoCallStack $ Inference.solveDefinitionType d
+          case maybeAst of
+            Left e -> reportInferenceError line (Right d) e >> continue
+            Right ast -> do
+              updateSymbolState
+              when
+                opts.showInference
+                ( do
+                    docAst <- prettyDefinition ast
+                    putLine $ render id docAst
+                )
+              _ <- addDefinedSymbol ast
+              continue
   where
     updateInferenceState
       :: SymbolResolution :> es
@@ -302,6 +322,226 @@ rep opts = do
       let newMap = Map.insert d.name d.definition addedSymbol
       put $ DefinedSymbols' newMap
       pure newMap
+
+
+report
+  :: Console :> es
+  => Report ann
+  -> Eff es ()
+report r =
+  putLine $ render prettyReport r
+
+
+prettyLocate
+  :: InfoSpan
+  -> Cst.Expression
+  -> Cst.Expression
+prettyLocate info cst =
+  case Cst.locateInfoSpan info cst of
+    Just errorExpression -> errorExpression
+    _ -> cst
+
+
+buildInferenceErrorReport
+  :: forall es ann
+   . SymbolResolution :> es
+  => Text
+  -> Either Cst.Expression Cst.Definition
+  -> Inference.InferenceError
+  -> Eff es (Report ann)
+buildInferenceErrorReport src cst err = do
+  (short, long) <-
+    case err of
+      Inference.FunctionWithoutParams e -> do
+        errorSource <- prettyCstExpression e
+        pure
+          ( "Found a function without parameters, this is a bug, please report it!"
+          ,
+            [ LongDescription'
+                { preDescription = Nothing
+                , source =
+                    Just errorSource
+                , afterDescription = Just "All function must have at least one argument."
+                }
+            ]
+          )
+      Inference.UnboundExpressionVar vid ->
+        pure
+          ( "Unknow variable found, this is a bug, please report it!"
+          ,
+            [ LongDescription'
+                { preDescription =
+                    Just
+                      ( pack
+                          ("Unknow variable: " <> show vid)
+                      )
+                , source =
+                    Just $
+                      either
+                        (Cst.prettyExpression pretty pretty)
+                        (Cst.prettyDefinition pretty pretty)
+                        cst
+                , afterDescription =
+                    Just
+                      "At this point in the compilation, all the expression variables are know."
+                }
+            ]
+          )
+      Inference.CantUnify c -> do
+        srs <- SRS.getSymbolResolutionState
+        let prettyVar var =
+              case Map.lookup var srs.expVarTable of
+                Just x -> pretty @Text x.name
+                Nothing -> pretty var
+            locationCstDoc =
+              case cst of
+                Left cstE -> Cst.prettyExpression prettyVar pretty $
+                  case Cst.locateInfoSpan c.info cstE of
+                    Just errorCst -> errorCst
+                    _ -> cstE
+                Right def -> Cst.prettyDefinition prettyVar pretty def
+        pure $
+          Inference.buildConstraintUnifyReportDescriptions
+            locationCstDoc
+            c
+      Inference.ExpressionContainsFreeVariablesAfterSolving
+        ast
+        localCst
+        freeVars
+        subst ->
+          pure
+            ( "InferenceError> Can't infer the type for expression."
+            ,
+              [ LongDescription'
+                  { preDescription = Just "The original code:"
+                  , source =
+                      Just $
+                        Cst.prettyExpression pretty pretty localCst
+                  , afterDescription = Nothing
+                  }
+              , LongDescription'
+                  { preDescription = Just "Produces the annotated tree:"
+                  , source =
+                      Just $
+                        pretty ast
+                  , afterDescription = Nothing
+                  }
+              , LongDescription'
+                  { preDescription = Just "The unsolved variables are: "
+                  , source = Just (prettySet freeVars)
+                  , afterDescription = Nothing
+                  }
+              , LongDescription'
+                  { preDescription = Just "The relevant constraints are:"
+                  , source =
+                      Just
+                        ( let
+                            unsolveds = Inference.findUnsolvedSubstitutions freeVars subst
+                           in
+                            Pretty.list (pretty <$> unsolveds)
+                        )
+                  , afterDescription = Nothing
+                  }
+              ]
+            )
+          where
+            prettySet s =
+              Pretty.list (pretty <$> Set.toList s)
+      Inference.DefinitionContainsFreeVariablesAfterSolving
+        ast
+        cstDef
+        freeVars
+        subst ->
+          pure
+            ( "InferenceError> Can't infer the type for expression."
+            ,
+              [ LongDescription'
+                  { preDescription = Just "The original code:"
+                  , source =
+                      Just $
+                        Cst.prettyDefinition pretty pretty cstDef
+                  , afterDescription = Nothing
+                  }
+              , LongDescription'
+                  { preDescription = Just "Produces the annotated tree:"
+                  , source =
+                      Just $
+                        pretty ast
+                  , afterDescription = Nothing
+                  }
+              , LongDescription'
+                  { preDescription = Just "The unsolved variables are: "
+                  , source = Just (prettySet freeVars)
+                  , afterDescription = Nothing
+                  }
+              , LongDescription'
+                  { preDescription = Just "The relevant constraints are:"
+                  , source =
+                      Just
+                        ( let
+                            unsolveds = Inference.findUnsolvedSubstitutions freeVars subst
+                           in
+                            Pretty.list (pretty <$> unsolveds)
+                        )
+                  , afterDescription = Nothing
+                  }
+              ]
+            )
+          where
+            prettySet s =
+              Pretty.list (pretty <$> Set.toList s)
+      Inference.RecursiveSubstitution _ info vid newType -> do
+        srs <- SRS.getSymbolResolutionState
+        let prettyVar var =
+              case Map.lookup var srs.expVarTable of
+                Just x -> pretty @Text x.name
+                Nothing -> pretty var
+        pure
+          ( "TypeError> Recursive types are forbidden."
+          ,
+            [ LongDescription'
+                { preDescription =
+                    Just
+                      ( pack
+                          ("The variable _t" <> show (Cst.unTypeVariableId vid) <> " is recursive:")
+                      )
+                , source = Just (pretty vid <> pretty '~' <> pretty newType)
+                , afterDescription = Nothing
+                }
+            , LongDescription'
+                { preDescription =
+                    Just
+                      ( pack
+                          "In the expression:"
+                      )
+                , source =
+                    Just $
+                      either
+                        (Cst.prettyExpression prettyVar pretty <<< prettyLocate info)
+                        (Cst.prettyDefinition prettyVar pretty)
+                        cst
+                , afterDescription = Nothing
+                }
+            ]
+          )
+  pure $
+    Report'
+      { reportKind = ReportError
+      , shortDescription = short
+      , descriptions = long
+      }
+
+
+reportInferenceError
+  :: SymbolResolution :> es
+  => Console :> es
+  => Text
+  -> Either Cst.Expression Cst.Definition
+  -> Inference.InferenceError
+  -> Eff es ()
+reportInferenceError src cst err =
+  buildInferenceErrorReport src cst err
+    >>= report
 
 
 reportErrorWith
@@ -369,7 +609,6 @@ repl opts =
       status <-
         ( reportErrorShow @SymbolResolutionError
             <<< reportErrorPretty @EvaluationError
-            <<< reportErrorPretty @Inference.InferenceError
             <<< runSymbolResolution
           )
           (rep opts)

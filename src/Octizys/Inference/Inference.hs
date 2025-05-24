@@ -41,6 +41,9 @@ import Octizys.Effects.SymbolResolution.Interpreter
   ( SourceExpressionVariableInfo (typeId)
   )
 import Octizys.Pretty.Expression (prettyExpression)
+import Octizys.Report
+  ( LongDescription (LongDescription', afterDescription, preDescription, source)
+  )
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 import Prelude hiding (lookup)
@@ -51,65 +54,19 @@ data InferenceError
     FunctionWithoutParams CstE.Expression
   | -- This is a bug in the translation process
     UnboundExpressionVar ExpressionVariableId
-  | -- This is a bug in the translation process or
-    -- in the inference
-    UnboundTypeVar TypeVariableId
   | CantUnify Constraint
-  | ContainsFreeVariablesAfterSolving
+  | ExpressionContainsFreeVariablesAfterSolving
       AstE.Expression
+      CstE.Expression
       (Set.Set TypeVariableId)
-      [Constraint]
+      [Substitution]
+  | DefinitionContainsFreeVariablesAfterSolving
+      AstE.Definition
+      CstE.Definition
+      (Set.Set TypeVariableId)
+      [Substitution]
   | RecursiveSubstitution ConstraintReason InfoSpan TypeVariableId AstT.Type
   deriving (Show)
-
-
-instance Pretty InferenceError where
-  pretty (FunctionWithoutParams e) =
-    pretty @Text
-      "A function without parameters was found, this is a bug, please report it to octizys team"
-      <> prettyExpression pretty pretty e
-  pretty (UnboundExpressionVar e) =
-    pretty @Text
-      "Unknow expression variable found, this is a bug ,please report it!"
-      <> pretty e
-  pretty (UnboundTypeVar e) =
-    pretty @Text "Unknow type variable found, this is a bug ,please report it!"
-      <> pretty e
-  pretty (CantUnify c) =
-    pretty @Text "Can't unify types"
-      <> Pretty.nest
-        2
-        ( Pretty.line
-            <> pretty @Text "First type:"
-            <> pretty c.constraintType1
-            <> Pretty.line
-            <> pretty @Text "Second type:"
-            <> pretty c.constraintType2
-            <> Pretty.line
-            <> pretty @Text "Reason:"
-            <> pretty (show c.reason)
-        )
-  pretty (ContainsFreeVariablesAfterSolving e free constraints) =
-    pretty @Text "Couldn't solve the type variables: "
-      <+> Pretty.nest 2 (prettySet free)
-      <> Pretty.nest 2 (Pretty.line <> pretty e)
-      <> Pretty.nest
-        2
-        ( Pretty.line
-            <> Pretty.list (prettyConstraintWithReason <$> constraints)
-        )
-    where
-      prettySet s =
-        Pretty.list (pretty <$> Set.toList s)
-  pretty (RecursiveSubstitution rsn info tid ty) =
-    pretty @Text "Found recursive type definition of"
-      <+> pretty tid
-      <+> pretty @Text "for the type"
-      <+> pretty ty
-      <> Pretty.line
-      <> "If compiler tries to solve this we would loop forever."
-      <> Pretty.line
-      <> pretty (show rsn)
 
 
 data ConstraintReason
@@ -135,6 +92,145 @@ data ConstraintReason
     -- it previously.
     IsKnowType
   deriving (Show, Eq, Ord)
+
+
+buildConstraintUnifyReportDescriptions
+  :: Doc ann
+  -> Constraint
+  -> (Text, [LongDescription ann])
+buildConstraintUnifyReportDescriptions locationCstDoc c =
+  let
+    start =
+      LongDescription'
+        { preDescription = Just "Attempted to unify:"
+        , source =
+            Just
+              ( pretty @Text "  "
+                  <> pretty c.constraintType1
+                  <> Pretty.line
+                  <> pretty @Text "with:"
+                  <> Pretty.nest
+                    2
+                    ( Pretty.line <> pretty c.constraintType2
+                    )
+              )
+        , afterDescription = Nothing
+        }
+
+    long =
+      case c.reason of
+        IfConditionShouldBeBool ->
+          [ start
+          , LongDescription'
+              { preDescription = Just "While trying to check the type of an 'if' condition:"
+              , source = Just locationCstDoc
+              , afterDescription =
+                  Just "A condition in a if expression must be of type Bool."
+              }
+          ]
+        IfCasesShouldMatch ->
+          [ start
+          , LongDescription'
+              { preDescription =
+                  Just
+                    "While trying to check that both branches of an 'if' expression have the same type:"
+              , source = Just locationCstDoc
+              , afterDescription =
+                  Just
+                    "The type of an 'if' expression must match the types of both alternative branches."
+              }
+          ]
+        -- TODO: we can try to  get the offending left side!
+        ApplicationShouldBeOnArrows ->
+          [ start
+          , LongDescription'
+              { preDescription =
+                  Just
+                    "While trying to check a function application:"
+              , source = Just locationCstDoc
+              , afterDescription =
+                  Just
+                    "The expression being applied must have a function type."
+              }
+          ]
+        -- TODO: we can try to get the right side!
+        ArgumentShouldBeOfDomainType ->
+          [ start
+          , LongDescription'
+              { preDescription =
+                  Just
+                    "While trying to check a function argument:"
+              , source = Just locationCstDoc
+              , afterDescription =
+                  Just
+                    "To apply a function to an expression the argument must have the correct type."
+              }
+          ]
+        TypeAnnotation ->
+          [ start
+          , LongDescription'
+              { preDescription =
+                  Just
+                    "While trying to check that the expression has the given type:"
+              , source = Just locationCstDoc
+              , afterDescription = Nothing
+              }
+          ]
+        ParameterTypeAnnotation ->
+          [ start
+          , LongDescription'
+              { preDescription =
+                  Just
+                    "While trying to check the type of the parameter:"
+              , source = Just locationCstDoc
+              , afterDescription =
+                  Just
+                    "A type annotation was provided for the parameter, but it conflicts with the type inferred from the function body."
+              }
+          ]
+        DefinitionVariableAndBodyShouldBeEqual ->
+          [ start
+          , LongDescription'
+              { preDescription =
+                  Just
+                    "While trying to check that the variable and the value have the same type:"
+              , source = Just locationCstDoc
+              , afterDescription =
+                  Just
+                    "A definition of a variable without arguments must have the same type as the value assigned to it."
+              }
+          ]
+        DefinitionTypeAnnotation ->
+          [ start
+          , LongDescription'
+              { preDescription =
+                  Just
+                    "While trying to check that the variable and the body have the same type:"
+              , source = Just locationCstDoc
+              , afterDescription =
+                  Just
+                    "The given value has a different type than the one specified in the variable's type signature."
+              }
+          ]
+        DefinitionTypeAnnotationWithArgs ->
+          [ start
+          , LongDescription'
+              { preDescription =
+                  Just
+                    "While trying to check that the variable and the body have the same type:"
+              , source = Just locationCstDoc
+              , afterDescription =
+                  Just
+                    "The given value has a different type than the one specified in the variable's type signature."
+              }
+          ]
+        IsKnowType ->
+          -- TODO: what can I put here?
+          [start]
+   in
+    ( "TypeError>Can't unify types."
+    , long
+    )
 
 
 data Constraint = EqConstraint
@@ -804,6 +900,37 @@ instance Pretty Substitution where
       <+> pretty value
 
 
+findUnsolvedSubstitutions
+  :: Set.Set TypeVariableId
+  -> [Substitution]
+  -> [Substitution]
+findUnsolvedSubstitutions initial substitutions = go initial Set.empty []
+  where
+    go
+      :: Set.Set TypeVariableId
+      -> Set.Set TypeVariableId
+      -> [Substitution]
+      -> [Substitution]
+    go current seen acc
+      | Set.null (Set.difference current seen) = acc
+      | otherwise =
+          let newSeen = Set.union seen current
+              (related, _) = partitionSubstitutions current substitutions
+              newVars = Set.unions (map (AstT.freeVariables . value) related)
+              newCurrent = Set.union newVars newSeen
+           in go newCurrent newSeen (acc ++ related)
+
+    partitionSubstitutions
+      :: Set.Set TypeVariableId -> [Substitution] -> ([Substitution], [Substitution])
+    partitionSubstitutions vars = foldr step ([], [])
+      where
+        step s (yes, no)
+          | variableId s `Set.member` vars
+              || not (Set.null (Set.intersection (AstT.freeVariables (value s)) vars)) =
+              (s : yes, no)
+          | otherwise = (yes, s : no)
+
+
 findSubstitutions
   :: Error InferenceError :> es
   => [Constraint]
@@ -1033,7 +1160,13 @@ solveExpressionType expression = do
   let free = freeTypeVars final
   unless
     (Set.null free)
-    (throwError $ ContainsFreeVariablesAfterSolving final free out.constraints)
+    ( throwError $
+        ExpressionContainsFreeVariablesAfterSolving
+          final
+          expression
+          free
+          subst
+    )
   pure final
 
 
@@ -1051,6 +1184,6 @@ solveDefinitionType cstDef = do
   unless
     (Set.null free)
     ( throwError $
-        ContainsFreeVariablesAfterSolving final.definition free constraints
+        DefinitionContainsFreeVariablesAfterSolving final cstDef free subst
     )
   pure final
