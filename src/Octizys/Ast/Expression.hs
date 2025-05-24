@@ -1,13 +1,12 @@
 module Octizys.Ast.Expression where
 
 import Control.Arrow ((<<<))
-import Data.Foldable (Foldable (fold), foldl')
+import Data.Foldable (foldl')
 import Data.List.NonEmpty (NonEmpty, toList)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Set (Set, difference, fromList)
+import Data.Set (Set, difference)
 import Data.Text (Text)
-import Debug.Trace (trace)
 import Effectful.Dispatch.Dynamic (HasCallStack)
 import Octizys.Ast.Type (Type, freeVariables)
 import Octizys.Cst.Expression (ExpressionVariableId)
@@ -45,6 +44,22 @@ prettyDefinition prettyVar Definition' {name, definition, inferType} =
     <+> prettyExpression prettyVar definition
 
 
+prettyDefinitionWithDic
+  :: forall a ann
+   . Map ExpressionVariableId a
+  -> (a -> Doc ann)
+  -> Definition
+  -> Doc ann
+prettyDefinitionWithDic mp toDoc = prettyDefinition go
+  where
+    go :: (ExpressionVariableId -> Doc ann)
+    go eid =
+      maybe
+        (pretty @Text "NoFound[" <> pretty eid <> pretty ']')
+        toDoc
+        (Map.lookup eid mp)
+
+
 data Expression
   = EInt {intValue :: Text, inferType :: Type}
   | EBool {boolValue :: Bool, inferType :: Type}
@@ -77,6 +92,34 @@ data Expression
       , inferType :: Type
       }
   deriving (Show, Eq, Ord)
+
+
+buildDefinitionsMap :: Expression -> Map ExpressionVariableId Expression
+buildDefinitionsMap EInt {} = mempty
+buildDefinitionsMap EBool {} = mempty
+buildDefinitionsMap Variable {} = mempty
+buildDefinitionsMap Function {body} = buildDefinitionsMap body
+buildDefinitionsMap Application {applicationFunction, applicationArgument} =
+  Map.union
+    (buildDefinitionsMap applicationFunction)
+    (buildDefinitionsMap applicationArgument)
+buildDefinitionsMap If {condition, ifTrue, ifFalse} =
+  Map.union
+    (buildDefinitionsMap condition)
+    ( Map.union
+        (buildDefinitionsMap ifTrue)
+        (buildDefinitionsMap ifFalse)
+    )
+buildDefinitionsMap Let {definitions, expression} =
+  Map.union
+    (buildDefinitionsMap expression)
+    (foldMap buildFromDefinition definitions)
+  where
+    buildFromDefinition :: Definition -> Map ExpressionVariableId Expression
+    buildFromDefinition Definition' {name, definition} =
+      Map.union (Map.singleton name definition) (buildDefinitionsMap definition)
+buildDefinitionsMap Annotation {expression} =
+  buildDefinitionsMap expression
 
 
 freeTypeVars :: Expression -> Set TypeVariableId

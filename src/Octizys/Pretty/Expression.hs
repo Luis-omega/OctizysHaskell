@@ -356,3 +356,20 @@ prettyExpressionWithDic mp toDoc = prettyExpression go pretty
         (pretty @Text "NoFound[" <> pretty eid <> pretty ']')
         toDoc
         (Map.lookup eid mp)
+
+
+prettyDefinitionWithDic
+  :: forall a ann
+   . Map ExpressionVariableId a
+  -> (a -> Doc ann)
+  -> Definition
+  -> Doc ann
+-- TODO: provide a dic for type variables.
+prettyDefinitionWithDic mp toDoc = prettyDefinition go pretty
+  where
+    go :: (ExpressionVariableId -> Doc ann)
+    go eid =
+      maybe
+        (pretty @Text "NoFound[" <> pretty eid <> pretty ']')
+        toDoc
+        (Map.lookup eid mp)

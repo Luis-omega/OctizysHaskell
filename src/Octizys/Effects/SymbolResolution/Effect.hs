@@ -64,6 +64,7 @@ data SymbolResolutionState = SymbolResolutionState'
     expNamesToId :: HistoryMap Text ExpressionVariableId
   , typeNamesToId :: HistoryMap Text TypeVariableId
   }
+  deriving (Show)
 
 
 data SymbolResolution :: Effect where

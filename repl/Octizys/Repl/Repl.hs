@@ -21,14 +21,14 @@ import Effectful.Error.Static
 -- import Octizys.Evaluation (EvaluationError)
 
 import qualified Octizys.Effects.SymbolResolution.Effect as SRS
-import Octizys.Inference.Inference (definitionCstToAst)
 import qualified Octizys.Inference.Inference as Inference
 
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Map (Map)
 import Data.Text (Text, pack)
 import Effectful.State.Static.Local (State, get, gets, put, runState)
-import Octizys.Ast.Evaluation (EvaluationError, EvaluationState)
+import Octizys.Ast.Evaluation (EvaluationError)
 import qualified Octizys.Ast.Expression as Ast
 import qualified Octizys.Cst.Expression as Cst
 import Octizys.Effects.Console.Effect
@@ -40,9 +40,8 @@ import Octizys.Effects.Console.Interpreter
   ( putLine
   , runConsole
   )
-import Octizys.Effects.Logger.ConsoleInterpreter (runLog)
+import Octizys.Effects.Logger.ConsoleInterpreter (debug, runLog)
 import Octizys.Effects.Logger.Effect (Logger)
-import qualified Octizys.Effects.Logger.Effect as Logger
 import Octizys.Effects.Parser.Backend
   ( ParserError
   , prettyParserError
@@ -73,12 +72,29 @@ import Prettyprinter
 import qualified Prettyprinter.Render.Text
 import Text.Show.Pretty (ppShow)
 
-import Cli (ReplOptions (showCst, showInference), logLevel)
-import Control.Monad (when)
+import Cli (ReplOptions (logLevel, showCst, showInference))
+import Control.Monad (forM_, when)
+import qualified Data.Map as Map
 import qualified Octizys.Ast.Evaluation as Evaluation
+import Octizys.Ast.Expression (buildDefinitionsMap)
+import Octizys.Cst.Expression (ExpressionVariableId)
+import qualified Prettyprinter as Pretty
 
 
 data ReplStatus = Continue | Exit
+
+
+newtype DefinedSymbols = DefinedSymbols'
+  { definedSymbols :: Map ExpressionVariableId Ast.Expression
+  }
+  deriving
+    ( Show
+    , Eq
+    , Ord
+    , Semigroup
+    , Monoid
+    )
+    via (Map ExpressionVariableId Ast.Expression)
 
 
 continue :: Eff es ReplStatus
@@ -122,13 +138,39 @@ prettyCstExpression e = do
       e
 
 
+prettyCstDefinition
+  :: SymbolResolution :> es
+  => Cst.Definition
+  -> Eff es (Doc ann)
+prettyCstDefinition ast = do
+  srs <- SRS.getSymbolResolutionState
+  pure $
+    Cst.prettyDefinitionWithDic
+      srs.expVarTable
+      (\x -> pretty @Text x.name)
+      ast
+
+
+prettyDefinition
+  :: SymbolResolution :> es
+  => Ast.Definition
+  -> Eff es (Doc ann)
+prettyDefinition ast = do
+  srs <- SRS.getSymbolResolutionState
+  pure $
+    Ast.prettyDefinitionWithDic
+      srs.expVarTable
+      (\x -> pretty @Text x.name)
+      ast
+
+
 rep
   :: ( Console :> es
      , SymbolResolution :> es
      , State Inference.InferenceState :> es
      , Error Inference.InferenceError :> es
      , Error EvaluationError :> es
-     , State EvaluationState :> es
+     , State DefinedSymbols :> es
      , Logger :> es
      )
   => ReplOptions
@@ -136,6 +178,8 @@ rep
 rep opts = do
   line <- putText "repl>" >> readLine
   maybeAction <- runFullParser line replParser
+  -- s12 <- SRS.getSymbolResolutionState
+  -- putLine $ pack $ ppShow s12.expNamesToId
   case maybeAction of
     Left e -> do
       putLine $
@@ -153,39 +197,48 @@ rep opts = do
           putLine "Bye!"
             >> exit
         Command (LoadFile f) -> do
-          putLine $ "Unsupporte load of file: " <> f
+          putLine $ "Unsupported load of file: " <> f
           continue
         Evaluate expression ->
           do
-            docExp <- prettyCstExpression expression
+            -- putLine $ render (Cst.prettyExpression pretty pretty) expression
             updateInferenceState
-            when opts.showCst (putLine $ render id docExp)
-            final <- Inference.solveExpressionType expression
+            when
+              opts.showCst
+              ( do
+                  docExp <- prettyCstExpression expression
+                  putLine $ render id docExp
+              )
+            ast <- Inference.solveExpressionType expression
             updateSymbolState
-            -- FIXME
-            -- updateEvaluationState
             when
               opts.showInference
               ( do
-                  docFinal <- prettyExpression final
+                  docFinal <- prettyExpression ast
                   putLine $ render id docFinal
               )
-            -- ist <- gets Inference.expVarTable
-            -- putLine $ pack $ ppShow (Map.toList ist)
-            -- TODO: solve this
-            -- (value, new_context) <- evaluateExpression context expression
-            -- putLine (show value)
-            -- continue new_context
+            context <- updateDefinedSymbols ast
+            result <- Evaluation.evaluateExpression context ast
+            docResult <- prettyExpression result
+            putLine $ render id docResult
             continue
-        -- TODO: Type check/inference
         Define d -> do
-          putLine $ render (Cst.prettyDefinition pretty pretty) d
+          when
+            opts.showCst
+            ( do
+                docExp <- prettyCstDefinition d
+                putLine $ render id docExp
+            )
           updateInferenceState
-          ast <- definitionCstToAst d
+          ast <- Inference.solveDefinitionType d
           updateSymbolState
-          -- FIXME
-          -- updateEvaluationState
-          when opts.showCst (putLine $ pack $ show ast)
+          when
+            opts.showInference
+            ( do
+                docAst <- prettyDefinition ast
+                putLine $ render id docAst
+            )
+          _ <- addDefinedSymbol ast
           continue
   where
     updateInferenceState
@@ -219,17 +272,36 @@ rep opts = do
               currentInference.constraintMap.nextTypeVar
                 + 1
           }
-    updateEvaluationState
-      :: State EvaluationState :> es
+    updateDefinedSymbols
+      :: State DefinedSymbols :> es
+      => Ast.Expression
+      -> Eff es (Map ExpressionVariableId Ast.Expression)
+    updateDefinedSymbols expr = do
+      mp <- gets definedSymbols
+      let exprSymbols = buildDefinitionsMap expr
+          newMap = Map.union mp exprSymbols
+      put $ DefinedSymbols' newMap
+      pure newMap
+
+    addDefinedSymbol
+      :: State DefinedSymbols :> es
       => State Inference.InferenceState :> es
-      => Eff es ()
-    updateEvaluationState = do
-      currentInference <- gets @Inference.InferenceState Inference.expVarTable
-      currentEvaluationState <- get @EvaluationState
-      put
-        currentEvaluationState
-          { Evaluation.varToExp = undefined currentInference
-          }
+      => Logger :> es
+      => Ast.Definition
+      -> Eff es (Map ExpressionVariableId Ast.Expression)
+    addDefinedSymbol d = do
+      mp <- updateDefinedSymbols d.definition
+      let addedSymbol = Map.insert d.name d.definition mp
+      debug $
+        pretty @Text "adding: " <> Pretty.list (pretty <$> Map.toList addedSymbol)
+      forM_
+        (Map.toList addedSymbol)
+        ( \(nam, ex) ->
+            Inference.insertKnowType nam (Ast.getType ex)
+        )
+      let newMap = Map.insert d.name d.definition addedSymbol
+      put $ DefinedSymbols' newMap
+      pure newMap
 
 
 reportErrorWith
@@ -287,7 +359,7 @@ repl
   -> Eff es ()
 repl opts =
   ( void
-      <<< runState Evaluation.initialEvaluationState
+      <<< runState @DefinedSymbols mempty
       <<< runState Inference.initialInferenceState
       <<< runState initialSymbolResolutionState
   )
@@ -313,4 +385,3 @@ runRepl options =
       <<< runLog options.logLevel
   )
     (repl options)
-

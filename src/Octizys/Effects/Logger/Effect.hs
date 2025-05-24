@@ -23,10 +23,10 @@ data LogLevel = Error | Debug | Info | Trace
 instance Ord LogLevel where
   _ <= Error = True
   Error <= _ = False
-  _ <= Debug = True
-  Debug <= _ = False
   _ <= Info = True
   Info <= _ = False
+  _ <= Debug = True
+  Debug <= _ = False
   Trace <= _ = True
 
 
@@ -45,7 +45,7 @@ errorLog
   :: Logger :> es
   => Doc ann
   -> Eff es ()
-errorLog = logMessage Debug
+errorLog = logMessage Error
 
 
 debug
@@ -59,11 +59,11 @@ info
   :: Logger :> es
   => Doc ann
   -> Eff es ()
-info = logMessage Debug
+info = logMessage Info
 
 
 traceLog
   :: Logger :> es
   => Doc ann
   -> Eff es ()
-traceLog = logMessage Debug
+traceLog = logMessage Trace

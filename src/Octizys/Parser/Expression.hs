@@ -351,7 +351,6 @@ definitionParser
   => Eff es Definition
 definitionParser = do
   (nam, inf, span) <- identifierParser
-  ei <- definitionOfExpressionVariable nam span
   maybeColonInfo <- optional Common.colon
   (maybeParams, maybeOutput) <- case maybeColonInfo of
     Nothing -> pure (Nothing, Nothing)
@@ -362,6 +361,10 @@ definitionParser = do
         optional typeAtomNoVar
       pure (maybeParams, maybeOut)
   eq <- Common.equal
+  -- We need to be sure that we are in a definition before
+  -- we register the variable, since we say a '=' we know
+  -- that this is a definition and can register it.
+  ei <- definitionOfExpressionVariable nam span
   definition <- expressionParser
   case maybeParams of
     Nothing -> pure ()

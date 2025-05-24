@@ -12,14 +12,12 @@ import Octizys.Effects.Logger.Effect (LogLevel (Debug, Error, Info))
 import Options.Applicative
 
 
--- | Tipo que representa los subcomandos
 data Command
   = ReplCmd ReplOptions
   | CompileCmd CompileOptions
   deriving (Show)
 
 
--- | Opciones específicas del REPL (puedes extenderlo luego)
 data ReplOptions = ReplOptions
   { logLevel :: LogLevel
   , showCst :: Bool
@@ -28,7 +26,6 @@ data ReplOptions = ReplOptions
   deriving (Show)
 
 
--- | Opciones específicas del compilador (puedes extenderlo luego)
 data CompileOptions = CompileOptions
   { files :: NonEmpty FilePath
   , logLevel :: LogLevel
@@ -61,39 +58,36 @@ readLogLevel s = case map toLower s of
     toLower = Char.toLower
 
 
--- Parser general para argumentos de línea de comandos
 parseArguments :: Parser Command
 parseArguments =
   hsubparser
-      ( command
-          "repl"
-          (info (ReplCmd <$> parseReplOptions) (progDesc "Run the REPL"))
+    ( command
+        "repl"
+        (info (ReplCmd <$> parseReplOptions) (progDesc "Run the REPL"))
         <> metavar "repl"
         <> help "Execute the Octizys REPL."
+    )
+    <|> hsubparser
+      ( command
+          "compile"
+          (info (CompileCmd <$> parseCompileOptions) (progDesc "Compile source code"))
+          <> metavar "compile"
+          <> help "Execute the Otizys compiler over the given paths."
       )
-      <|> hsubparser
-        ( command
-            "compile"
-            (info (CompileCmd <$> parseCompileOptions) (progDesc "Compile source code"))
-        <> metavar "compile"
-        <> help "Execute the Otizys compiler over the given paths."
-        )
 
 
--- Parser para opciones de REPL
 parseReplOptions :: Parser ReplOptions
 parseReplOptions =
   ReplOptions
     <$> parseLogLevel
     <*> switch (long "showCst" <> help "Displays the Cst after parsing.")
     <*> switch
-      ( long "showInferenceAST"
+      ( long "showAst"
           <> help
             "Display the AST after inference is done and the generated constraints."
       )
 
 
--- Parser para opciones de compilación
 parseCompileOptions :: Parser CompileOptions
 parseCompileOptions =
   CompileOptions
@@ -105,4 +99,3 @@ parseCompileOptions =
               )
         )
     <*> parseLogLevel
-

@@ -16,4 +16,3 @@ main = do
   case command of
     ReplCmd opts -> runRepl opts
     CompileCmd _ -> compile
-

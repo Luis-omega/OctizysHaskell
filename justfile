@@ -2,7 +2,7 @@ run:
   just repl
 
 repl:
-  rlwrap cabal run octizys -- repl --logLevel=error --showCst --showInference
+  rlwrap cabal run octizys -- repl --logLevel=info --showCst --showAst
 
 compile *paths:
   cabal run octizys -- compile --logLevel=debug {{paths}}
