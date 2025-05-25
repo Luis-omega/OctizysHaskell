@@ -104,7 +104,6 @@ import Octizys.Report
   ( LongDescription (LongDescription', afterDescription, preDescription, source)
   , Report (Report', descriptions, reportKind, shortDescription)
   , ReportKind (ReportError)
-  , prettyReport
   )
 import qualified Prettyprinter as Pretty
 
@@ -326,10 +325,11 @@ rep opts = do
 
 report
   :: Console :> es
-  => Report ann
+  => FormatContext ann
+  -> Report ann
   -> Eff es ()
-report r =
-  putLine $ render prettyReport r
+report ctx r =
+  putLine $ render (format ctx) r
 
 
 buildInferenceErrorReport
@@ -473,7 +473,7 @@ reportInferenceError
   -> Eff es ()
 reportInferenceError ctx cst err =
   let re = buildInferenceErrorReport ctx cst err
-   in report re
+   in report ctx re
 
 
 reportErrorWith
@@ -548,3 +548,4 @@ runRepl options =
       <<< runLog options.logLevel
   )
     (repl options)
+
