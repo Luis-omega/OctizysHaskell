@@ -20,4 +20,3 @@ main = do
   case command of
     ReplCmd opts -> runRepl opts
     CompileCmd (CompileOptions {logLevel = _logLevel, files = _files}) -> compile _files _logLevel
-

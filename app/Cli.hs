@@ -9,6 +9,7 @@ import qualified Data.Char as Char
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Octizys.Effects.Logger.Effect (LogLevel (Debug, Error, Info))
+import Octizys.Pretty.FormatContext (Configuration, makeConfiguration)
 import Options.Applicative
 
 
@@ -22,6 +23,7 @@ data ReplOptions = ReplOptions
   { logLevel :: LogLevel
   , showCst :: Bool
   , showInference :: Bool
+  , formatterConfig :: Configuration
   }
   deriving (Show)
 
@@ -76,6 +78,25 @@ parseArguments =
       )
 
 
+parseFormatterConfiguration :: Parser Configuration
+parseFormatterConfiguration =
+  makeConfiguration
+    <$> switch
+      ( long "showAstTypeVars" <> help "Displays all the type variables in the ast."
+      )
+    <*> option
+      auto
+      ( long "indentation"
+          <> help "The indentation used (in spaces) by the formatter."
+          <> value 2
+      )
+    <*> switch
+      ( long "showConstraintsReasons"
+          <> help
+            "Constraint shows a little description at it's side."
+      )
+
+
 parseReplOptions :: Parser ReplOptions
 parseReplOptions =
   ReplOptions
@@ -86,6 +107,7 @@ parseReplOptions =
           <> help
             "Display the AST after inference is done and the generated constraints."
       )
+    <*> parseFormatterConfiguration
 
 
 parseCompileOptions :: Parser CompileOptions

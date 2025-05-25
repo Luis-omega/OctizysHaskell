@@ -10,10 +10,6 @@ or source position for evaluation.
 -}
 module Octizys.Cst.InfoId
   ( InfoId (InfoId', unInfoId)
-  , InfoSpan (OneInfo, TwoInfo)
-  , HasInfoSpan (getInfoSpan)
-  , infoSpanStart
-  , infoSpanEnd
   ) where
 
 import Control.Arrow ((<<<))
@@ -30,27 +26,3 @@ newtype InfoId = InfoId' {unInfoId :: Int}
 
 instance Pretty InfoId where
   pretty = pretty <<< unInfoId
-
-
-data InfoSpan
-  = OneInfo InfoId
-  | TwoInfo InfoId InfoId
-  deriving (Show, Eq, Ord)
-
-
-class HasInfoSpan a where
-  getInfoSpan :: a -> InfoSpan
-
-
-infoSpanStart :: InfoSpan -> InfoId
-infoSpanStart (OneInfo s) = s
-infoSpanStart (TwoInfo s _) = s
-
-
-infoSpanEnd :: InfoSpan -> InfoId
-infoSpanEnd (OneInfo s) = s
-infoSpanEnd (TwoInfo _ s) = s
-
-
-instance Semigroup InfoSpan where
-  s1 <> s2 = TwoInfo (infoSpanStart s1) (infoSpanStart s2)

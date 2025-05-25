@@ -1,18 +1,18 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Octizys.Ast.Expression where
 
-import Control.Arrow ((<<<))
 import Data.Foldable (foldl')
-import Data.List.NonEmpty (NonEmpty, toList)
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Set (Set, difference)
+import Data.Set (difference)
 import Data.Text (Text)
 import Effectful.Dispatch.Dynamic (HasCallStack)
-import Octizys.Ast.Type (Type, freeVariables)
+import Octizys.Ast.Type (Type)
+import Octizys.Classes.FreeVariables (FreeTypeVariables (freeTyVars))
+import Octizys.Classes.From (From (from))
 import Octizys.Cst.Expression (ExpressionVariableId)
-import Octizys.Cst.Type (TypeVariableId)
-import Prettyprinter (Doc, Pretty (pretty), (<+>))
-import qualified Prettyprinter as Pretty
 
 
 data Definition = Definition'
@@ -23,52 +23,38 @@ data Definition = Definition'
   deriving (Show, Eq, Ord)
 
 
-definitionFreeTypeVars :: Definition -> Set TypeVariableId
-definitionFreeTypeVars d =
-  freeTypeVars d.definition <> freeVariables d.inferType
+instance FreeTypeVariables Definition where
+  freeTyVars d =
+    freeTyVars d.definition <> freeTyVars d.inferType
 
 
-instance Pretty Definition where
-  pretty = prettyDefinition pretty
-
-
-prettyDefinition
-  :: (ExpressionVariableId -> Doc ann)
-  -> Definition
-  -> Doc ann
-prettyDefinition prettyVar Definition' {name, definition, inferType} =
-  prettyVar name
-    <+> ":"
-    <+> pretty inferType
-    <+> "="
-    <+> prettyExpression prettyVar definition
-
-
-prettyDefinitionWithDic
-  :: forall a ann
-   . Map ExpressionVariableId a
-  -> (a -> Doc ann)
-  -> Definition
-  -> Doc ann
-prettyDefinitionWithDic mp toDoc = prettyDefinition go
-  where
-    go :: (ExpressionVariableId -> Doc ann)
-    go eid =
-      maybe
-        (pretty @Text "NoFound[" <> pretty eid <> pretty ']')
-        toDoc
-        (Map.lookup eid mp)
-
-
-data Expression
-  = EInt {intValue :: Text, inferType :: Type}
-  | EBool {boolValue :: Bool, inferType :: Type}
-  | Variable {name :: ExpressionVariableId, inferType :: Type}
+data Value
+  = VInt {intValue :: Text, inferType :: Type}
+  | VBool {boolValue :: Bool, inferType :: Type}
   | Function
       { parameters :: NonEmpty (ExpressionVariableId, Type)
       , body :: Expression
       , inferType :: Type
       }
+  deriving (Show, Eq, Ord)
+
+
+getValueType :: Value -> Type
+getValueType v = v.inferType
+
+
+instance FreeTypeVariables Value where
+  freeTyVars (VInt {inferType}) = freeTyVars inferType
+  freeTyVars (VBool {inferType}) = freeTyVars inferType
+  freeTyVars (Function {inferType, body, parameters}) =
+    difference
+      (freeTyVars inferType <> freeTyVars body)
+      (foldl' (\a (_, y) -> a <> freeTyVars y) mempty parameters)
+
+
+data Expression
+  = Variable {name :: ExpressionVariableId, inferType :: Type}
+  | EValue {value :: Value, inferType :: Type}
   | Application
       { applicationFunction :: Expression
       , applicationArgument :: Expression
@@ -94,11 +80,19 @@ data Expression
   deriving (Show, Eq, Ord)
 
 
+instance From Expression Value where
+  from v = EValue {value = v, inferType = getValueType v}
+
+
+buildValueDefinitionsMap :: Value -> Map ExpressionVariableId Expression
+buildValueDefinitionsMap VInt {} = mempty
+buildValueDefinitionsMap VBool {} = mempty
+buildValueDefinitionsMap Function {body} = buildDefinitionsMap body
+
+
 buildDefinitionsMap :: Expression -> Map ExpressionVariableId Expression
-buildDefinitionsMap EInt {} = mempty
-buildDefinitionsMap EBool {} = mempty
 buildDefinitionsMap Variable {} = mempty
-buildDefinitionsMap Function {body} = buildDefinitionsMap body
+buildDefinitionsMap EValue {value} = buildValueDefinitionsMap value
 buildDefinitionsMap Application {applicationFunction, applicationArgument} =
   Map.union
     (buildDefinitionsMap applicationFunction)
@@ -122,206 +116,24 @@ buildDefinitionsMap Annotation {expression} =
   buildDefinitionsMap expression
 
 
-freeTypeVars :: Expression -> Set TypeVariableId
-freeTypeVars (EInt {inferType}) = freeVariables inferType
-freeTypeVars (EBool {inferType}) = freeVariables inferType
-freeTypeVars (Variable {inferType}) = freeVariables inferType
-freeTypeVars (Function {inferType, body, parameters}) =
-  difference
-    (freeVariables inferType <> freeTypeVars body)
-    (foldl' (\a (_, y) -> a <> freeVariables y) mempty parameters)
-freeTypeVars (Application {inferType, applicationFunction, applicationArgument}) =
-  freeVariables inferType
-    <> freeTypeVars applicationFunction
-    <> freeTypeVars applicationArgument
-freeTypeVars (If {inferType, condition, ifTrue, ifFalse}) =
-  freeVariables inferType
-    <> freeTypeVars ifTrue
-    <> freeTypeVars ifFalse
-    <> freeTypeVars condition
-freeTypeVars (Let {inferType, definitions, expression}) =
-  freeVariables inferType
-    <> freeTypeVars expression
-    <> foldMap definitionFreeTypeVars definitions
-freeTypeVars Annotation {expression, _type, inferType} =
-  freeTypeVars expression <> freeVariables _type <> freeVariables inferType
-
-
-pText :: Text -> Doc ann
-pText = pretty @Text
-
-
-prettyParameterFunction
-  :: (ExpressionVariableId -> Doc ann)
-  -> (ExpressionVariableId, Type)
-  -> Doc ann
-prettyParameterFunction prettyVar (expr, t) =
-  Pretty.parens (prettyVar expr <+> ":" <+> pretty t)
-
-
-prettyParametersFunction
-  :: (ExpressionVariableId -> Doc ann)
-  -> NonEmpty (ExpressionVariableId, Type)
-  -> Doc ann
-prettyParametersFunction prettyVar ps =
-  (Pretty.vsep <<< toList)
-    ( ( Pretty.group
-          <<< prettyParameterFunction prettyVar
-      )
-        <$> ps
-    )
-
-
-needsParentsInApplication :: Expression -> Bool
-needsParentsInApplication e =
-  case e of
-    EInt {} -> False
-    EBool {} -> False
-    Variable {} -> False
-    Function {} -> True
-    Application {} -> True
-    If {} -> True
-    Let {} -> True
-    Annotation {} -> True
-
-
-instance Pretty Expression where
-  pretty = prettyExpression pretty
-
-
-prettyExpressionWithDic
-  :: forall a ann
-   . Map ExpressionVariableId a
-  -> (a -> Doc ann)
-  -> Expression
-  -> Doc ann
-prettyExpressionWithDic mp toDoc = prettyExpression go
-  where
-    go :: (ExpressionVariableId -> Doc ann)
-    go eid =
-      maybe
-        (pretty @Text "NoFound[" <> pretty eid <> pretty ']')
-        toDoc
-        (Map.lookup eid mp)
-
-
-prettyExpression
-  :: (ExpressionVariableId -> Doc ann) -> Expression -> Doc ann
-prettyExpression _ EInt {intValue} = pretty @Text intValue
-prettyExpression _ EBool {boolValue} = pretty boolValue
-prettyExpression prettyVar Variable {name, inferType} =
-  Pretty.parens (prettyVar name <+> ":" <+> pretty inferType)
-prettyExpression prettyVar Function {parameters, body, inferType} =
-  Pretty.parens
-    ( Pretty.parens
-        ( Pretty.vsep
-            [ pText "\\"
-                <> Pretty.nest
-                  2
-                  ( Pretty.line
-                      <> prettyParametersFunction
-                        prettyVar
-                        parameters
-                  )
-            , pText "->"
-                <> ( Pretty.group
-                      <<< Pretty.nest 2
-                   )
-                  ( Pretty.line
-                      <> prettyExpression prettyVar body
-                  )
-            ]
-        )
-        <+> ":"
-        <+> pretty inferType
-    )
-prettyExpression prettyVar Application {applicationFunction, applicationArgument, inferType} =
-  Pretty.parens
-    ( Pretty.parens
-        ( (Pretty.group <<< Pretty.nest 2)
-            ( Pretty.line'
-                <> prettyArg applicationFunction
-                <> prettyArg applicationArgument
-            )
-        )
-        <+> ":"
-        <+> pretty inferType
-    )
-  where
-    prettyArg expr =
-      if needsParentsInApplication expr
-        then
-          Pretty.parens
-            ( prettyExpression
-                prettyVar
-                expr
-            )
-        else prettyExpression prettyVar expr
-prettyExpression prettyVar If {condition, ifTrue, ifFalse, inferType} =
-  Pretty.parens
-    ( Pretty.parens
-        ( (Pretty.group <<< Pretty.vsep)
-            [ pText "if"
-                <> Pretty.nest
-                  2
-                  ( Pretty.line
-                      <> prettyExpression prettyVar condition
-                  )
-            , pText "then"
-                <> Pretty.nest
-                  2
-                  ( Pretty.line
-                      <> prettyExpression prettyVar ifTrue
-                  )
-            , pText "else"
-                <> Pretty.nest
-                  2
-                  ( Pretty.line
-                      <> prettyExpression prettyVar ifFalse
-                  )
-            ]
-        )
-        <+> ":"
-        <+> pretty inferType
-    )
-prettyExpression prettyVar Let {definitions, expression, inferType} =
-  Pretty.parens
-    ( Pretty.parens
-        ( (Pretty.group <<< Pretty.vsep)
-            [ pText "let"
-                <> Pretty.nest
-                  2
-                  ( Pretty.line
-                      <> (Pretty.vsep <<< toList)
-                        ( ( (<> pText ";")
-                              <<< prettyDefinition prettyVar
-                          )
-                            <$> definitions
-                        )
-                  )
-            , pText
-                "in"
-                <> Pretty.nest
-                  2
-                  ( Pretty.line
-                      <> prettyExpression prettyVar expression
-                  )
-            ]
-        )
-        <+> ":"
-        <+> pretty inferType
-    )
-prettyExpression prettyVar Annotation {expression, inferType} =
-  (Pretty.parens <<< Pretty.group)
-    ( prettyExpression prettyVar expression
-        <> Pretty.line
-        <> Pretty.nest
-          2
-          ( pText ":"
-              <> Pretty.line
-              <> pretty inferType
-          )
-    )
+instance FreeTypeVariables Expression where
+  freeTyVars (EValue {inferType}) = freeTyVars inferType
+  freeTyVars (Variable {inferType}) = freeTyVars inferType
+  freeTyVars (Application {inferType, applicationFunction, applicationArgument}) =
+    freeTyVars inferType
+      <> freeTyVars applicationFunction
+      <> freeTyVars applicationArgument
+  freeTyVars (If {inferType, condition, ifTrue, ifFalse}) =
+    freeTyVars inferType
+      <> freeTyVars ifTrue
+      <> freeTyVars ifFalse
+      <> freeTyVars condition
+  freeTyVars (Let {inferType, definitions, expression}) =
+    freeTyVars inferType
+      <> freeTyVars expression
+      <> foldMap freeTyVars definitions
+  freeTyVars Annotation {expression, _type, inferType} =
+    freeTyVars expression <> freeTyVars _type <> freeTyVars inferType
 
 
 getType :: HasCallStack => Expression -> Type

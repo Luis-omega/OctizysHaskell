@@ -103,11 +103,15 @@ library
   exposed-modules:
     Octizys.Ast.Evaluation
     Octizys.Ast.Expression
+    Octizys.Ast.Node
     Octizys.Ast.Type
+    Octizys.Classes.FreeVariables
+    Octizys.Classes.From
     Octizys.Cst.Comment
     Octizys.Cst.Expression
     Octizys.Cst.Fixpoint
     Octizys.Cst.InfoId
+    Octizys.Cst.Node
     Octizys.Cst.Span
     Octizys.Cst.TopItem
     Octizys.Cst.Type
@@ -125,15 +129,21 @@ library
     Octizys.Effects.SymbolResolution.Effect
     Octizys.Effects.SymbolResolution.Interpreter
     Octizys.HistoryMap
-    Octizys.Inference.Inference
+    Octizys.Inference.ConstraintsGeneration
+    Octizys.Inference.ConstraintsSolver
+    Octizys.Inference.Errors
     Octizys.Parser.Common
     Octizys.Parser.Expression
     Octizys.Parser.TopItem
     Octizys.Parser.Type
-    Octizys.Pretty.Comment
-    Octizys.Pretty.Expression
-    Octizys.Pretty.TopItem
-    Octizys.Pretty.Type
+    Octizys.Pretty.Ast.Expression
+    Octizys.Pretty.Ast.Type
+    Octizys.Pretty.Cst.Comment
+    Octizys.Pretty.Cst.Expression
+    Octizys.Pretty.Cst.TopItem
+    Octizys.Pretty.Cst.Type
+    Octizys.Pretty.FormatContext
+    Octizys.Pretty.Formatter
     Octizys.Report
 
   -- Modules included in this library but not exported.

@@ -16,18 +16,12 @@ module Octizys.Cst.Type
     )
   ) where
 
-import Data.List.NonEmpty (NonEmpty, last)
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.Text (Text)
+import Data.List.NonEmpty (NonEmpty)
 import Octizys.Cst.InfoId
-  ( HasInfoSpan (getInfoSpan)
-  , InfoId
-  , InfoSpan (OneInfo, TwoInfo)
-  , infoSpanStart
+  ( InfoId
   )
 import Octizys.Cst.VariableId (VariableId)
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
-import Prettyprinter (Pretty (pretty))
 
 
 -- | A wrapper around VariableId to represent type variables.
@@ -41,16 +35,9 @@ newtype TypeVariableId = TypeVariableId' {unTypeVariableId :: VariableId}
   deriving (Show)
 
 
-instance Pretty TypeVariableId where
-  pretty (TypeVariableId' i) = pretty @Text "_t" <> pretty i
-
-
-{- | `Type` has multiple design choices inside it.
-
-  * To store source information in a separate place, so
+{- | Stores source information in a separate place, so
     we can mutate or do other things on it without
     modifying the tree.
-  * To be used as part of "Parsing Concrete Tree", "Inference Tree", "Export tree"
 -}
 data Type
   = -- | The boolean type hardcoded. Right now we don't have sum types or
@@ -74,12 +61,3 @@ data Type
     -- identifier. You can think of it as a pointer in symbol table.
     Variable {info :: InfoId, variableId :: TypeVariableId}
   deriving (Show, Eq, Ord)
-
-
-instance HasInfoSpan Type where
-  getInfoSpan BoolType {info} = OneInfo info
-  getInfoSpan IntType {info} = OneInfo info
-  getInfoSpan Arrow {start, remain} =
-    getInfoSpan start <> getInfoSpan (snd (NonEmpty.last remain))
-  getInfoSpan Parens {lparen, rparen} = TwoInfo lparen rparen
-  getInfoSpan Variable {info} = OneInfo info

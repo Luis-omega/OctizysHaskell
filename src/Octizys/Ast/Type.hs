@@ -1,21 +1,21 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Octizys.Ast.Type where
 
-import Control.Arrow ((<<<))
 import Data.Foldable (foldl')
-import Data.List.NonEmpty (NonEmpty, cons)
-import Data.Set (Set, singleton)
-import Data.Text (Text)
+import Data.List.NonEmpty (NonEmpty)
+import Data.Set (singleton)
+import Octizys.Classes.FreeVariables (FreeTypeVariables (freeTyVars))
+import Octizys.Classes.From (From (from))
 import Octizys.Cst.Type (TypeVariableId)
-import Prettyprinter (Pretty (pretty))
-import qualified Prettyprinter as Pretty
+
+
+data TypeValue = BoolType | IntType
+  deriving (Show, Eq, Ord)
 
 
 data Type
-  = -- | The boolean type hardcoded. Right now we don't have sum types or
-    --  support for user defined types.
-    BoolType
-  | -- | The int type hacoded. See `BoolType`
-    IntType
+  = VType {value :: TypeValue}
   | -- | Represent a function type.
     -- It can have multiple items, and it must have at least one.
     Arrow
@@ -28,40 +28,19 @@ data Type
   deriving (Show, Eq, Ord)
 
 
-freeVariables :: Type -> Set TypeVariableId
-freeVariables (Arrow {start, remain}) =
-  foldl'
-    (<>)
-    (freeVariables start)
-    (freeVariables <$> remain)
-freeVariables (Variable d) = singleton d
-freeVariables _ = mempty
+instance From Type TypeValue where
+  from = VType
 
 
-needsParentsInArrow :: Type -> Bool
-needsParentsInArrow t =
-  case t of
-    IntType {} -> False
-    BoolType {} -> False
-    Arrow {} -> True
-    Variable {} -> False
+instance From Type TypeVariableId where
+  from = Variable
 
 
-instance Pretty Type where
-  pretty BoolType = "Bool"
-  pretty IntType = "Int"
-  pretty Arrow {start, remain} =
-    (Pretty.group <<< Pretty.nest 2)
-      ( Pretty.line'
-          <> Pretty.concatWith
-            (\l r -> l <> Pretty.line <> pretty @Text "->" <> r)
-            ( prettyArg
-                <$> cons start remain
-            )
-      )
-    where
-      prettyArg ty =
-        if needsParentsInArrow ty
-          then Pretty.parens (pretty ty)
-          else pretty ty
-  pretty Variable {variableId = v} = pretty v
+instance FreeTypeVariables Type where
+  freeTyVars (Arrow {start, remain}) =
+    foldl'
+      (<>)
+      (freeTyVars start)
+      (freeTyVars <$> remain)
+  freeTyVars (Variable d) = singleton d
+  freeTyVars _ = mempty

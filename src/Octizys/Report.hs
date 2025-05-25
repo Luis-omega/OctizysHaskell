@@ -50,6 +50,7 @@ data Report ann = Report'
   }
 
 
+-- TODO: change this to new formatter
 prettyReport :: forall ann. Report ann -> Doc ann
 prettyReport r =
   pretty r.reportKind
@@ -63,4 +64,3 @@ prettyReport r =
             Pretty.line
               <> Pretty.vsep (prettyLongDescription <$> r.descriptions)
       )
-

@@ -1,9 +1,7 @@
-module Octizys.Pretty.Expression where
+module Octizys.Pretty.Cst.Expression where
 
 import Control.Arrow ((<<<))
 import Data.List.NonEmpty (NonEmpty (..), toList)
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Text (Text)
 import Octizys.Cst.Expression
   ( Definition (Definition', definition, name, outputType, parameters)
@@ -30,7 +28,6 @@ import Octizys.Cst.Expression
     , name
     , _type
     )
-  , ExpressionVariableId
   , Function (Function', body, parameters)
   , FunctionParameter
     ( FunctionParameterAlone
@@ -40,8 +37,12 @@ import Octizys.Cst.Expression
   , Parameter (ParameterAlone, ParameterWithType, name, _type)
   , Parameters (Parameters', unParameters)
   )
-import Octizys.Cst.Type (TypeVariableId)
-import Octizys.Pretty.Type (prettyType)
+import qualified Octizys.Pretty.Cst.Type as Type
+import Octizys.Pretty.FormatContext
+  ( FormatContext
+  , formatExpressionVar
+  , nest
+  )
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 
@@ -50,41 +51,36 @@ pText :: Text -> Doc ann
 pText = pretty @Text
 
 
-prettyParameter
-  :: (ExpressionVariableId -> Doc ann)
-  -> (TypeVariableId -> Doc ann)
+formatParameter
+  :: FormatContext ann
   -> Parameter
   -> Doc ann
-prettyParameter
-  prettyVar
-  _
-  (ParameterAlone {name = (_, v)}) = prettyVar v
-prettyParameter
-  prettyVar
-  prettyTypeVar
+formatParameter
+  ctx
+  (ParameterAlone {name = (_, v)}) = formatExpressionVar ctx v
+formatParameter
+  ctx
   (ParameterWithType {name = (_, v), _type = t}) =
-    prettyVar v
+    formatExpressionVar ctx v
       <+> pText ":"
-      <> Pretty.nest
-        2
+      <> nest
+        ctx
         ( Pretty.line
-            <> prettyType prettyTypeVar t
+            <> Type.format ctx t
         )
 
 
-prettyParameters
-  :: (ExpressionVariableId -> Doc ann)
-  -> (TypeVariableId -> Doc ann)
+formatParameters
+  :: FormatContext ann
   -> Parameters
   -> Doc ann
-prettyParameters prettyVar prettyTypeVar (Parameters' {unParameters}) =
+formatParameters ctx (Parameters' {unParameters}) =
   case unParameters of
     (start :| remain) ->
-      (Pretty.nest 2 <<< Pretty.vsep)
+      (nest ctx <<< Pretty.vsep)
         ( Pretty.group
-            ( prettyParameter
-                prettyVar
-                prettyTypeVar
+            ( formatParameter
+                ctx
                 (fst start)
             )
             : ( prettyArg
@@ -94,36 +90,32 @@ prettyParameters prettyVar prettyTypeVar (Parameters' {unParameters}) =
       where
         prettyArg (p, _) =
           pText ","
-            <> Pretty.nest
-              2
+            <> nest
+              ctx
               ( Pretty.line
-                  <> prettyParameter
-                    prettyVar
-                    prettyTypeVar
+                  <> formatParameter
+                    ctx
                     p
               )
 
 
-prettyDefinition
-  :: (ExpressionVariableId -> Doc ann)
-  -> (TypeVariableId -> Doc ann)
+formatDefinition
+  :: FormatContext ann
   -> Definition
   -> Doc ann
-prettyDefinition
-  prettyVar
-  prettyTypeVar
+formatDefinition
+  ctx
   (Definition' {name = (_, v), parameters, definition, outputType}) =
-    let n = prettyVar v
+    let n = formatExpressionVar ctx v
         pars =
           case parameters of
             Just ps ->
               pText ""
                 <+> pretty ':'
-                <> (Pretty.nest 2 <<< Pretty.group)
+                <> (nest ctx <<< Pretty.group)
                   ( Pretty.line
-                      <> prettyParameters
-                        prettyVar
-                        prettyTypeVar
+                      <> formatParameters
+                        ctx
                         ps
                   )
             Nothing -> mempty
@@ -134,91 +126,83 @@ prettyDefinition
                 Nothing ->
                   Pretty.group
                     ( pretty ':'
-                        <> (Pretty.line <> prettyType prettyTypeVar t)
+                        <> (Pretty.line <> Type.format ctx t)
                     )
                 Just _ ->
                   Pretty.group
                     ( pretty ','
                         <> Pretty.line
-                        <> prettyType prettyTypeVar t
+                        <> Type.format ctx t
                     )
             Nothing -> mempty
         def =
           ( Pretty.line
-              <> prettyExpression prettyVar prettyTypeVar definition
+              <> formatExpression ctx definition
           )
      in n
           <> pars
           <> outType
-          <> (Pretty.group <<< Pretty.nest 2)
+          <> (Pretty.group <<< nest ctx)
             ( Pretty.line
                 <> pText "="
                 <> Pretty.group def
             )
 
 
-prettyParameterFunction
-  :: (ExpressionVariableId -> Doc ann)
-  -> (TypeVariableId -> Doc ann)
+formatParameterFunction
+  :: FormatContext ann
   -> FunctionParameter
   -> Doc ann
-prettyParameterFunction
-  prettyVar
-  prettyTypeVar
+formatParameterFunction
+  ctx
   (FunctionParameterWithType {parameter = p}) =
     pText "("
       <> Pretty.nest
         2
         ( Pretty.line
-            <> prettyParameter prettyVar prettyTypeVar p
+            <> formatParameter ctx p
             <> Pretty.line
         )
       <> pText ")"
-prettyParameterFunction
-  prettyVar
-  prettyTypeVar
+formatParameterFunction
+  ctx
   (FunctionParameterAlone {parameter = p}) =
-    prettyParameter prettyVar prettyTypeVar p
+    formatParameter ctx p
 
 
 prettyParametersFunction
-  :: (ExpressionVariableId -> Doc ann)
-  -> (TypeVariableId -> Doc ann)
+  :: FormatContext ann
   -> NonEmpty FunctionParameter
   -> Doc ann
-prettyParametersFunction prettyVar prettyTypeVar ps =
+prettyParametersFunction ctx ps =
   (Pretty.vsep <<< toList)
     ( ( Pretty.group
-          <<< prettyParam
+          <<< formatParameterFunction ctx
       )
         <$> ps
     )
-  where
-    prettyParam = prettyParameterFunction prettyVar prettyTypeVar
 
 
-prettyFunction
-  :: (ExpressionVariableId -> Doc ann)
-  -> (TypeVariableId -> Doc ann)
+formatFunction
+  :: FormatContext ann
   -> Function
   -> Doc ann
-prettyFunction prettyVar prettyTypeVar (Function' {parameters, body}) =
+formatFunction ctx (Function' {parameters, body}) =
   Pretty.vsep
     [ pText "\\"
-        <> Pretty.nest
-          2
+        <> nest
+          ctx
           ( Pretty.line
               <> prettyParametersFunction
-                prettyVar
-                prettyTypeVar
+                ctx
                 parameters
           )
     , pText "->"
         <> ( Pretty.group
-              <<< Pretty.nest 2
+              <<< nest ctx
            )
           ( Pretty.line
-              <> prettyExpression prettyVar prettyTypeVar body
+              <> formatExpression ctx body
           )
     ]
 
@@ -237,38 +221,35 @@ needsParentsInApplication e =
     Annotation {} -> True
 
 
-prettyExpression
-  :: (ExpressionVariableId -> Doc ann)
-  -> (TypeVariableId -> Doc ann)
+formatExpression
+  :: FormatContext ann
   -> Expression
   -> Doc ann
-prettyExpression prettyVar prettyTypeVar e =
+formatExpression ctx e =
   case e of
     EInt {intValue} -> pretty intValue
     EBool {boolValue} ->
       pText $ if boolValue then "True" else "False"
-    Variable {name} -> prettyVar name
+    Variable {name} -> formatExpressionVar ctx name
     Parens {expression} ->
       Pretty.parens $
-        prettyExpression
-          prettyVar
-          prettyTypeVar
+        formatExpression
+          ctx
           expression
     EFunction {functionValue} ->
-      prettyFunction
-        prettyVar
-        prettyTypeVar
+      formatFunction
+        ctx
         functionValue
     Application
       { applicationFunction =
         _function
       , applicationRemain = _arguments
       } ->
-        (Pretty.group <<< Pretty.nest 2)
+        (Pretty.group <<< nest ctx)
           ( Pretty.line'
               <> prettyArg _function
-              <> Pretty.nest
-                2
+              <> nest
+                ctx
                 ( Pretty.line
                     <> (Pretty.vsep <<< toList)
                       (prettyArg <$> _arguments)
@@ -279,31 +260,30 @@ prettyExpression prettyVar prettyTypeVar e =
             if needsParentsInApplication expr
               then
                 Pretty.parens
-                  ( prettyExpression
-                      prettyVar
-                      prettyTypeVar
+                  ( formatExpression
+                      ctx
                       expr
                   )
-              else prettyExpression prettyVar prettyTypeVar expr
+              else formatExpression ctx expr
     If {condition = _condition, ifTrue = __then, ifFalse = __else} ->
       (Pretty.group <<< Pretty.vsep)
         [ pText "if"
-            <> Pretty.nest
-              2
+            <> nest
+              ctx
               ( Pretty.line
-                  <> prettyExpression prettyVar prettyTypeVar _condition
+                  <> formatExpression ctx _condition
               )
         , pText "then"
-            <> Pretty.nest
-              2
+            <> nest
+              ctx
               ( Pretty.line
-                  <> prettyExpression prettyVar prettyTypeVar __then
+                  <> formatExpression ctx __then
               )
         , pText "else"
-            <> Pretty.nest
-              2
+            <> nest
+              ctx
               ( Pretty.line
-                  <> prettyExpression prettyVar prettyTypeVar __else
+                  <> formatExpression ctx __else
               )
         ]
     Let {definitions, expression = _in} ->
@@ -314,7 +294,7 @@ prettyExpression prettyVar prettyTypeVar e =
               ( Pretty.line
                   <> (Pretty.vsep <<< toList)
                     ( ( (<> pText ";")
-                          <<< prettyDefinition prettyVar prettyTypeVar
+                          <<< formatDefinition ctx
                           <<< fst
                       )
                         <$> definitions
@@ -325,51 +305,17 @@ prettyExpression prettyVar prettyTypeVar e =
             <> Pretty.nest
               2
               ( Pretty.line
-                  <> prettyExpression prettyVar prettyTypeVar _in
+                  <> formatExpression ctx _in
               )
         ]
     Annotation {expression = _expression, _type} ->
       (Pretty.parens <<< Pretty.group)
-        ( prettyExpression prettyVar prettyTypeVar _expression
+        ( formatExpression ctx _expression
             <> Pretty.line
-            <> Pretty.nest
-              2
+            <> nest
+              ctx
               ( pText ":"
                   <> Pretty.line
-                  <> prettyType prettyTypeVar _type
+                  <> Type.format ctx _type
               )
         )
-
-
-prettyExpressionWithDic
-  :: forall a ann
-   . Map ExpressionVariableId a
-  -> (a -> Doc ann)
-  -> Expression
-  -> Doc ann
--- TODO: provide a dic for type variables.
-prettyExpressionWithDic mp toDoc = prettyExpression go pretty
-  where
-    go :: (ExpressionVariableId -> Doc ann)
-    go eid =
-      maybe
-        (pretty @Text "NoFound[" <> pretty eid <> pretty ']')
-        toDoc
-        (Map.lookup eid mp)
-
-
-prettyDefinitionWithDic
-  :: forall a ann
-   . Map ExpressionVariableId a
-  -> (a -> Doc ann)
-  -> Definition
-  -> Doc ann
--- TODO: provide a dic for type variables.
-prettyDefinitionWithDic mp toDoc = prettyDefinition go pretty
-  where
-    go :: (ExpressionVariableId -> Doc ann)
-    go eid =
-      maybe
-        (pretty @Text "NoFound[" <> pretty eid <> pretty ']')
-        toDoc
-        (Map.lookup eid mp)

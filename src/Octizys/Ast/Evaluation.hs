@@ -1,19 +1,30 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Octizys.Ast.Evaluation where
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
-import Debug.Trace (trace)
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
 import Octizys.Ast.Expression
-import Octizys.Ast.Type (Type (Arrow, BoolType, remain, start))
+import Octizys.Ast.Type
+  ( Type (Arrow, VType, remain, start)
+  , TypeValue (BoolType)
+  )
+import Octizys.Classes.From (From (from))
 import Octizys.Cst.Expression (ExpressionVariableId)
-import Octizys.Effects.Logger.Effect (Logger, debug, errorLog, info)
+import Octizys.Effects.Logger.Effect (Logger, debug)
+import Octizys.Pretty.FormatContext
+  ( FormatContext
+  , defaultFormatContext
+  , formatExpressionVar
+  )
+import Octizys.Pretty.Formatter (Formatter, format)
 import Prettyprinter (Pretty (pretty))
 import qualified Prettyprinter as Pretty
-import Text.Show.Pretty (ppShow)
 
 
 data EvaluationError
@@ -24,16 +35,25 @@ data EvaluationError
   deriving (Show)
 
 
-instance Pretty EvaluationError where
-  pretty (UnknowExpressionVar e mp) =
+instance Formatter ann (FormatContext ann) EvaluationError where
+  format ctx (UnknowExpressionVar e mp) =
     pretty @Text "Unknown expression id : "
-      <> pretty e
+      <> formatExpressionVar ctx e
       <> ", this is a bug, please report it."
       <> Pretty.line
-      <> Pretty.list (pretty <$> Map.toList mp)
-  pretty (InvalidArgumentApplication e) =
+      <> Pretty.list
+        ( ( \(x, y) ->
+              Pretty.parens
+                ( formatExpressionVar ctx x
+                    <> pretty ','
+                    <> format ctx y
+                )
+          )
+            <$> Map.toList mp
+        )
+  format ctx (InvalidArgumentApplication e) =
     pretty @Text "Attempt to apply a non function: "
-      <> pretty e
+      <> format ctx e
 
 
 substituteInDef
@@ -43,6 +63,21 @@ substituteInDef
   -> Definition
 substituteInDef vId e def =
   def {definition = substitute vId e def.definition}
+
+
+substituteInValue
+  :: ExpressionVariableId
+  -> Expression
+  -> Value
+  -> Value
+substituteInValue vId e v =
+  case v of
+    VInt {} -> v
+    VBool {} -> v
+    -- As we have all variables as unique, this should
+    -- be fine, i gues...
+    -- TODO: TESTS THIS!
+    Function {body} -> v {body = substitute vId e body}
 
 
 {- | Substitution of a expression variable for a value
@@ -57,11 +92,8 @@ substitute
   -> Expression
 substitute vId replacementExp e =
   case e of
-    EInt {} -> e
-    EBool {} -> e
+    EValue {value} -> e {value = substituteInValue vId replacementExp value}
     Variable {name} -> if name == vId then replacementExp else e
-    Function {body} ->
-      e {body = substitute vId replacementExp body}
     Application {applicationFunction, applicationArgument} ->
       let newF = substitute vId replacementExp applicationFunction
           newArg = substitute vId replacementExp applicationArgument
@@ -95,15 +127,13 @@ evaluateExpression
   => Logger :> es
   => Map ExpressionVariableId Expression
   -> Expression
-  -> Eff es Expression
-evaluateExpression _ x@EInt {} = pure x
-evaluateExpression _ x@EBool {} = pure x
-evaluateExpression context e@Variable {name} =
+  -> Eff es Value
+evaluateExpression _ EValue {value} = pure value
+evaluateExpression context Variable {name} =
   case Map.lookup name context of
     Just value ->
       evaluateExpression context value
-    Nothing -> pure e
-evaluateExpression _ e@Function {} = pure e
+    Nothing -> throwError $ UnknowExpressionVar name context
 evaluateExpression
   context
   e@Application
@@ -111,9 +141,9 @@ evaluateExpression
     , applicationFunction
     } =
     do
-      evalLog "Evaluating f:" (prettyExpression pretty applicationFunction)
+      evalLog "Evaluating f:" (format defaultFormatContext applicationFunction)
       f <- evaluateExpression context applicationFunction
-      evalLog "Evaluating arg:" (prettyExpression pretty applicationArgument)
+      evalLog "Evaluating arg:" (format defaultFormatContext applicationArgument)
       arg <- evaluateExpression context applicationArgument
       case f of
         Function
@@ -123,16 +153,16 @@ evaluateExpression
           } -> do
             evalLog
               "Substituting variable: "
-              ( pretty param
+              ( formatExpressionVar defaultFormatContext param
                   <> " as "
-                  <> pretty arg
+                  <> format defaultFormatContext arg
                   <> pretty @Text " in "
-                  <> prettyExpression pretty body
+                  <> format defaultFormatContext body
               )
-            application <- evaluateExpression context (substitute param arg body)
+            application <- evaluateExpression context (substitute param (from arg) body)
             evalLog
               "Application of function got :"
-              (prettyExpression pretty application)
+              (format defaultFormatContext application)
             let
               newType = case remain of
                 lst :| [] -> lst
@@ -143,17 +173,21 @@ evaluateExpression
                 [] -> pure application
                 (x : rest) ->
                   pure
-                    Function {parameters = x :| rest, body = application, inferType = newType}
+                    Function
+                      { parameters = x :| rest
+                      , body = from application
+                      , inferType = newType
+                      }
         _ -> throwError $ InvalidArgumentApplication e
 evaluateExpression context If {condition, ifTrue, ifFalse} = do
   c <- evaluateExpression context condition
-  if c == EBool {boolValue = True, inferType = BoolType}
+  if c == VBool {boolValue = True, inferType = VType BoolType}
     then evaluateExpression context ifTrue
     else evaluateExpression context ifFalse
 evaluateExpression context Let {expression} = do
   evalLog
     "Evaluating let inner expression :"
-    (prettyExpression pretty expression)
+    (format defaultFormatContext expression)
   evaluateExpression
     context
     expression
