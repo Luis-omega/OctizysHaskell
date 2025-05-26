@@ -14,7 +14,7 @@ import Effectful.State.Static.Local (State)
 import Octizys.Effects.Parser.Backend
   ( ParserError
   , ParserState
-  , prettyParserError
+  , makeParseErrorReport
   )
 import Octizys.Effects.Parser.Combinators hiding (text)
 import qualified Octizys.Effects.Parser.Combinators as C
@@ -22,29 +22,32 @@ import Octizys.Effects.Parser.Effect
   ( Parser
   )
 import Octizys.Effects.Parser.Interpreter (runFullParser)
-import Prettyprinter (Pretty (pretty))
+import Octizys.Pretty.FormatContext (defaultFormatContext)
+import Octizys.Pretty.Formatter (Formatter (format))
 import qualified Prettyprinter
-import qualified Prettyprinter.Render.String
-import Test.Hspec
+import qualified Prettyprinter.Render.Text
+import Test.Tasty
+import Test.Tasty.HUnit
 
 
-render :: Text -> ParserError String -> String
+render :: Text -> ParserError Text -> Text
 render source =
-  Prettyprinter.Render.String.renderString
+  Prettyprinter.Render.Text.renderStrict
     <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
-    <<< prettyParserError pretty (Just ('t' :| "est")) source
+    <<< format @() defaultFormatContext
+    <<< makeParseErrorReport @() defaultFormatContext (Just ('t' :| "est")) source
 
 
 runParser
   :: Eff
-      ( Parser String
+      ( Parser Text
           : State ParserState
-          : Error (ParserError String)
+          : Error (ParserError Text)
           : '[]
       )
       a
   -> Text
-  -> Either String a
+  -> Either Text a
 runParser p t = runPureEff $ do
   res <- runFullParser t p
   pure $ Bifunctor.first (render t) res
@@ -52,99 +55,107 @@ runParser p t = runPureEff $ do
 
 text
   :: Text
-  -> Eff [Parser String, State ParserState, Error (ParserError String)] Text
-text = C.text @String
+  -> Eff [Parser Text, State ParserState, Error (ParserError Text)] Text
+text = C.text @Text
 
 
-tests :: SpecWith ()
-tests = do
-  describe "between" $ do
-    it "parses correctly surrounded by open and close" $ do
-      let open = text "("
-          close = text ")"
-          p = text "abc"
-      runParser (between @String open close p) "(abc)" `shouldBe` Right "abc"
+shouldSatisfy :: a -> (a -> Bool) -> Assertion
+shouldSatisfy value predicate =
+  predicate value @? ""
 
-    it "fails if the open parser doesn't match" $ do
-      let open = text "["
-          close = text "]"
-          p = text "abc"
-      runParser (between @String open close p) "(abc)" `shouldSatisfy` isLeft
 
-    it "fails if the close parser doesn't match" $ do
-      let open = text "("
-          close = text "]"
-          p = text "abc"
-      runParser (between @String open close p) "(abc)" `shouldSatisfy` isLeft
-
-  describe "item" $ do
-    it "parses a single character" $ do
-      runParser (item @String) "a" `shouldBe` Right 'a'
-
-    it "fails when the input is empty" $ do
-      runParser (item @String) "" `shouldSatisfy` isLeft
-
-  describe "satisfy" $ do
-    it "parses a character that satisfies the predicate" $ do
-      let p c = c == 'a'
-      runParser (satisfy @String Nothing p) "a" `shouldBe` Right 'a'
-
-    it "fails when the character doesn't satisfy the predicate" $ do
-      let p c = c == 'a'
-      runParser (satisfy @String Nothing p) "b" `shouldSatisfy` isLeft
-
-  describe "lookupNext" $ do
-    it "returns the next item" $ do
-      runParser (lookupNext @String) "abc" `shouldBe` Right (Just 'a')
-
-    it "success if input is empty" $ do
-      runParser (lookupNext @String) "" `shouldBe` Right Nothing
-
-  describe "takeWhileP" $ do
-    it "parses characters while the predicate is true" $ do
-      let p c = c == 'a'
-      runParser (takeWhileP @String p) "aaa" `shouldBe` Right "aaa"
-
-    it "stops when the predicate is false" $ do
-      let p c = c == 'a'
-      runParser (takeWhileP @String p) "aab" `shouldBe` Right "aa"
-
-    it "fails if no characters satisfy the predicate" $ do
-      let p c = c == 'a'
-      runParser (takeWhileP @String p) "b" `shouldBe` Right ""
-
-  describe "takeWhile1P" $ do
-    it "parses at least one character while the predicate is true" $ do
-      let p c = c == 'a'
-      runParser (takeWhile1P @String (Just "a") p) "aaa" `shouldBe` Right "aaa"
-
-    it "fails if no characters satisfy the predicate" $ do
-      let p c = c == 'a'
-      runParser (takeWhile1P @String Nothing p) "b" `shouldSatisfy` isLeft
-
-    it "fails if input is empty" $ do
-      let p c = c == 'a'
-      runParser (takeWhile1P @String Nothing p) "" `shouldSatisfy` isLeft
-
-  describe "try" $ do
-    it "backtracks correctly on failure" $ do
-      let p = alternative @String (try @String (text "abc")) (text "abdef")
-      runParser p "abdef" `shouldBe` Right "abdef"
-
-    it "fails if neither parser succeeds" $ do
-      let p = alternative @String (try @String (text "abc")) (text "def")
-      runParser p "xyz" `shouldSatisfy` isLeft
-
-  describe "alternative" $ do
-    it "parses the first parser" $ do
-      let p = alternative @String (char @String 'a') (char @String 'b')
-      runParser p "a" `shouldBe` Right 'a'
-
-    it "parses the second parser if the first fails" $ do
-      let p = alternative @String (char @String 'a') (char @String 'b')
-      runParser p "b" `shouldBe` Right 'b'
-
-    it "fails if both parsers fail" $ do
-      let p =
-            alternative @String (char @String 'a') (char @String 'b')
-      runParser p "c" `shouldSatisfy` isLeft
+tests :: TestTree
+tests =
+  testGroup
+    "hi"
+    [ testGroup
+        "between"
+        [ testCase "parses correctly surrounded by open and close" $ do
+            let open = text "("
+                close = text ")"
+                p = text "abc"
+            runParser (between @Text open close p) "(abc)" @?= Right "abc"
+        , testCase "fails if the open parser doesn't match" $ do
+            let open = text "["
+                close = text "]"
+                p = text "abc"
+            runParser (between @Text open close p) "(abc)" `shouldSatisfy` isLeft
+        , testCase "fails if the close parser doesn't match" $ do
+            let open = text "("
+                close = text "]"
+                p = text "abc"
+            runParser (between @Text open close p) "(abc)" `shouldSatisfy` isLeft
+        ]
+    , testGroup
+        "item"
+        [ testCase "parses a single character" $ do
+            runParser (item @Text) "a" @?= Right 'a'
+        , testCase "fails when the input is empty" $ do
+            runParser (item @Text) "" `shouldSatisfy` isLeft
+        ]
+    , testGroup
+        "satisfy"
+        [ testCase "parses a character that satisfies the predicate" $
+            let p c = c == 'a'
+             in runParser (satisfy @Text Nothing p) "a"
+                  @?= Right
+                    'a'
+        , testCase
+            "fails when the character doesn't satisfy the predicate"
+            $ let p c = c == 'a'
+               in runParser (satisfy @Text Nothing p) "b" `shouldSatisfy` isLeft
+        ]
+    , testGroup
+        "lookupNext"
+        [ testCase "returns the next item" $ do
+            runParser (lookupNext @Text) "abc" @?= Right (Just 'a')
+        , testCase "success if input is empty" $ do
+            runParser (lookupNext @Text) "" @?= Right Nothing
+        ]
+    , testGroup
+        "takeWhileP"
+        [ testCase "parses characters while the predicate is true" $ do
+            let p c = c == 'a'
+            runParser (takeWhileP @Text p) "aaa" @?= Right "aaa"
+        , testCase "stops when the predicate is false" $ do
+            let p c = c == 'a'
+            runParser (takeWhileP @Text p) "aab" @?= Right "aa"
+        , testCase "fails if no characters satisfy the predicate" $ do
+            let p c = c == 'a'
+            runParser (takeWhileP @Text p) "b" @?= Right ""
+        ]
+    , testGroup
+        "takeWhile1P"
+        [ testCase "parses at least one character while the predicate is true" $ do
+            let p c = c == 'a'
+            runParser (takeWhile1P @Text (Just "a") p) "aaa" @?= Right "aaa"
+        , testCase "fails if no characters satisfy the predicate" $ do
+            let p c = c == 'a'
+            runParser (takeWhile1P @Text Nothing p) "b" `shouldSatisfy` isLeft
+        , testCase "fails if input is empty" $ do
+            let p c = c == 'a'
+            runParser (takeWhile1P @Text Nothing p) "" `shouldSatisfy` isLeft
+        ]
+    , testGroup
+        "try"
+        [ testCase "backtracks correctly on failure" $ do
+            let p = alternative @Text (try @Text (text "abc")) (text "abdef")
+            runParser p "abdef" @?= Right "abdef"
+        , testCase "fails if neither parser succeeds" $ do
+            let p = alternative @Text (try @Text (text "abc")) (text "def")
+            runParser p "xyz" `shouldSatisfy` isLeft
+        ]
+    , testGroup
+        "alternative"
+        [ testCase "parses the first parser" $ do
+            let p = alternative @Text (char @Text 'a') (char @Text 'b')
+            runParser p "a" @?= Right 'a'
+        , testCase "parses the second parser if the first fails" $ do
+            let p = alternative @Text (char @Text 'a') (char @Text 'b')
+            runParser p "b" @?= Right 'b'
+        , testCase "fails if both parsers fail" $ do
+            let p =
+                  alternative @Text (char @Text 'a') (char @Text 'b')
+            runParser p "c" `shouldSatisfy` isLeft
+        ]
+    ]

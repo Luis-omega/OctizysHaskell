@@ -3,17 +3,20 @@
 
 module Octizys.Pretty.Formatter (Formatter (format)) where
 
+import Data.Text (Text)
 import qualified Octizys.Ast.Expression as Ast
 import qualified Octizys.Ast.Node as Ast
 import qualified Octizys.Ast.Type as Ast
 import qualified Octizys.Cst.Comment as Cst
 import qualified Octizys.Cst.Expression as Cst
 import qualified Octizys.Cst.Node as Cst
+import qualified Octizys.Cst.TopItem as Cst
 import qualified Octizys.Cst.Type as Cst
 import qualified Octizys.Pretty.Ast.Expression as Ast.Expression
 import qualified Octizys.Pretty.Ast.Type as Ast.Type
 import qualified Octizys.Pretty.Cst.Comment as Cst.Expression
 import qualified Octizys.Pretty.Cst.Expression as Cst.Expression
+import qualified Octizys.Pretty.Cst.TopItem as Cst.TopItem
 import qualified Octizys.Pretty.Cst.Type as Cst.Type
 import Octizys.Pretty.FormatContext (FormatContext, formatExpressionVar)
 import Prettyprinter (Doc, pretty)
@@ -22,6 +25,26 @@ import qualified Prettyprinter as Pretty
 
 class Formatter ann env t | env -> ann where
   format :: env -> t -> Doc ann
+
+
+instance Formatter ann (FormatContext ann) Text where
+  format _ = pretty
+
+
+instance
+  ( Formatter ann (FormatContext ann) a
+  , Formatter ann (FormatContext ann) b
+  )
+  => Formatter ann (FormatContext ann) (a, b)
+  where
+  format ctx (a, b) = Pretty.parens (format ctx a <> format ctx b)
+
+
+instance
+  Formatter ann (FormatContext ann) a
+  => Formatter ann (FormatContext ann) (Maybe a)
+  where
+  format ctx = maybe mempty (format ctx)
 
 
 instance Formatter ann (FormatContext ann) Ast.Type where
@@ -73,6 +96,10 @@ instance Formatter ann (FormatContext ann) Cst.Parameter where
   format = Cst.Expression.formatParameter
 
 
+instance Formatter ann (FormatContext ann) Cst.Parameters where
+  format = Cst.Expression.formatParameters
+
+
 instance Formatter ann (FormatContext ann) Cst.FunctionParameter where
   format = Cst.Expression.formatParameterFunction
 
@@ -96,3 +123,7 @@ instance Formatter ann (FormatContext ann) Cst.Node where
   format ctx (Cst.NDef t) = format ctx t
   format ctx (Cst.NFunction t) = format ctx t
   format ctx (Cst.NExp t) = format ctx t
+
+
+instance Formatter ann (FormatContext ann) Cst.Module where
+  format = Cst.TopItem.formatModule

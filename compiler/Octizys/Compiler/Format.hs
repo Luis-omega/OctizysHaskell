@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+
 module Octizys.Compiler.Format where
 
 import Control.Arrow ((<<<))
@@ -31,6 +32,7 @@ import qualified Prettyprinter.Render.Text
 import qualified Data.Set as Set
 import Octizys.Classes.FreeVariables (FreeTypeVariables (freeTyVars))
 import Octizys.Cst.Node (Node)
+import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
 import Octizys.Pretty.FormatContext
   ( Configuration
   , FormatContext
@@ -45,7 +47,6 @@ import Octizys.Report
   , ReportKind (ReportError)
   )
 import qualified Prettyprinter as Pretty
-import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
 
 
 buildFormatContext
@@ -65,6 +66,7 @@ buildFormatContext config = do
         istate
         mempty
   pure $ makeFormatContext config formatters
+
 
 buildFormatContextFromSymbolResolution
   :: SymbolResolution :> es
@@ -105,6 +107,7 @@ render :: forall ann. Doc ann -> Text
 render =
   Prettyprinter.Render.Text.renderStrict
     <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
+
 
 pprint
   :: forall a ann es
@@ -249,4 +252,3 @@ buildInferenceErrorReport ctx cst err =
       , shortDescription = short
       , descriptions = long
       }
-

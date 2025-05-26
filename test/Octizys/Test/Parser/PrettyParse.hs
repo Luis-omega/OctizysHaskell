@@ -4,12 +4,6 @@
 module Octizys.Test.Parser.PrettyParse (tests) where
 
 import Control.Arrow ((<<<))
-import Octizys.Parser.Common
-  ( OctizysParseError
-  , comment
-  )
-import Test.Hspec
-
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Maybe
 import Data.Text (Text)
@@ -21,7 +15,7 @@ import Octizys.Cst.Expression (Parameters (Parameters'))
 import Octizys.Effects.Parser.Backend
   ( ParserError
   , ParserState
-  , prettyParserError
+  , makeParseErrorReport
   )
 import Octizys.Effects.Parser.Combinators (eof)
 import Octizys.Effects.Parser.Effect (Parser)
@@ -33,6 +27,10 @@ import Octizys.Effects.SymbolResolution.Interpreter
   , initialSymbolResolutionState
   , runSymbolResolutionFull
   )
+import Octizys.Parser.Common
+  ( OctizysParseError
+  , comment
+  )
 import Octizys.Parser.Expression
   ( boolParser
   , functionParser
@@ -43,13 +41,8 @@ import Octizys.Parser.Expression
   , variableParser
   )
 import Octizys.Parser.TopItem (parseModule)
-import Octizys.Pretty.Comment (prettyComment)
-import Octizys.Pretty.Expression
-  ( prettyExpression
-  , prettyFunction
-  , prettyParameters
-  )
-import Octizys.Pretty.TopItem (prettyModule)
+import Octizys.Pretty.FormatContext (FormatContext, defaultFormatContext)
+import Octizys.Pretty.Formatter (Formatter (format))
 import Prettyprinter
   ( Doc
   , Pretty (pretty)
@@ -57,7 +50,9 @@ import Prettyprinter
   , layoutPretty
   )
 import qualified Prettyprinter as Pretty
-import qualified Prettyprinter.Render.String
+import qualified Prettyprinter.Render.Text
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (Assertion, assertFailure, testCase)
 
 
 type P a =
@@ -98,33 +93,39 @@ runParser p t = do
   pure (fst out)
 
 
-renderError :: Text -> ParserError OctizysParseError -> String
+renderError :: Text -> ParserError OctizysParseError -> Text
 renderError source =
   render
-    <<< prettyParserError pretty (Just ('t' :| "est")) source
+    <<< format @() defaultFormatContext
+    <<< makeParseErrorReport @() defaultFormatContext (Just ('t' :| "est")) source
 
 
-render :: Doc ann -> String
+render :: Doc ann -> Text
 render =
-  Prettyprinter.Render.String.renderString
+  Prettyprinter.Render.Text.renderStrict
     <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
 
 
-stripSpacesAndNewlines :: String -> String
-stripSpacesAndNewlines = filter (`notElem` [' ', '\n', '\r', '\t'])
+stripSpacesAndNewlines :: Text -> Text
+stripSpacesAndNewlines = Text.filter (not . (`elem` [' ', '\n', '\r', '\t']))
+
+
+expectationFailure :: Text -> IO a
+expectationFailure = assertFailure <<< Text.unpack
 
 
 shouldParse
-  :: Eq a
+  :: forall a
+   . Eq a
+  => Formatter () (FormatContext ()) a
   => Text
-  -> (a -> Doc ann)
   -> Either (ParserError OctizysParseError) a
-  -> String
-  -> Expectation
-shouldParse input _ (Left e) expected = do
+  -> Text
+  -> Assertion
+shouldParse input (Left e) expected = do
   expectationFailure (renderError input e <> "\n" <> "Expected:" <> expected)
-shouldParse _ toDoc (Right result) expected =
-  let prettyResult = render (toDoc result)
+shouldParse _ (Right result) expected =
+  let prettyResult = render (format @() defaultFormatContext result)
    in if stripSpacesAndNewlines
         prettyResult
         == stripSpacesAndNewlines
@@ -133,11 +134,11 @@ shouldParse _ toDoc (Right result) expected =
         else
           expectationFailure
             ( render
-                ( pretty @String "Expected:"
+                ( pretty @Text "Expected:"
                     <> pretty expected
                     <> Pretty.line
                     <> "Got:"
-                    <> toDoc result
+                    <> format @() defaultFormatContext result
                 )
             )
 
@@ -145,180 +146,155 @@ shouldParse _ toDoc (Right result) expected =
 {- | This module is on charge of testing:
 "(render <<< pretty <<< parser)"
 -}
-tests :: SpecWith ()
-tests = do
-  describe "comment parsers" $ do
-    makePositiveTest
-      "line comment"
-      "-- hola mundo\n"
-      (Just "-- hola mundo")
-      (comment <* eof @OctizysParseError)
-      prettyComment
-    makePositiveTest
-      "block comment"
-      "{- hola mundo\n como estas?\n he?\n bye!-}"
-      Nothing
-      comment
-      prettyComment
-  -- TODO: test offsets!
-  describe "expressions parser" $ do
-    makePositiveTest
-      "bool True"
-      "True"
-      Nothing
-      boolParser
-      (prettyExpression pretty pretty)
-    makePositiveTest
-      "bool False"
-      "False"
-      Nothing
-      boolParser
-      (prettyExpression pretty pretty)
-    makePositiveTest
-      "int zero"
-      "0"
-      Nothing
-      intParser
-      (prettyExpression pretty pretty)
-    makePositiveTest
-      "int no _ in int"
-      "3487982"
-      Nothing
-      intParser
-      (prettyExpression pretty pretty)
-    makePositiveTest
-      "int"
-      "34_87_98___2"
-      Nothing
-      intParser
-      (prettyExpression pretty pretty)
-    makePositiveTest
-      "variable"
-      "abcde"
-      (Just "ExpVarId[0]")
-      variableParser
-      (prettyExpression pretty pretty)
-    makePositiveTest
-      "function (lambdas)"
-      "\\ a b c d -> c"
-      -- TODO: the SymbolResolutionState is broken, it needs to help us
-      -- catch this and have c the same identifier in both sides.
-      ( Just
-          "\\\n  ExpVarId[0]\n  ExpVarId[1]\n  ExpVarId[2]\n  ExpVarId[3] \n-> ExpVarId[2]"
-      )
-      functionParser
-      (prettyFunction pretty pretty)
-    makePositiveTest
-      "if"
-      "if 1 then 2 else 3"
-      Nothing
-      ifParser
-      (prettyExpression pretty pretty)
-    makePositiveTest
-      "let single"
-      "let a = 1; in 3"
-      (Just "let ExpVarId[0] = 1; in 3")
-      letParser
-      (prettyExpression pretty pretty)
-    makePositiveTest
-      "let two vars"
-      "let a = 1; b =2; in 3"
-      (Just "let ExpVarId[0] = 1; ExpVarId[1] = 2; in 3")
-      letParser
-      (prettyExpression pretty pretty)
-    makePositiveTest
-      "let five vars"
-      "let a = 1; b =2; c=3; d=4; e=5; in 6"
-      ( Just
-          "let ExpVarId[0] = 1; ExpVarId[1] = 2; ExpVarId[2] = 3;ExpVarId[3] = 4;ExpVarId[4] = 5;in 6"
-      )
-      letParser
-      (prettyExpression pretty pretty)
-    makePositiveTest
-      "let capture avoid params"
-      "let f: x , Int = x; g:x , Bool = x; in g 6"
-      ( Just
-          "let ExpVarId[0]: ExpVarId[1], Int = ExpVarId[1]; ExpVarId[2]:ExpVarId[3], Bool = ExpVarId[3]; in ExpVarId[2] 6"
-      )
-      letParser
-      (prettyExpression pretty pretty)
-    makePositiveTest
-      "parameters 2"
-      -- The `,` at the end is needed as we use it to know that we parsed a
-      -- argument, if it is missing we fail!
-      "x:Bool,y:Int,"
-      (Just "ExpVarId[0]:Bool,ExpVarId[1]:Int")
-      ((Parameters' <$>) <$> parametersParser)
-      ( \(x :: Maybe Parameters) ->
-          maybe
-            ( pretty
-                @Text
-                "Failed to parse"
+tests :: TestTree
+tests =
+  testGroup
+    ""
+    [ testGroup
+        "comment parsers"
+        [ makePositiveTest
+            "line comment"
+            "-- hola mundo\n"
+            (Just "-- hola mundo")
+            (comment <* eof @OctizysParseError)
+        , makePositiveTest
+            "block comment"
+            "{- hola mundo\n como estas?\n he?\n bye!-}"
+            Nothing
+            comment
+        ]
+    , -- TODO: test offsets!
+      testGroup
+        "expressions parser"
+        [ makePositiveTest
+            "bool True"
+            "True"
+            Nothing
+            boolParser
+        , makePositiveTest
+            "bool False"
+            "False"
+            Nothing
+            boolParser
+        , makePositiveTest
+            "int zero"
+            "0"
+            Nothing
+            intParser
+        , makePositiveTest
+            "int no _ in int"
+            "3487982"
+            Nothing
+            intParser
+        , makePositiveTest
+            "int"
+            "34_87_98___2"
+            Nothing
+            intParser
+        , makePositiveTest
+            "variable"
+            "abcde"
+            (Just "_e0")
+            variableParser
+        , makePositiveTest
+            "function (lambdas)"
+            "\\ a b c d -> c"
+            -- TODO: the SymbolResolutionState is broken, it needs to help us
+            -- catch this and have c the same identifier in both sides.
+            ( Just
+                "\\\n  _e0\n  _e1\n  _e2\n  _e3 \n-> _e2"
             )
-            (prettyParameters pretty pretty)
-            x
-      )
-    -- TODO: remove the last parens of this test.
-    -- This means modify pretty to skip this paren
-    -- at the end of arguments definition.
-    -- This comma is not included int the input.
-    makePositiveTest
-      "parameters 3"
-      "x:Bool,y:Int,z:(Bool->Int),"
-      (Just "ExpVarId[0]:Bool,ExpVarId[1]:Int,ExpVarId[2]:Bool->Int")
-      ((Parameters' <$>) <$> parametersParser)
-      ( \(x :: Maybe Parameters) ->
-          maybe
-            ( pretty
-                @Text
-                "Failed to parse"
+            functionParser
+        , makePositiveTest
+            "if"
+            "if 1 then 2 else 3"
+            Nothing
+            ifParser
+        , makePositiveTest
+            "let single"
+            "let a = 1; in 3"
+            (Just "let _e0 = 1; in 3")
+            letParser
+        , makePositiveTest
+            "let two vars"
+            "let a = 1; b =2; in 3"
+            (Just "let _e0 = 1; _e1 = 2; in 3")
+            letParser
+        , makePositiveTest
+            "let five vars"
+            "let a = 1; b =2; c=3; d=4; e=5; in 6"
+            ( Just
+                "let _e0 = 1; _e1 = 2; _e2 = 3;_e3 = 4;_e4 = 5;in 6"
             )
-            (prettyParameters pretty pretty)
-            x
-      )
-    makePositiveTest
-      "factorial example"
-      "let fact = \\ n -> if lt n 2 then 1 else mul n (fact (minus n 1 )); in fact 5"
-      ( Just
-          "let ExpVarId[0] = \\ ExpVarId[1] -> if ExpVarId[2] ExpVarId[1] 2 then 1 else ExpVarId[3] ExpVarId[1] (ExpVarId[0] (ExpVarId[4] ExpVarId[1] 1 )); in ExpVarId[0] 5"
-      )
-      (letParser <* eof @OctizysParseError)
-      (prettyExpression pretty pretty)
-  describe "module" $ do
-    makePositiveTest
-      "single definition"
-      "add_one: n:Int, m:Int, j:Int, Int = addition n 1;"
-      ( Just
-          "ExpVarId[0]: ExpVarId[1]: Int, ExpVarId[2]:Int, ExpVarId[3]:Int, Int = ExpVarId[4] ExpVarId[1] 1"
-      )
-      parseModule
-      (prettyModule pretty pretty)
+            letParser
+        , makePositiveTest
+            "let capture avoid params"
+            "let f: x , Int = x; g:x , Bool = x; in g 6"
+            ( Just
+                "let _e1: _e0, Int = _e0; _e3:_e2, Bool = _e2; in _e3 6"
+            )
+            letParser
+        , makePositiveTest
+            "parameters 2"
+            -- The `,` at the end is needed as we use it to know that we parsed a
+            -- argument, if it is missing we fail!
+            "x:Bool,y:Int,"
+            (Just "_e0:Bool,_e1:Int")
+            ((Parameters' <$>) <$> parametersParser)
+        , -- TODO: remove the last parens of this test.
+          -- This means modify pretty to skip this paren
+          -- at the end of arguments definition.
+          -- This comma is not included int the input.
+          makePositiveTest
+            "parameters 3"
+            "x:Bool,y:Int,z:(Bool->Int),"
+            (Just "_e0:Bool,_e1:Int,_e2:Bool->Int")
+            ((Parameters' <$>) <$> parametersParser)
+        , makePositiveTest
+            "factorial example"
+            "let fact = \\ n -> if lt n 2 then 1 else mul n (fact (minus n 1 )); in fact 5"
+            ( Just
+                "let _e0 = \\ _e1 -> if _e2 _e1 2 then 1 else _e3 _e1 (_e0 (_e4 _e1 1 )); in _e0 5"
+            )
+            (letParser <* eof @OctizysParseError)
+        ]
+    , testGroup
+        "module"
+        [ makePositiveTest
+            "single definition"
+            "add_one: n:Int, m:Int, j:Int, Int = addition n 1;"
+            ( Just
+                "_e3: _e0: Int, _e1:Int, _e2:Int, Int = _e4 _e0 1"
+            )
+            parseModule
+        ]
+    ]
 
 
 --      (\(a,source)-> pretty a <> pretty source)
 
 makePositiveTest
   :: Eq a
-  => String
+  => Formatter () (FormatContext ()) a
+  => Text
   -> Text
-  -> Maybe String
+  -> Maybe Text
   -> P a
-  -> (a -> Doc ann)
-  -> SpecWith ()
+  -> TestTree
 makePositiveTest
   testName
   input
   maybeExpect
-  parser
-  prettier = do
-    it testName $ do
-      let result = runParser parser input
-      let expected :: String =
-            Data.Maybe.fromMaybe (Text.unpack input) maybeExpect
-      case result of
-        Left e -> expectationFailure ("SymbolResolution bug:" <> show e)
-        Right r ->
-          shouldParse input prettier r expected
+  parser =
+    do
+      testCase (Text.unpack testName) $ do
+        let result = runParser parser input
+        let expected :: Text =
+              Data.Maybe.fromMaybe input maybeExpect
+        case result of
+          Left e -> expectationFailure ("SymbolResolution bug:" <> Text.pack (show e))
+          Right r ->
+            shouldParse input r expected
 
 --  describe "expression parser" $ do
 --    testPositiveExpression "1"
@@ -356,7 +332,7 @@ makePositiveTest
 --    testPositiveFile "test/Examples/factorial.oct"
 --
 --
--- cleanText :: String -> String
+-- cleanText :: Text -> Text
 -- cleanText = filter (`notElem` [' ', '\n', '\t', '\r'])
 --
 --
@@ -364,7 +340,7 @@ makePositiveTest
 --  :: forall a
 --   . Pretty a
 --  => Parser a
---  -> String
+--  -> Text
 --  -> SpecWith ()
 -- makePositiveTest p s =
 --  it s $ do
@@ -374,17 +350,17 @@ makePositiveTest
 --      Left e -> (expectationFailure <<< errorBundlePretty) e
 --
 --
--- testPositiveExpression :: String -> SpecWith ()
+-- testPositiveExpression :: Text -> SpecWith ()
 -- testPositiveExpression =
 --  makePositiveTest (expressionParser <* eof)
 --
 --
--- testPositiveType :: String -> SpecWith ()
+-- testPositiveType :: Text -> SpecWith ()
 -- testPositiveType =
 --  makePositiveTest (typeParser <* eof)
 --
 --
--- testPositiveTopItem :: String -> SpecWith ()
+-- testPositiveTopItem :: Text -> SpecWith ()
 -- testPositiveTopItem =
 --  makePositiveTest (topParser <* eof)
 --
@@ -393,8 +369,8 @@ makePositiveTest
 --  :: forall a
 --   . Pretty a
 --  => Parser [a]
---  -> String
---  -> String
+--  -> Text
+--  -> Text
 --  -> SpecWith ()
 -- makePositiveFileTest p path s =
 --  it path $ do
@@ -406,12 +382,12 @@ makePositiveTest
 --      Left e -> (expectationFailure <<< errorBundlePretty) e
 --
 --
--- testPositiveFile :: String -> SpecWith ()
+-- testPositiveFile :: Text -> SpecWith ()
 -- testPositiveFile path = do
 --  content <- runIO $ readFile path
 --  makePositiveFileTest (moduleParser <* eof) path content
 --
 --
--- fixtureFactorial :: String
+-- fixtureFactorial :: Text
 -- fixtureFactorial =
 --  "let fact = \\ n -> if lt n 2 then 1 else mul n (fact (minus n 1 )); in fact 5"

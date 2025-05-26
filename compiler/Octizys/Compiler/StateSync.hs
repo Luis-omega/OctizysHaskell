@@ -20,10 +20,11 @@ import Octizys.Ast.Expression (buildDefinitionsMap)
 import Octizys.Cst.Expression (ExpressionVariableId)
 
 
--- | The Evaluator needs a list of all defined symbols, this
--- avoid us handling scopes.
--- All variables have unique names and we already ran symbol
--- resolution, it means that we can use safely this map.
+{- | The Evaluator needs a list of all defined symbols, this
+avoid us handling scopes.
+All variables have unique names and we already ran symbol
+resolution, it means that we can use safely this map.
+-}
 newtype DefinedSymbols = DefinedSymbols'
   { definedSymbols :: Map ExpressionVariableId Ast.Expression
   }
@@ -73,8 +74,10 @@ updateSymbolState = do
             + 1
       }
 
--- | Add all the expression variables defined inside a
--- expression and add it's definitions to the `DefinedSymbols` state.
+
+{- | Add all the expression variables defined inside a
+expression and add it's definitions to the `DefinedSymbols` state.
+-}
 addExpressionSymbols
   :: State DefinedSymbols :> es
   => Ast.Expression
@@ -87,9 +90,10 @@ addExpressionSymbols expr = do
   pure newMap
 
 
--- | Add all the expression variables defined in the right side
--- of a definition and then the definition itself to the
--- `DefinedSymbols` state.
+{- | Add all the expression variables defined in the right side
+of a definition and then the definition itself to the
+`DefinedSymbols` state.
+-}
 addDefinedSymbol
   :: State DefinedSymbols :> es
   => State Inference.InferenceState :> es
@@ -107,4 +111,3 @@ addDefinedSymbol d = do
   let newMap = Map.insert d.name d.definition addedSymbol
   put $ DefinedSymbols' newMap
   pure newMap
-

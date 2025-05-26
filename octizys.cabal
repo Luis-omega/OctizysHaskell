@@ -220,7 +220,8 @@ test-suite octizys-test
   -- Import common warning flags.
   import:
     warnings,
-    common_extensions
+    common_extensions,
+    common_plugings
 
   -- Base language which the package is written in.
   default-language: Haskell2010
@@ -245,11 +246,16 @@ test-suite octizys-test
   -- Octizys.Test.Parser.PrettyParse
   -- Test dependencies.
   build-depends:
-    , base           ^>=4.18.2.1
+    , base              ^>=4.18.2.1
     , containers
     , effectful
-    , hspec
+    , effectful-core
+    , effectful-plugin
     , octizys
     , prettyprinter
     , QuickCheck
+    , tasty
+    , tasty-golden
+    , tasty-hedgehog
+    , tasty-hunit
     , text
