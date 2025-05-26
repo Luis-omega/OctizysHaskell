@@ -186,10 +186,10 @@ atomExpressionParser
   => SymbolResolution :> es
   => Eff es Expression
 atomExpressionParser =
-  (boolParser <?> ('a' :| " boolean"))
-    <|> (intParser <?> ('a' :| " integer"))
-    <|> (parensExpressionParser <?> 'a' :| " expression in parenthesis")
-    <|> (variableParser <?> 'a' :| " variable")
+  (boolParser <?> ('b' :| "oolean"))
+    <|> (intParser <?> ('i' :| "nteger"))
+    <|> (parensExpressionParser <?> 'e' :| "xpression in parenthesis")
+    <|> (variableParser <?> 'v' :| "ariable")
 
 
 applicationParser
@@ -390,7 +390,7 @@ letParser = do
   definitions <-
     some
       ( do
-          def <- definitionParser <?> ('a' :| " definition")
+          def <- definitionParser <?> ('d' :| "efinition")
           semiInfo <- semicolon
           pure (def, semiInfo)
       )
@@ -405,7 +405,9 @@ expressionParser
   => SymbolResolution :> es
   => Eff es Expression
 expressionParser =
-  ifParser
-    <|> letParser
-    <|> (EFunction <$> functionParser)
-    <|> applicationParser
+  ( ifParser
+      <|> letParser
+      <|> (EFunction <$> functionParser)
+      <|> applicationParser
+  )
+    <?> ('e' :| "xpression")

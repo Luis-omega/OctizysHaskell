@@ -187,6 +187,8 @@ executable octizys
   other-modules:
     Cli
     Octizys.Compiler.Compiler
+    Octizys.Compiler.Format
+    Octizys.Compiler.StateSync
     Octizys.Repl.Ast
     Octizys.Repl.Parser
     Octizys.Repl.Repl

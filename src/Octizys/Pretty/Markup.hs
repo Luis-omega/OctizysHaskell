@@ -17,22 +17,26 @@ data Markup = Markup'
   }
   deriving (Show, Eq, Ord)
 
+
 emptyStyle :: Set Style
 emptyStyle = mempty
 
 
 setColor :: Color -> Markup -> Markup
-setColor c m = m{color = c}
+setColor c m = m {color = c}
 
 
 setStyle :: Set Style -> Markup -> Markup
-setStyle s m = m{style = s}
+setStyle s m = m {style = s}
+
 
 addStyle :: Style -> Markup -> Markup
-addStyle s m = m{style = insert s m.style }
+addStyle s m = m {style = insert s m.style}
+
 
 removeStyle :: Style -> Markup -> Markup
-removeStyle s m = m{style = delete s m.style }
+removeStyle s m = m {style = delete s m.style}
+
 
 cleanStyle :: Markup -> Markup
 cleanStyle = setStyle mempty

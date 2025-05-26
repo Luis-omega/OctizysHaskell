@@ -1,12 +1,13 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+
 module Octizys.Report where
 
 import Data.Text (Text)
+import Octizys.Pretty.FormatContext (FormatContext, nest)
+import Octizys.Pretty.Formatter (Formatter (format))
 import Prettyprinter (Doc, Pretty (pretty))
 import qualified Prettyprinter as Pretty
-import Octizys.Pretty.Formatter (Formatter (format))
-import Octizys.Pretty.FormatContext (FormatContext, nest)
 
 
 data ReportKind
@@ -28,20 +29,28 @@ data LongDescription ann = LongDescription'
   , afterDescription :: Maybe Text
   }
 
+
 instance Formatter ann (FormatContext ann) (LongDescription ann) where
   format ctx ld =
     pretty ld.preDescription
-      <> case source ld of
+      <> case ld.source of
         Just content ->
-          nest ctx
-            ( Pretty.line @ann <> content
-            )
+          case ld.preDescription of
+            Just _ ->
+              nest
+                ctx
+                (Pretty.line @ann <> content)
+            Nothing ->
+              nest
+                ctx
+                content
         Nothing -> mempty
       <> case ld.afterDescription of
-        Just after -> Pretty.line <> pretty after
+        Just after ->
+          -- TODO: FIXME: the line shouldn't be here if both of the
+          -- previous elements are missing
+          Pretty.line <> pretty after
         Nothing -> mempty
-
-
 
 
 data Report ann = Report'
@@ -49,6 +58,7 @@ data Report ann = Report'
   , shortDescription :: Text
   , descriptions :: [LongDescription ann]
   }
+
 
 instance Formatter ann (FormatContext ann) (Report ann) where
   format ctx r =

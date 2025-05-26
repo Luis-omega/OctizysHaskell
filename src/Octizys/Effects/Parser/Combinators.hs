@@ -32,6 +32,7 @@ module Octizys.Effects.Parser.Combinators
   , fail
   , label
   , (<?>)
+  , hidden
   , getPosition
   , eof
   ) where
@@ -596,6 +597,23 @@ label expectation p = do
                 e {expected = singletonExpectations (ExpectedName expectation)}
             _ ->
               throwParseError e
+    )
+
+
+-- | Removes all the expectations of a parser in case of error.
+
+-- TODO: FIXME
+hidden
+  :: Parser e :> es
+  => Eff es a
+  -> Eff es a
+hidden p = do
+  currentState <- getParseState
+  catchParseError
+    p
+    ( \e -> do
+        throwParseError $
+          e {expected = currentState.expected}
     )
 
 

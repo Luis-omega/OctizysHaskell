@@ -94,11 +94,14 @@ replParser = do
   _ <- skipSimpleSpaces
   ( Command
       <$> (commandParser <* eof)
+        <?> ('r' :| "repl command")
     )
     <|> try
       ( Define
           <$> (definitionParser <* eof)
+            <?> ('v' :| "ariable definition")
       )
     <|> ( Evaluate
             <$> (parseExpression <* eof)
+              <?> ('e' :| "xpression to evaluate")
         )

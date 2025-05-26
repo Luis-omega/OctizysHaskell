@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Octizys.Parser.Common where
 
 import Data.Text (Text)
@@ -13,6 +16,7 @@ import Octizys.Effects.Parser.Combinators
   ( char
   , errorMessage
   , getPosition
+  , hidden
   , item
   , many
   , optional
@@ -36,6 +40,8 @@ import Data.Char (isAlpha, isAlphaNum)
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Text as Text
+import Octizys.Pretty.FormatContext (FormatContext)
+import Octizys.Pretty.Formatter (Formatter (format))
 import Prettyprinter (Pretty (pretty))
 import Prelude hiding (span)
 
@@ -57,6 +63,11 @@ data OctizysParseError = Err1 | Err2
 instance Pretty OctizysParseError where
   pretty Err1 = pretty @String "Err1"
   pretty Err2 = pretty @String "Err2"
+
+
+instance Formatter ann (FormatContext ann) OctizysParseError where
+  format _ Err1 = pretty @String "Err1"
+  format _ Err2 = pretty @String "Err2"
 
 
 skipSimpleSpaces
@@ -107,7 +118,7 @@ innerLineComment
   :: Parser OctizysParseError :> es
   => Eff es LineComment
 innerLineComment = do
-  void $ text "--"
+  void $ hidden $ text "--"
   content <- takeWhileP ('\n' /=)
   pure $ LineComment' content
 
@@ -128,7 +139,7 @@ innerBlockComment
   :: Parser OctizysParseError :> es
   => Eff es BlockComment
 innerBlockComment = do
-  void $ text "{-"
+  void $ hidden (text "{-")
   rawText <- parseInner
   let commentLines = LineComment' <$> Text.lines rawText
   pure $ BlockComment' commentLines
@@ -170,11 +181,11 @@ token
   => Eff es a
   -> Eff es (a, (Span, [Comment], Maybe Comment))
 token p = do
-  pre <- comments
+  pre <- hidden comments
   p1 <- getPosition
   result <- p
   p2 <- getPosition
-  after <- afterC
+  after <- hidden afterC
   pure (result, (Span' {start = p1, end = p2}, pre, after))
   where
     afterC =

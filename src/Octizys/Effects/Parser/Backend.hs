@@ -1,7 +1,8 @@
+{-# HLINT ignore "Eta reduce" #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Eta reduce" #-}
 
 {- | This module contains all the definitions needed to define the `Parser` effect.
 it is unstable.
@@ -32,7 +33,7 @@ module Octizys.Effects.Parser.Backend
   , emptyExpectations
   , singletonExpectations
   , prettyUserError
-  , prettyParserError
+  , makeParseErrorReport
   ) where
 
 import Control.Arrow ((<<<))
@@ -41,9 +42,22 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Text (pack)
 import qualified Data.Text as Text
 import Octizys.Cst.Span (Position, makeInitialPosition)
 import qualified Octizys.Cst.Span as Span
+import Octizys.Pretty.FormatContext (Configuration, FormatContext, nest)
+import Octizys.Pretty.Formatter (Formatter (format))
+import Octizys.Report
+  ( LongDescription
+      ( LongDescription'
+      , afterDescription
+      , preDescription
+      , source
+      )
+  , Report (Report', descriptions, reportKind, shortDescription)
+  , ReportKind (ReportError)
+  )
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 
@@ -129,10 +143,21 @@ instance Pretty Unexpected where
       UnexpectedEndOfInput -> pretty @String "end of input"
 
 
+instance Formatter ann (FormatContext ann) Unexpected where
+  format _ expt = pretty expt
+
+
 data UserError e
   = SimpleError {message :: Text.Text}
   | CustomError {customError :: e}
   deriving (Show, Eq, Ord)
+
+
+instance
+  Formatter ann (FormatContext ann) e
+  => Formatter ann (FormatContext ann) (UserError e)
+  where
+  format ctx usError = prettyUserError (format ctx) usError
 
 
 prettyUserError
@@ -158,69 +183,92 @@ data ParserError e
   deriving (Show, Eq, Ord)
 
 
--- TODO: add source of error
-prettyParserError
-  :: (e -> Doc ann)
+makeParseErrorReport
+  :: Formatter ann (FormatContext ann) e
+  => FormatContext ann
   -> Maybe (NonEmpty Char)
   -> Text.Text
   -> ParserError e
-  -> Doc ann
-prettyParserError prettyError maybeName source err =
-  let sourceName =
-        maybe
-          (pretty '>')
-          (\n -> pretty n <> pretty @String ">")
-          maybeName
-      locationInfo pos =
-        pretty @String "Error>"
-          <> sourceName
-          <> "line"
-          <+> pretty (Span.line pos)
-          <> ">column"
-          <+> pretty (Span.column pos)
-          <> pretty ':'
-      prev =
-        Text.takeWhileEnd ('\n' /=) $
-          getPreviousChars source err.errorPosition.offset
-      after =
-        takeWithoutLineBreaks $
-          getAfterChars source err.errorPosition.offset
-      lenPrev = Text.length prev
-      preText = Text.replicate lenPrev (Text.singleton ' ') <> Text.singleton '^'
-   in case err of
-        GeneratedError
-          { errorPosition = pos
-          , unexpected = unex
-          , expected = expt
-          } ->
-            locationInfo pos
-              <> Pretty.nest
-                4
-                ( Pretty.hardline
-                    <> pretty (prev <> after)
-                    <> Pretty.hardline
-                    <> pretty preText
-                    <> pretty @String "Unexpected"
-                    <+> pretty unex
-                    <> Pretty.hardline
-                    <> pretty @String "Expected one of:"
-                    <+> pretty expt
-                )
-        UserMadeError
-          { errorPosition = pos
-          , userErrors = userErrs
-          } ->
-            locationInfo pos
-              <> Pretty.nest
-                4
-                ( Pretty.hardline
-                    <> pretty (prev <> after)
-                    <> Pretty.hardline
-                    <> pretty preText
-                    <> let asList = Set.toList userErrs
-                        in (Pretty.align <<< Pretty.fillSep)
-                            (prettyUserError prettyError <$> asList)
-                )
+  -> Report ann
+makeParseErrorReport ctx maybeName src err =
+  let
+    sourceName :: String
+    sourceName =
+      maybe "" ((<> ">") <<< NonEmpty.toList) maybeName
+    locationInfo :: Position -> String
+    locationInfo pos =
+      "ParserError>"
+        <> sourceName
+        <> "line "
+        <> show (Span.line pos)
+        <> ">column "
+        <> show (Span.column pos)
+        <> ":"
+    prev =
+      Text.takeWhileEnd ('\n' /=) $
+        getPreviousChars src err.errorPosition.offset
+    after =
+      takeWithoutLineBreaks $
+        getAfterChars src err.errorPosition.offset
+    lenPrev = Text.length prev
+    preText = Text.replicate lenPrev (Text.singleton ' ') <> Text.singleton '^'
+   in
+    case err of
+      GeneratedError
+        { errorPosition = pos
+        , unexpected = unex
+        , expected = expt
+        } ->
+          Report'
+            { reportKind = ReportError
+            , shortDescription = pack $ locationInfo pos
+            , descriptions =
+                [ LongDescription'
+                    { -- TODO: FIXME : this usseles message is here for only
+                      -- one reason, the report formatting adds a nest to
+                      -- source and without a preDescription we don't have a
+                      -- line break previously, this de-sync the '^' in the
+                      -- error report from their source...
+                      preDescription = Just "Unrecognized input while parsing:"
+                    , source =
+                        Just
+                          ( pretty (prev <> after)
+                              <> Pretty.hardline
+                              <> pretty preText
+                              <> pretty @String "Unexpected"
+                              <+> pretty unex
+                              <> Pretty.hardline
+                              <> pretty @String "Expected one of:"
+                              <+> pretty expt
+                          )
+                    , afterDescription = Nothing
+                    }
+                ]
+            }
+      UserMadeError
+        { errorPosition = pos
+        , userErrors = userErrs
+        } ->
+          Report'
+            { reportKind = ReportError
+            , shortDescription = pack $ locationInfo pos
+            , descriptions =
+                [ LongDescription'
+                    { -- TODO: FIXME: Read the previous one.
+                      preDescription = Just "Unrecognized input while parsing:"
+                    , source =
+                        Just
+                          ( pretty (prev <> after)
+                              <> Pretty.hardline
+                              <> pretty preText
+                              <> let asList = Set.toList userErrs
+                                  in (Pretty.align <<< Pretty.fillSep)
+                                      (format ctx <$> asList)
+                          )
+                    , afterDescription = Nothing
+                    }
+                ]
+            }
 
 
 instance Ord e => Semigroup (ParserError e) where
@@ -293,6 +341,8 @@ addExpectation expt s =
 === Error Reporting
 ===
 -}
+
+-- | Returns the 10 characters before the given position.
 getPreviousChars :: Text.Text -> Int -> Text.Text
 getPreviousChars txt i = Text.take len $ Text.drop start txt
   where
@@ -300,7 +350,7 @@ getPreviousChars txt i = Text.take len $ Text.drop start txt
     len = min 10 i
 
 
--- | Devuelve los 10 caracteres posteriores al índice dado.
+-- | Returns the 10 characters after the given position.
 getAfterChars :: Text.Text -> Int -> Text.Text
 getAfterChars txt i = Text.take 10 $ Text.drop i txt
 

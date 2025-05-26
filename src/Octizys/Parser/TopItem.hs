@@ -3,7 +3,7 @@ module Octizys.Parser.TopItem where
 import Effectful (Eff, (:>))
 import Octizys.Cst.Expression (Definition)
 import Octizys.Cst.TopItem (Module (Module', definitions, lastComments))
-import Octizys.Effects.Parser.Combinators (many)
+import Octizys.Effects.Parser.Combinators (hidden, many)
 import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolution
@@ -22,7 +22,7 @@ parseModule = do
     def <- definitionParser
     semiColonInfo <- semicolon
     pure (def, semiColonInfo)
-  lastCommentsRaw <- comments
+  lastCommentsRaw <- hidden comments
   case lastCommentsRaw of
     [] -> pure Module' {lastComments = Nothing, ..}
     _ ->
