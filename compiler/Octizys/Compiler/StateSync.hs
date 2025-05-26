@@ -2,17 +2,12 @@ module Octizys.Compiler.StateSync where
 
 import Effectful (Eff, (:>))
 
-import qualified Octizys.Effects.SymbolResolution.Effect as SRS
 import qualified Octizys.Inference.ConstraintsGeneration as Inference
 
 import Data.Map (Map)
-import Effectful.State.Static.Local (State, get, gets, put)
+import Effectful.State.Static.Local (State, gets, put)
 import qualified Octizys.Ast.Expression as Ast
 import Octizys.Effects.Logger.Effect (Logger)
-import Octizys.Effects.SymbolResolution.Effect
-  ( SymbolResolution
-  , putSymbolResolutionState
-  )
 
 import Control.Monad (forM_)
 import qualified Data.Map as Map
@@ -36,43 +31,6 @@ newtype DefinedSymbols = DefinedSymbols'
     , Monoid
     )
     via (Map ExpressionVariableId Ast.Expression)
-
-
--- | Sync the `InferenceState` based on the `SymbolResolution` state.
-updateInferenceState
-  :: SymbolResolution :> es
-  => State Inference.InferenceState :> es
-  => Eff es ()
-updateInferenceState = do
-  currentSymbolState <- SRS.getSymbolResolutionState
-  currentInference <- get
-  put
-    currentInference
-      { Inference.expVarTable = SRS.expVarTable currentSymbolState
-      , Inference.realVariablesMax =
-          SRS.genVarType currentSymbolState + 1
-      , Inference.constraintMap =
-          currentInference.constraintMap
-            { Inference.nextTypeVar = SRS.genVarType currentSymbolState + 1
-            }
-      }
-
-
--- | Sync the `SymbolResolution` based on the `InferenceState` state.
-updateSymbolState
-  :: SymbolResolution :> es
-  => State Inference.InferenceState :> es
-  => Eff es ()
-updateSymbolState = do
-  currentInference <- get
-  currentSymbolState <- SRS.getSymbolResolutionState
-  putSymbolResolutionState
-    currentSymbolState
-      { SRS.expVarTable = Inference.expVarTable currentInference
-      , SRS.genVarType =
-          currentInference.constraintMap.nextTypeVar
-            + 1
-      }
 
 
 {- | Add all the expression variables defined inside a

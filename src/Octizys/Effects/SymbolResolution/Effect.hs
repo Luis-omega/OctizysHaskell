@@ -54,10 +54,7 @@ data SourceExpressionVariableInfo = SourceExpressionVariableInfo'
 
 
 data SymbolResolutionState = SymbolResolutionState'
-  { genVarType :: Int
-  , genVarExp :: Int
-  , genInfoId :: Int
-  , expVarTable :: Map ExpressionVariableId SourceExpressionVariableInfo
+  { expVarTable :: Map ExpressionVariableId SourceExpressionVariableInfo
   , typeVarTable :: Map TypeVariableId SourceTypeVariableInfo
   , infoTable :: Map InfoId SourceInfo
   , -- All the definition places associated with a variable name

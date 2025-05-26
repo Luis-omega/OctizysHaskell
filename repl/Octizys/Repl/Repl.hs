@@ -50,6 +50,8 @@ import Octizys.Effects.Parser.Backend
 import Octizys.Effects.Parser.Interpreter (runFullParser)
 import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolution
+  , SymbolResolutionState
+  , getSymbolResolutionState
   )
 import Octizys.Effects.SymbolResolution.Interpreter
   ( SymbolResolutionError
@@ -76,10 +78,11 @@ import Cli
       )
   )
 import Control.Monad (when)
+import Effectful.Reader.Static (Reader, runReader)
 import qualified Octizys.Ast.Evaluation as Evaluation
 import Octizys.Classes.From (From (from))
 import Octizys.Compiler.Format
-  ( buildFormatContextFromSymbolResolution
+  ( buildFormatContext
   , buildInferenceErrorReport
   , pprint
   , render
@@ -88,12 +91,13 @@ import Octizys.Compiler.StateSync
   ( DefinedSymbols
   , addDefinedSymbol
   , addExpressionSymbols
-  , updateInferenceState
-  , updateSymbolState
   )
 import Octizys.Cst.Expression (ExpressionVariableId)
 import qualified Octizys.Cst.Expression as Cst
+import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Node (Node)
+import Octizys.Cst.Type (TypeVariableId)
+import Octizys.Effects.Generator.Interpreter (Generator, runGeneratorFull)
 import Octizys.Pretty.FormatContext
   ( Configuration
   , FormatContext
@@ -179,6 +183,8 @@ cstTypeResolution
   :: forall es
    . ( State Inference.InferenceState :> es
      , Error Inference.InferenceError :> es
+     , Reader SymbolResolutionState :> es
+     , Generator TypeVariableId :> es
      , Logger :> es
      )
   => CST
@@ -209,6 +215,8 @@ processCst
      , State Inference.InferenceState :> es
      , Error EvaluationError :> es
      , State DefinedSymbols :> es
+     , Reader SymbolResolutionState :> es
+     , Generator TypeVariableId :> es
      , Logger :> es
      )
   => ReplOptions
@@ -219,7 +227,6 @@ processCst opts cst =
     fmtConfig = opts.formatterConfig
    in
     do
-      updateInferenceState
       when
         opts.showCst
         (pprint fmtConfig cst)
@@ -236,7 +243,6 @@ processCst opts cst =
             e
             >> continue
         Right ast -> do
-          updateSymbolState
           when
             opts.showInference
             (pprint fmtConfig ast)
@@ -250,11 +256,21 @@ processCst opts cst =
           continue
 
 
+withState
+  :: SymbolResolution :> es
+  => Eff (Reader SymbolResolutionState : es) a
+  -> Eff es a
+withState ef = do
+  s <- getSymbolResolutionState
+  runReader s ef
+
+
 rep
   :: ( Console :> es
      , SymbolResolution :> es
      , State Inference.InferenceState :> es
      , Error EvaluationError :> es
+     , Generator TypeVariableId :> es
      , State DefinedSymbols :> es
      , Logger :> es
      )
@@ -267,7 +283,9 @@ rep opts = do
   -- putLine $ pack $ ppShow s12.expNamesToId
   case maybeAction of
     Left e -> do
-      ctx <- buildFormatContextFromSymbolResolution opts.formatterConfig
+      ctx <-
+        withState $
+          buildFormatContext opts.formatterConfig
       putLine $
         render $
           format
@@ -288,9 +306,9 @@ rep opts = do
           putLine $ "Unsupported load of file: " <> f
           continue
         Evaluate expression ->
-          processCst opts (from expression)
+          withState $ processCst opts (from expression)
         Define d ->
-          processCst opts (from d)
+          withState $ processCst opts (from d)
 
 
 reportInferenceError
@@ -301,7 +319,7 @@ reportInferenceError
   -> Inference.InferenceError
   -> Eff es ()
 reportInferenceError config cst err = do
-  ctx <- buildFormatContextFromSymbolResolution config
+  ctx <- withState $ buildFormatContext config
   let re = buildInferenceErrorReport ctx cst err
   putLine $ render $ format ctx re
 
@@ -335,6 +353,9 @@ repl opts =
       <<< runState @DefinedSymbols mempty
       <<< runState Inference.initialInferenceState
       <<< runState initialSymbolResolutionState
+      <<< runGeneratorFull @TypeVariableId 0
+      <<< runGeneratorFull @ExpressionVariableId 0
+      <<< runGeneratorFull @InfoId 0
   )
     loop
   where

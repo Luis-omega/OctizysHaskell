@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 module Octizys.Compiler.Format where
 
@@ -30,6 +31,7 @@ import Prettyprinter
 import qualified Prettyprinter.Render.Text
 
 import qualified Data.Set as Set
+import Effectful.Reader.Static (Reader, asks)
 import Octizys.Classes.FreeVariables (FreeTypeVariables (freeTyVars))
 import Octizys.Cst.Node (Node)
 import Octizys.Effects.SymbolResolution.Effect (SymbolResolution)
@@ -50,11 +52,11 @@ import qualified Prettyprinter as Pretty
 
 
 buildFormatContext
-  :: State Inference.InferenceState :> es
+  :: Reader SRS.SymbolResolutionState :> es
   => Configuration
   -> Eff es (FormatContext ann)
 buildFormatContext config = do
-  istate <- gets Inference.expVarTable
+  istate <- asks SRS.expVarTable
   let
     fakeTypePrinter :: Int -> Doc ann
     fakeTypePrinter = pretty
@@ -68,28 +70,8 @@ buildFormatContext config = do
   pure $ makeFormatContext config formatters
 
 
-buildFormatContextFromSymbolResolution
-  :: SymbolResolution :> es
-  => Configuration
-  -> Eff es (FormatContext ann)
-buildFormatContextFromSymbolResolution config = do
-  srst <- SRS.getSymbolResolutionState
-  let
-    mp = srst.expVarTable
-    fakeTypePrinter :: Int -> Doc ann
-    fakeTypePrinter = pretty
-
-    formatters =
-      makeFormattersWithMap
-        (\x -> pretty @Text x.name)
-        fakeTypePrinter
-        mp
-        mempty
-  pure $ makeFormatContext config formatters
-
-
 formatE
-  :: State Inference.InferenceState
+  :: Reader SRS.SymbolResolutionState
     :> es
   => Formatter
       ann
@@ -112,7 +94,7 @@ render =
 pprint
   :: forall a ann es
    . Console :> es
-  => State Inference.InferenceState :> es
+  => Reader SRS.SymbolResolutionState :> es
   => Formatter ann (FormatContext ann) a
   => Configuration
   -> a

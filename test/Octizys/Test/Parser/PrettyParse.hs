@@ -11,7 +11,18 @@ import qualified Data.Text as Text
 import Effectful (Eff, runPureEff)
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.State.Static.Local (State)
-import Octizys.Cst.Expression (Parameters (Parameters'))
+import Octizys.Cst.Expression
+  ( ExpressionVariableId
+  , Parameters (Parameters')
+  )
+import Octizys.Cst.InfoId (InfoId)
+import Octizys.Cst.Type (TypeVariableId)
+import Octizys.Effects.Generator.Effect (IntGenerator)
+import Octizys.Effects.Generator.Interpreter
+  ( Generator
+  , IntGeneratorState
+  , runGeneratorFull
+  )
 import Octizys.Effects.Parser.Backend
   ( ParserError
   , ParserState
@@ -62,23 +73,29 @@ type P a =
         : Error (ParserError OctizysParseError)
         : SymbolResolution
         : State SymbolResolutionState
+        : Generator InfoId
+        : IntGenerator InfoId
+        : State (IntGeneratorState InfoId)
+        : Generator TypeVariableId
+        : IntGenerator TypeVariableId
+        : State (IntGeneratorState TypeVariableId)
+        : Generator ExpressionVariableId
+        : IntGenerator ExpressionVariableId
+        : State (IntGeneratorState ExpressionVariableId)
         : Error SymbolResolutionError
         : '[]
     )
     a
 
 
+ignoreState
+  :: Eff es (a, s)
+  -> Eff es a
+ignoreState = fmap fst
+
+
 runParser
-  :: Eff
-      ( Parser OctizysParseError
-          : State ParserState
-          : Error (ParserError OctizysParseError)
-          : SymbolResolution
-          : State SymbolResolutionState
-          : Error SymbolResolutionError
-          : '[]
-      )
-      a
+  :: P a
   -> Text
   -> Either
       SymbolResolutionError
@@ -87,9 +104,15 @@ runParser p t = do
   out <-
     runPureEff $
       runErrorNoCallStack $
-        runSymbolResolutionFull
-          initialSymbolResolutionState
-          (runFullParser t p)
+        ignoreState $
+          runGeneratorFull 0 $
+            ignoreState $
+              runGeneratorFull 0 $
+                ignoreState $
+                  runGeneratorFull 0 $
+                    runSymbolResolutionFull
+                      initialSymbolResolutionState
+                      (runFullParser t p)
   pure (fst out)
 
 

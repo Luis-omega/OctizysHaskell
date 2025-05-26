@@ -15,6 +15,7 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
+import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Local (State, gets, modify)
 import qualified Octizys.Ast.Expression as AstE
 import qualified Octizys.Ast.Type as AstT
@@ -26,8 +27,11 @@ import Octizys.Cst.Type
   , TypeVariableId
   )
 import qualified Octizys.Cst.Type as Cst
-import Octizys.Cst.VariableId (VariableId (VariableId'))
+import Octizys.Effects.Generator.Effect (Generator, generate)
 import Octizys.Effects.Logger.Effect (Logger, debug)
+import Octizys.Effects.SymbolResolution.Effect
+  ( SymbolResolutionState (expVarTable)
+  )
 import Octizys.Effects.SymbolResolution.Interpreter
   ( SourceExpressionVariableInfo (typeId)
   )
@@ -79,73 +83,28 @@ addConstraint c o =
   o {constraints = c : o.constraints}
 
 
-type ExpressionVarToInfo =
-  Map ExpressionVariableId SourceExpressionVariableInfo
-
-
-type TypeVarToType =
-  Map TypeVariableId AstT.Type
-
-
-data MapVarToConstraints = MapVarToConstraints'
-  { sourceConstraints :: Map TypeVariableId Constraint
-  -- ^ Constraints applied to a type variable that is the type
-  -- of some expression in the AST.
-  , metaConstraints :: Map TypeVariableId Constraint
-  -- ^ Constraints for the meta variables.
-  , nextTypeVar :: Int
-  -- ^ To generate fresh type variables.
-  }
-  deriving (Show, Ord, Eq)
-
-
-initialConstraintMap :: MapVarToConstraints
-initialConstraintMap =
-  MapVarToConstraints'
-    { sourceConstraints = mempty
-    , metaConstraints = mempty
-    , nextTypeVar = 0
-    }
-
-
 freshTypeVar
-  :: State InferenceState :> es
+  :: Generator TypeVariableId :> es
   => Eff es TypeVariableId
-freshTypeVar = do
-  next <- gets (nextTypeVar <<< constraintMap)
-  modify
-    ( \s ->
-        s
-          { constraintMap =
-              s.constraintMap {nextTypeVar = next + 1}
-          }
-    )
-  pure
-    ( Cst.TypeVariableId'
-        (VariableId' next)
-    )
+freshTypeVar = generate
 
 
 data InferenceState = InferenceState'
-  { expVarTable :: ExpressionVarToInfo
-  , knowTypes :: Map ExpressionVariableId AstT.Type
-  , constraintMap :: MapVarToConstraints
-  , realVariablesMax :: Int
-  -- ^ The counter give to us by the previous
-  -- process, we know all the type variables made
-  -- from users are below this number.
+  { knowTypes :: Map ExpressionVariableId AstT.Type
+  , constraintsMap :: Map TypeVariableId Constraint
   }
   deriving (Show, Ord, Eq)
 
 
 lookupExpressionVar
-  :: ( Error InferenceError :> es
+  :: ( Reader SymbolResolutionState :> es
+     , Error InferenceError :> es
      , State InferenceState :> es
      )
   => ExpressionVariableId
   -> Eff es TypeVariableId
 lookupExpressionVar var = do
-  assocMap <- gets expVarTable
+  assocMap <- asks expVarTable
   case lookup var assocMap of
     Just row -> pure $ typeId row
     Nothing -> throwError (UnboundExpressionVar var)
@@ -165,10 +124,8 @@ lookupKnowType var = do
 initialInferenceState :: InferenceState
 initialInferenceState =
   InferenceState'
-    { expVarTable = mempty
-    , knowTypes = mempty
-    , constraintMap = initialConstraintMap
-    , realVariablesMax = 0
+    { knowTypes = mempty
+    , constraintsMap = mempty
     }
 
 
@@ -201,7 +158,8 @@ cstToAstType t =
 
 definitionParametersToParameters
   :: forall es
-   . ( Error InferenceError :> es
+   . ( Reader SymbolResolutionState :> es
+     , Error InferenceError :> es
      , State InferenceState :> es
      )
   => CstE.Parameters
@@ -242,8 +200,10 @@ definitionParametersToParameters params =
 
 
 definitionCstToAst
-  :: ( Error InferenceError :> es
+  :: ( Reader SymbolResolutionState :> es
+     , Error InferenceError :> es
      , State InferenceState :> es
+     , Generator TypeVariableId :> es
      , Logger :> es
      )
   => CstE.Definition
@@ -376,6 +336,8 @@ inferLog d = debug (pretty @Text "Infer:" <> d)
 infer
   :: State InferenceState :> es
   => Error InferenceError :> es
+  => Reader SymbolResolutionState :> es
+  => Generator TypeVariableId :> es
   => Logger :> es
   => CstE.Expression
   -> Eff es Output
@@ -603,6 +565,8 @@ checkLog d = debug (pretty @Text "Check:" <> d)
 check
   :: State InferenceState :> es
   => Error InferenceError :> es
+  => Reader SymbolResolutionState :> es
+  => Generator TypeVariableId :> es
   => Logger :> es
   => CstE.Expression
   -> AstT.Type

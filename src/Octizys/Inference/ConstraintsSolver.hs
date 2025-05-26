@@ -11,6 +11,7 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
+import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Local (State)
 import qualified Octizys.Ast.Expression as AstE
 import qualified Octizys.Ast.Type as AstT
@@ -19,7 +20,9 @@ import Octizys.Classes.From (From (from))
 import Octizys.Cst.Type
   ( TypeVariableId
   )
+import Octizys.Effects.Generator.Effect (Generator)
 import Octizys.Effects.Logger.Effect (Logger, debug)
+import Octizys.Effects.SymbolResolution.Interpreter (SymbolResolutionState)
 import Octizys.Inference.ConstraintsGeneration
   ( InferenceState
   , Output (constraints, expression)
@@ -367,6 +370,8 @@ logSolver header msg = debug (pretty @Text "Solver:" <> pretty header <+> Pretty
 solveExpressionType
   :: State InferenceState :> es
   => Error InferenceError :> es
+  => Reader SymbolResolutionState :> es
+  => Generator TypeVariableId :> es
   => Logger :> es
   => CstE.Expression
   -> Eff es AstE.Expression
@@ -396,6 +401,8 @@ solveExpressionType expression = do
 solveDefinitionType
   :: State InferenceState :> es
   => Error InferenceError :> es
+  => Reader SymbolResolutionState :> es
+  => Generator TypeVariableId :> es
   => Logger :> es
   => CstE.Definition
   -> Eff es AstE.Definition

@@ -1,15 +1,11 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Octizys.Effects.SymbolResolution.Interpreter
   ( runSymbolResolution
   , SymbolResolutionState
     ( SymbolResolutionState'
-    , genInfoId
-    , genVarExp
-    , genVarType
     , expVarTable
     , typeVarTable
     , infoTable
@@ -39,11 +35,11 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 
 import Effectful.Error.Static (Error, throwError)
-import Octizys.Cst.Expression (ExpressionVariableId (ExpressionVariableId'))
-import Octizys.Cst.InfoId (InfoId (InfoId'))
+import Octizys.Cst.Expression (ExpressionVariableId)
+import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Span (Span)
-import Octizys.Cst.Type (TypeVariableId (TypeVariableId'))
-import Octizys.Cst.VariableId (VariableId (VariableId'))
+import Octizys.Cst.Type (TypeVariableId)
+import Octizys.Effects.Generator.Effect (Generator, generate)
 import Octizys.Effects.SymbolResolution.Effect
   ( SourceExpressionVariableInfo
       ( SourceExpressionVariableInfo'
@@ -74,9 +70,6 @@ import Octizys.Effects.SymbolResolution.Effect
     ( SymbolResolutionState'
     , expNamesToId
     , expVarTable
-    , genInfoId
-    , genVarExp
-    , genVarType
     , infoTable
     , typeNamesToId
     , typeVarTable
@@ -105,10 +98,7 @@ data SymbolResolutionError
 initialSymbolResolutionState :: SymbolResolutionState
 initialSymbolResolutionState =
   SymbolResolutionState'
-    { genVarType = 0
-    , genVarExp = 0
-    , genInfoId = 0
-    , expVarTable = Map.empty
+    { expVarTable = Map.empty
     , typeVarTable = Map.empty
     , infoTable = Map.empty
     , expNamesToId = empty
@@ -120,38 +110,41 @@ initialSymbolResolutionState =
 -- Helper functions
 -- ============================================
 
-createInfoId :: SymbolResolutionState -> (InfoId, SymbolResolutionState)
-createInfoId s@SymbolResolutionState' {genInfoId} =
-  (InfoId' genInfoId, s {genInfoId = genInfoId + 1})
+createInfoId
+  :: Generator InfoId :> es
+  => Eff es InfoId
+createInfoId = generate
 
 
 createExpVarId
-  :: SymbolResolutionState -> (ExpressionVariableId, SymbolResolutionState)
-createExpVarId s@SymbolResolutionState' {genVarExp} =
-  ( ExpressionVariableId' (VariableId' genVarExp)
-  , s {genVarExp = genVarExp + 1}
-  )
+  :: Generator ExpressionVariableId :> es
+  => Eff es ExpressionVariableId
+createExpVarId = generate
 
 
 createTypeVarId
-  :: SymbolResolutionState -> (TypeVariableId, SymbolResolutionState)
-createTypeVarId s@SymbolResolutionState' {genVarType} =
-  (TypeVariableId' (VariableId' genVarType), s {genVarType = genVarType + 1})
+  :: Generator TypeVariableId :> es
+  => Eff es TypeVariableId
+createTypeVarId = generate
 
 
 registerNewExpressionVariable
-  :: Text
+  :: Generator TypeVariableId :> es
+  => Generator ExpressionVariableId :> es
+  => Text
   -- ^ The name of the variable
   -> Maybe Span
   -- ^ The span where it is defined if know.
   -> SymbolResolutionState
-  -> ( ExpressionVariableId
-     , SymbolResolutionState
-     )
-registerNewExpressionVariable name maybeSpan st =
-  let (varId, s1) = createExpVarId st
-      (typeId, s2) = createTypeVarId s1
-      info =
+  -> Eff
+      es
+      ( ExpressionVariableId
+      , SymbolResolutionState
+      )
+registerNewExpressionVariable name maybeSpan st = do
+  varId <- createExpVarId
+  typeId <- createTypeVarId
+  let info =
         SourceExpressionVariableInfo'
           { name = name
           , expressionVariableId = varId
@@ -159,39 +152,42 @@ registerNewExpressionVariable name maybeSpan st =
           , typeId = typeId
           }
       newExpNamesToId =
-        pushValue (name, varId) (expNamesToId s2)
+        pushValue (name, varId) (expNamesToId st)
       stOut =
-        s2
-          { expVarTable = Map.insert varId info (expVarTable s2)
+        st
+          { expVarTable = Map.insert varId info (expVarTable st)
           , typeVarTable =
               Map.insert
                 typeId
                 (SourceTypeVariableInfo' Nothing typeId Nothing)
-                (typeVarTable s2)
+                (typeVarTable st)
           , expNamesToId = newExpNamesToId
           }
-   in (varId, stOut)
+  pure (varId, stOut)
 
 
 registerNewTypeVariable
-  :: Maybe Text
+  :: Generator TypeVariableId :> es
+  => Maybe Text
   -- ^ The name of the variable
   -> Maybe Span
   -- ^ The span where it is defined if know.
   -> SymbolResolutionState
-  -> ( TypeVariableId
-     , SymbolResolutionState
-     )
-registerNewTypeVariable maybeName maybeSpan st =
+  -> Eff
+      es
+      ( TypeVariableId
+      , SymbolResolutionState
+      )
+registerNewTypeVariable maybeName maybeSpan st = do
+  typeId <- createTypeVarId
   let
-    (typeId, s2) = createTypeVarId st
     newTypeNamesToId =
       case maybeName of
         Just name ->
-          pushValue (name, typeId) (typeNamesToId s2)
-        Nothing -> typeNamesToId s2
+          pushValue (name, typeId) (typeNamesToId st)
+        Nothing -> typeNamesToId st
     stOut =
-      s2
+      st
         { typeVarTable =
             Map.insert
               typeId
@@ -200,11 +196,10 @@ registerNewTypeVariable maybeName maybeSpan st =
                   typeId
                   maybeSpan
               )
-              (typeVarTable s2)
+              (typeVarTable st)
         , typeNamesToId = newTypeNamesToId
         }
-   in
-    (typeId, stOut)
+  pure (typeId, stOut)
 
 
 -- ============================================
@@ -214,6 +209,9 @@ registerNewTypeVariable maybeName maybeSpan st =
 runSymbolResolution
   :: State SymbolResolutionState :> es
   => Error SymbolResolutionError :> es
+  => Generator TypeVariableId :> es
+  => Generator ExpressionVariableId :> es
+  => Generator InfoId :> es
   => Eff (SymbolResolution : es) a
   -> Eff es a
 runSymbolResolution = interpret \_ -> \case
@@ -223,29 +221,27 @@ runSymbolResolution = interpret \_ -> \case
     case maybeId of
       Just expId ->
         pure expId
-      Nothing ->
-        let (var, newState) =
-              registerNewExpressionVariable
-                name
-                Nothing
-                originalState
-         in do
-              put newState
-              pure var
+      Nothing -> do
+        (var, newState) <-
+          registerNewExpressionVariable
+            name
+            Nothing
+            originalState
+        put newState
+        pure var
   FoundTypeVariable name -> do
     originalState <- get
     let maybeInfo = lookup name (typeNamesToId originalState)
     case maybeInfo of
       Just tyInfo -> pure tyInfo
-      Nothing ->
-        let (var, newState) =
-              registerNewTypeVariable
-                (Just name)
-                Nothing
-                originalState
-         in do
-              put newState
-              pure var
+      Nothing -> do
+        (var, newState) <-
+          registerNewTypeVariable
+            (Just name)
+            Nothing
+            originalState
+        put newState
+        pure var
   DefinitionOfExpressionVariable name varSpan -> do
     originalState <- get
     let maybeId = lookup name (expNamesToId originalState)
@@ -259,11 +255,14 @@ runSymbolResolution = interpret \_ -> \case
             case expInfo.expDefinitionSpan of
               --  We need to create a new variable
               -- and register it.
-              Just _ ->
-                let (var, newState) = registerNewExpressionVariable name (Just varSpan) originalState
-                 in do
-                      put newState
-                      pure var
+              Just _ -> do
+                (var, newState) <-
+                  registerNewExpressionVariable
+                    name
+                    (Just varSpan)
+                    originalState
+                put newState
+                pure var
               --  A variable was found before it's definition
               -- (maybe in a `where` clause)
               Nothing ->
@@ -281,15 +280,14 @@ runSymbolResolution = interpret \_ -> \case
           Nothing ->
             throwError
               (CantFindExpVariableThatMustBeIn expId name)
-      Nothing ->
-        let (var, newState) =
-              registerNewExpressionVariable
-                name
-                (Just varSpan)
-                originalState
-         in do
-              put newState
-              pure var
+      Nothing -> do
+        (var, newState) <-
+          registerNewExpressionVariable
+            name
+            (Just varSpan)
+            originalState
+        put newState
+        pure var
   DefinitionOfTypeVariable name varSpan -> do
     originalState <- get
     let maybeId = lookup name (typeNamesToId originalState)
@@ -303,11 +301,14 @@ runSymbolResolution = interpret \_ -> \case
             case typeInfo.typeDefinitionSpan of
               --  We need to create a new variable
               -- and register it.
-              Just _ ->
-                let (var, newState) = registerNewTypeVariable (Just name) (Just varSpan) originalState
-                 in do
-                      put newState
-                      pure var
+              Just _ -> do
+                (var, newState) <-
+                  registerNewTypeVariable
+                    (Just name)
+                    (Just varSpan)
+                    originalState
+                put newState
+                pure var
               --  A variable was found before it's definition
               -- (maybe in a `where` clause)
               Nothing ->
@@ -326,15 +327,14 @@ runSymbolResolution = interpret \_ -> \case
           Nothing ->
             throwError
               (CantFindTypeVariableThatMustBeIn typeId name)
-      Nothing ->
-        let (var, newState) =
-              registerNewTypeVariable
-                (Just name)
-                (Just varSpan)
-                originalState
-         in do
-              put newState
-              pure var
+      Nothing -> do
+        (var, newState) <-
+          registerNewTypeVariable
+            (Just name)
+            (Just varSpan)
+            originalState
+        put newState
+        pure var
   RemoveExpressionDefinition expId ->
     modify $ \s ->
       case Map.lookup expId s.expVarTable of
@@ -353,10 +353,10 @@ runSymbolResolution = interpret \_ -> \case
           Nothing -> throwError $ AttemptToDeleteAnonymousVariable typeInfo
       Nothing -> pure ()
   CreateInformation span pre after -> do
-    SymbolResolutionState' {..} <- get
-    let (infoId, s1) = createInfoId SymbolResolutionState' {..}
-        info = SourceInfo' span pre after
-    put s1 {infoTable = Map.insert infoId info infoTable}
+    st <- get
+    infoId <- createInfoId
+    let info = SourceInfo' span pre after
+    put st {infoTable = Map.insert infoId info st.infoTable}
     pure infoId
   GetSymbolResolutionState -> get
   PutSymbolResolutionState s -> put s
@@ -364,6 +364,9 @@ runSymbolResolution = interpret \_ -> \case
 
 runSymbolResolutionFull
   :: Error SymbolResolutionError :> es
+  => Generator TypeVariableId :> es
+  => Generator ExpressionVariableId :> es
+  => Generator InfoId :> es
   => SymbolResolutionState
   -> Eff (SymbolResolution : State SymbolResolutionState : es) a
   -> Eff es (a, SymbolResolutionState)
