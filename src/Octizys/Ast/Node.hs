@@ -9,30 +9,30 @@ import Octizys.Classes.From (From (from))
 import Octizys.Cst.Expression (ExpressionVariableId)
 
 
-data Node
-  = NType Type
-  | NExp Expression
-  | NDef Definition
-  | NParameter (ExpressionVariableId, Type)
-  | NValue Value
+data Node var
+  = NType (Type var)
+  | NExp (Expression var)
+  | NDef (Definition var)
+  | NParameter (ExpressionVariableId, Type var)
+  | NValue (Value var)
   deriving (Show, Eq, Ord)
 
 
-instance From Node Type where
+instance From (Node var) (Type var) where
   from = NType
 
 
-instance From Node Expression where
+instance From (Node var) (Expression var) where
   from = NExp
 
 
-instance From Node Definition where
+instance From (Node var) (Definition var) where
   from = NDef
 
 
-instance From Node (ExpressionVariableId, Type) where
+instance From (Node var) (ExpressionVariableId, Type var) where
   from = NParameter
 
 
-instance From Node Value where
+instance From (Node var) (Value var) where
   from = NValue

@@ -4,13 +4,13 @@ module Octizys.Inference.ConstraintsSolver where
 
 import qualified Octizys.Cst.Expression as CstE
 
-import Control.Arrow ((<<<))
 import Control.Monad (foldM, forM, unless)
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 import Effectful (Eff, (:>))
-import Effectful.Error.Static (Error, throwError)
+import Effectful.Error.Static (Error, runErrorNoCallStack, throwError)
 import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Local (State)
 import qualified Octizys.Ast.Expression as AstE
@@ -30,13 +30,14 @@ import Octizys.Inference.ConstraintsGeneration
   , infer
   )
 import Octizys.Inference.Errors
-  ( Constraint (constraintInfo, constraintType1, constraintType2)
+  ( Constraint (constraintType1, constraintType2)
   , InferenceError
     ( CantUnify
     , ContainsFreeVariablesAfterSolving
     , RecursiveSubstitution
     )
-  , Substitution (Substitution', substitutionInfo, value, variableId)
+  , Substitution (Substitution', substitutionMap)
+  , singletonSubstitution
   )
 import Octizys.Pretty.FormatContext (defaultFormatContext)
 import Octizys.Pretty.Formatter (Formatter (format))
@@ -45,34 +46,54 @@ import qualified Prettyprinter as Pretty
 import Prelude hiding (lookup)
 
 
--- | Replaces a type variable inside a expression with another type.
+{- | Check if a variable is in the substitution, if it is
+then we check that the variable doesn't pear in it's value
+before returning the right value.
+-}
+occursCheck
+  :: Error InferenceError :> es
+  => TypeVariableId
+  -> Substitution
+  -> Eff es (Maybe (Either InferenceError AstT.Type))
+occursCheck tid s =
+  case Map.lookup tid s.substitutionMap of
+    Just value ->
+      case value of
+        Left e -> pure $ Just $ Left e
+        Right mp ->
+          if Set.member tid (freeTyVars mp)
+            then throwError $ RecursiveSubstitution s
+            else pure $ Just $ Right mp
+    Nothing -> pure Nothing
+
+
+-- | Applies a substitution of terms to a type.
 subs
   :: Error InferenceError :> es
   => Substitution
   -> AstT.Type
-  -> Eff es AstT.Type
+  -> Eff es (Either InferenceError AstT.Type)
 subs sub oldType =
-  let freeInType = freeTyVars sub.value
-   in if Set.member sub.variableId freeInType
-        then throwError $ RecursiveSubstitution sub
-        else case oldType of
-          AstT.VType AstT.BoolType -> pure oldType
-          AstT.VType AstT.IntType -> pure oldType
-          AstT.Arrow {start, remain} -> do
-            newStart <- subs sub start
-            newRemain <- forM remain (subs sub)
-            pure $
-              AstT.Arrow
-                { start = newStart
-                , remain = newRemain
-                }
-          AstT.Variable {variableId = oldVid} ->
-            pure $
-              if oldVid == sub.variableId
-                then sub.value
-                else oldType
+  case oldType of
+    AstT.VType AstT.BoolType -> pure oldType
+    AstT.VType AstT.IntType -> pure oldType
+    AstT.Arrow {start, remain} -> do
+      newStart <- subs sub start
+      newRemain <- forM remain (subs sub)
+      pure $
+        Right $
+          AstT.Arrow
+            { start = newStart
+            , remain = newRemain
+            }
+    AstT.Variable {variableId = oldVid} -> do
+      maybeValue <- occursCheck oldVid sub
+      case maybeValue of
+        Just newValue -> pure newValue
+        Nothing -> pure oldType
 
 
+-- | Apply a substitution to a constraint.
 subsInConstraint
   :: Error InferenceError :> es
   => Substitution
@@ -88,168 +109,70 @@ subsInConstraint sub c = do
       }
 
 
-findUnsolvedSubstitutions
-  :: Set.Set TypeVariableId
-  -> [Substitution]
-  -> [Substitution]
-findUnsolvedSubstitutions initial substitutions = go initial Set.empty []
-  where
-    go
-      :: Set.Set TypeVariableId
-      -> Set.Set TypeVariableId
-      -> [Substitution]
-      -> [Substitution]
-    go current seen acc
-      | Set.null (Set.difference current seen) = acc
-      | otherwise =
-          let newSeen = Set.union seen current
-              (related, _) = partitionSubstitutions current substitutions
-              newVars = Set.unions (map (freeTyVars <<< value) related)
-              newCurrent = Set.union newVars newSeen
-           in go newCurrent newSeen (acc ++ related)
-
-    partitionSubstitutions
-      :: Set.Set TypeVariableId -> [Substitution] -> ([Substitution], [Substitution])
-    partitionSubstitutions vars = foldr step ([], [])
-      where
-        step s (yes, no)
-          | s.variableId `Set.member` vars
-              || not (Set.null (Set.intersection (freeTyVars (value s)) vars)) =
-              (s : yes, no)
-          | otherwise = (yes, s : no)
-
-
-findSubstitutions
+composeSubstitutions
   :: Error InferenceError :> es
-  => [Constraint]
-  -> Eff es [Substitution]
-findSubstitutions [] = pure []
-findSubstitutions (x : ys) = do
-  initialSet <- go
-  subsInInitial initialSet initialSet
+  => Substitution
+  -> Substitution
+  -> Eff es Substitution
+composeSubstitutions s1 s2 = do
+  substituted <- traverse step s2.substitutionMap
+  pure $ Substitution' (Map.union substituted s1.substitutionMap)
   where
-    go =
-      case x.constraintType1 of
-        AstT.Variable t -> do
-          lst <-
-            forM
-              ys
-              ( subsInConstraint $
-                  constraintToSub t x
-              )
-              >>= findSubstitutions
-          pure
-            ( constraintToSub t x
-                : lst
-            )
-        _ ->
-          case x.constraintType2 of
-            AstT.Variable t -> do
-              lst <-
-                forM
-                  ys
-                  ( subsInConstraint
-                      ( constraintToSub
-                          t
-                          ( x {constraintType1 = x.constraintType2, constraintType2 = x.constraintType1}
-                          )
-                      )
-                  )
-                  >>= findSubstitutions
-              pure
-                ( constraintToSub
-                    t
-                    ( x {constraintType1 = x.constraintType2, constraintType2 = x.constraintType1}
-                    )
-                    : lst
-                )
-            _ -> do
-              unifySubs <- unify x
-              findSubstitutions (unifySubs <> ys)
-    subsSub s s2 = do
-      newVal <- subs s s2.value
-      pure s2 {value = newVal}
-    subsInInitial [] end = pure end
-    subsInInitial (z : zs) ss =
-      forM ss (subsSub z) >>= subsInInitial zs
-    constraintToSub :: TypeVariableId -> Constraint -> Substitution
-    constraintToSub t c =
-      Substitution'
-        { variableId = t
-        , value = c.constraintType2
-        , substitutionInfo = c.constraintInfo
-        }
+    step (Left e) = pure (Left e)
+    step (Right b) = Right <$> subs s1 b
 
 
 unify
   :: Error InferenceError :> es
-  => Constraint
-  -> Eff es [Constraint]
-unify c =
-  let
-    x = c.constraintType1
-    y = c.constraintType2
-   in
-    if x == y
-      then pure []
-      else case (x, y) of
-        (AstT.Arrow {remain = remainX}, AstT.Arrow {remain = remainY}) -> do
-          startU <- unifyWith x.start y.start
-          args <- go remainX remainY
-          pure (startU <> args)
-          where
-            go (lastX :| []) (lastY :| []) = unifyWith lastX lastY
-            go (headX :| (headX2 : lastX)) (lastY :| []) =
-              unifyWith
-                ( AstT.Arrow
-                    { AstT.start =
-                        headX
-                    , AstT.remain = headX2 :| lastX
-                    }
-                )
-                lastY
-            go (lastX :| []) (headY :| (headY2 : lastY)) =
-              unifyWith
-                lastX
-                ( AstT.Arrow
-                    { AstT.start =
-                        headY
-                    , AstT.remain = headY2 :| lastY
-                    }
-                )
-            go (someX :| (headX : moreX)) (someY :| (headY : moreY)) = do
-              heads <- unifyWith someX someY
-              remains <- go (headX :| moreX) (headY :| moreY)
-              pure (heads <> remains)
-        (AstT.Variable _, _) -> do
-          pure [c]
-        (_, AstT.Variable _) -> unifyWith y x
-        _ -> throwError $ CantUnify c
-  where
-    unifyWith z w = unify c {constraintType1 = z, constraintType2 = w}
-
-
-typeSubs
-  :: Error InferenceError :> es
-  => [Substitution]
+  => AstT.Type
   -> AstT.Type
-  -> Eff es AstT.Type
-typeSubs listOfSubstitutions t =
-  foldM
-    (flip subs)
-    t
-    listOfSubstitutions
+  -> Eff es Substitution
+unify x y =
+  if x == y
+    then pure mempty
+    else case (x, y) of
+      (AstT.Arrow {remain = remainX}, AstT.Arrow {remain = remainY}) -> do
+        startU <- unify x.start y.start
+        args <- go remainX remainY
+        pure (startU <> args)
+        where
+          go (lastX :| []) (lastY :| []) = unify lastX lastY
+          go (headX :| (headX2 : lastX)) (lastY :| []) =
+            unify
+              ( AstT.Arrow
+                  { AstT.start =
+                      headX
+                  , AstT.remain = headX2 :| lastX
+                  }
+              )
+              lastY
+          go (lastX :| []) (headY :| (headY2 : lastY)) =
+            unify
+              lastX
+              ( AstT.Arrow
+                  { AstT.start =
+                      headY
+                  , AstT.remain = headY2 :| lastY
+                  }
+              )
+          go (someX :| (headX : moreX)) (someY :| (headY : moreY)) = do
+            heads <- unify someX someY
+            remains <- go (headX :| moreX) (headY :| moreY)
+            pure (heads <> remains)
+      (AstT.Variable tid, _) -> do
+        pure $ singletonSubstitution tid y
+      (_, AstT.Variable _) -> unify y x
+      _ -> throwError $ CantUnify x y
 
 
 defSubs
   :: Error InferenceError :> es
-  => [Substitution]
+  => Substitution
   -> AstE.Definition
   -> Eff es AstE.Definition
-defSubs [] d = pure d
-defSubs l d@(AstE.Definition' {definition, inferType}) = do
-  newDef <- expSubs l definition
-  newType <- typeSubs l inferType
+defSubs s d@(AstE.Definition' {definition, inferType}) = do
+  newDef <- expSubs s definition
+  newType <- subs s inferType
   pure
     d
       { AstE.definition = newDef
@@ -259,30 +182,29 @@ defSubs l d@(AstE.Definition' {definition, inferType}) = do
 
 expSubs
   :: Error InferenceError :> es
-  => [Substitution]
+  => Substitution
   -> AstE.Expression
   -> Eff es AstE.Expression
-expSubs [] e = pure e
-expSubs l e =
+expSubs s e =
   case e of
     AstE.EValue {value = AstE.VInt {inferType, intValue}, inferType = ty} -> do
-      newType <- typeSubs l inferType
-      newTypeTy <- typeSubs l ty
+      newType <- subs s inferType
+      newTypeTy <- subs s ty
       pure $
         AstE.EValue
           { value = AstE.VInt {intValue, AstE.inferType = newType}
           , AstE.inferType = newTypeTy
           }
     AstE.EValue {value = AstE.VBool {inferType, boolValue}, inferType = ty} -> do
-      newType <- typeSubs l inferType
-      newTypeTy <- typeSubs l ty
+      newType <- subs s inferType
+      newTypeTy <- subs s ty
       pure $
         AstE.EValue
           { value = AstE.VBool {boolValue, AstE.inferType = newType}
           , AstE.inferType = newTypeTy
           }
     AstE.Variable {inferType} -> do
-      newType <- typeSubs l inferType
+      newType <- subs s inferType
       pure $ e {AstE.inferType = newType}
     AstE.EValue
       { value =
@@ -292,10 +214,10 @@ expSubs l e =
           , inferType
           }
       } -> do
-        newType <- typeSubs l inferType
-        newParams <- forM parameters (\(x, y) -> typeSubs l y >>= \v -> pure (x, v))
+        newType <- subs s inferType
+        newParams <- forM parameters (\(x, y) -> subs s y >>= \v -> pure (x, v))
         newBody <-
-          expSubs l body
+          expSubs s body
         pure $
           from
             AstE.Function
@@ -308,11 +230,11 @@ expSubs l e =
       , applicationArgument
       , inferType
       } -> do
-        newType <- typeSubs l inferType
+        newType <- subs s inferType
         newFunction <-
-          expSubs l applicationFunction
+          expSubs s applicationFunction
         newArg <-
-          expSubs l applicationArgument
+          expSubs s applicationArgument
         pure $
           e
             { AstE.inferType = newType
@@ -320,13 +242,13 @@ expSubs l e =
             , AstE.applicationArgument = newArg
             }
     AstE.If {inferType, condition, ifTrue, ifFalse} -> do
-      newType <- typeSubs l inferType
+      newType <- subs s inferType
       newCondition <-
-        expSubs l condition
+        expSubs s condition
       newTrue <-
-        expSubs l ifTrue
+        expSubs s ifTrue
       newFalse <-
-        expSubs l ifFalse
+        expSubs s ifFalse
       pure $
         e
           { AstE.inferType = newType
@@ -335,11 +257,11 @@ expSubs l e =
           , AstE.ifFalse = newFalse
           }
     AstE.Let {inferType, definitions, expression} -> do
-      newType <- typeSubs l inferType
+      newType <- subs s inferType
       newDef <-
-        forM definitions (defSubs l)
+        forM definitions (defSubs s)
       newExpr <-
-        expSubs l expression
+        expSubs s expression
       pure $
         e
           { AstE.inferType = newType
@@ -347,16 +269,33 @@ expSubs l e =
           , AstE.expression = newExpr
           }
     AstE.Annotation {expression, _type, inferType} -> do
-      newType <- typeSubs l inferType
-      newType2 <- typeSubs l _type
+      newType <- subs s inferType
+      newType2 <- subs s _type
       newExpr <-
-        expSubs l expression
+        expSubs s expression
       pure $
         e
           { AstE.inferType = newType
           , AstE._type = newType2
           , AstE.expression = newExpr
           }
+
+
+constraintSubstitution
+  :: Error InferenceError :> es
+  => Constraint
+  -> Eff es Substitution
+constraintSubstitution c =
+  unify c.constraintType1 c.constraintType2
+
+
+findSubstitution
+  :: Error InferenceError :> es
+  => [Constraint]
+  -> Eff es Substitution
+findSubstitution cs = do
+  substitutions <- forM cs constraintSubstitution
+  foldM composeSubstitutions mempty substitutions
 
 
 logSolver
@@ -381,9 +320,10 @@ solveExpressionType expression = do
   logSolver "constraints:" $
     Pretty.list (format defaultFormatContext <$> out.constraints)
   logSolver "afterInfer:" $ format defaultFormatContext out.expression
-  subst <- findSubstitutions out.constraints
+  subst <- findSubstitution out.constraints
   logSolver "substitutions:" $
-    Pretty.list (format defaultFormatContext <$> subst)
+    Pretty.list
+      (format defaultFormatContext <$> Map.toList subst.substitutionMap)
   final <- expSubs subst out.expression
   let free = freeTyVars final
   unless
@@ -408,7 +348,7 @@ solveDefinitionType
   -> Eff es AstE.Definition
 solveDefinitionType cstDef = do
   (constraints, astDef) <- definitionCstToAst cstDef
-  subst <- findSubstitutions constraints
+  subst <- findSubstitution constraints
   final <- defSubs subst astDef
   let free = freeTyVars final
   unless
@@ -421,3 +361,62 @@ solveDefinitionType cstDef = do
           subst
     )
   pure final
+
+
+definitionsCstToAst
+  :: State InferenceState :> es
+  => Reader SymbolResolutionState :> es
+  => Generator TypeVariableId :> es
+  => Logger :> es
+  => [CstE.Definition]
+  -> Eff
+      es
+      ( Either
+          [InferenceError]
+          [(CstE.Definition, AstE.Definition, [Constraint])]
+      )
+definitionsCstToAst cstDefs = go cstDefs [] []
+  where
+    go [] accOk accErr =
+      case accErr of
+        [] -> pure (Right accOk)
+        _ -> pure $ Left accErr
+    go (cst : xs) accOk accErr = do
+      maybeResult <- runErrorNoCallStack (definitionCstToAst cst)
+      case maybeResult of
+        Left i -> go xs accOk (i : accErr)
+        Right (cs, ast) -> go xs ((cst, ast, cs) : accOk) accErr
+
+
+solveDefinitionsType
+  :: State InferenceState :> es
+  => Reader SymbolResolutionState :> es
+  => Generator TypeVariableId :> es
+  => Logger :> es
+  => [CstE.Definition]
+  -> Eff es ([InferenceError], [AstE.Definition])
+solveDefinitionsType = undefined
+
+-- solveDefinitionsType cstDef = do
+--   maybeDefs <- definitionsCstToAst cstDef
+--   case maybeDefs of
+--     Left ls -> pure (ls,[])
+--     Right rsts ->
+--       let
+--         constraints =
+--           concatMap (\(_, _, cs) -> cs) rsts
+--        in
+--         do
+--           subst <- findSubstitutions constraints
+--           final <- forM astDefs (defSubs subst)
+--           let free = foldl' (<>) mempty (freeTyVars <$> final)
+--           unless
+--             (Set.null free)
+--             ( throwError $
+--                 ContainsFreeVariablesAfterSolving
+--                   (from cstDef)
+--                   (from final)
+--                   free
+--                   subst
+--             )
+--           pure final

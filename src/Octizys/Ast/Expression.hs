@@ -10,87 +10,96 @@ import Data.Set (difference)
 import Data.Text (Text)
 import Effectful.Dispatch.Dynamic (HasCallStack)
 import Octizys.Ast.Type (Type)
-import Octizys.Classes.FreeVariables (FreeTypeVariables (freeTyVars))
+import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
 import Octizys.Cst.Expression (ExpressionVariableId)
+import Octizys.Cst.Type (TypeVariableId)
 
 
-data Definition = Definition'
+data Definition var = Definition'
   { name :: ExpressionVariableId
-  , definition :: Expression
-  , inferType :: Type
+  , definition :: Expression var
+  , inferType :: Type var
   }
   deriving (Show, Eq, Ord)
 
 
-instance FreeTypeVariables Definition where
-  freeTyVars d =
-    freeTyVars d.definition <> freeTyVars d.inferType
+instance
+  FreeVariables TypeVariableId var
+  => FreeVariables TypeVariableId (Definition var)
+  where
+  freeVariables d =
+    freeVariables d.definition <> freeVariables d.inferType
 
 
-data Value
-  = VInt {intValue :: Text, inferType :: Type}
-  | VBool {boolValue :: Bool, inferType :: Type}
+data Value var
+  = VInt {intValue :: Text, inferType :: Type var}
+  | VBool {boolValue :: Bool, inferType :: Type var}
   | Function
-      { parameters :: NonEmpty (ExpressionVariableId, Type)
-      , body :: Expression
-      , inferType :: Type
+      { parameters :: NonEmpty (ExpressionVariableId, Type var)
+      , body :: Expression var
+      , inferType :: Type var
       }
   deriving (Show, Eq, Ord)
 
 
-getValueType :: Value -> Type
+getValueType :: Value var -> Type var
 getValueType v = v.inferType
 
 
-instance FreeTypeVariables Value where
-  freeTyVars (VInt {inferType}) = freeTyVars inferType
-  freeTyVars (VBool {inferType}) = freeTyVars inferType
-  freeTyVars (Function {inferType, body, parameters}) =
+instance
+  FreeVariables TypeVariableId var
+  => FreeVariables TypeVariableId (Value var)
+  where
+  freeVariables (VInt {inferType}) = freeVariables inferType
+  freeVariables (VBool {inferType}) = freeVariables inferType
+  freeVariables (Function {inferType, body, parameters}) =
     difference
-      (freeTyVars inferType <> freeTyVars body)
-      (foldl' (\a (_, y) -> a <> freeTyVars y) mempty parameters)
+      (freeVariables inferType <> freeVariables body)
+      (foldl' (\a (_, y) -> a <> freeVariables y) mempty parameters)
 
 
-data Expression
-  = Variable {name :: ExpressionVariableId, inferType :: Type}
-  | EValue {value :: Value, inferType :: Type}
+data Expression var
+  = Variable {name :: ExpressionVariableId, inferType :: Type var}
+  | EValue {value :: Value var, inferType :: Type var}
   | Application
-      { applicationFunction :: Expression
-      , applicationArgument :: Expression
-      , inferType :: Type
+      { applicationFunction :: Expression var
+      , applicationArgument :: Expression var
+      , inferType :: Type var
       }
   | If
-      { condition :: Expression
-      , ifTrue :: Expression
-      , ifFalse :: Expression
-      , inferType :: Type
+      { condition :: Expression var
+      , ifTrue :: Expression var
+      , ifFalse :: Expression var
+      , inferType :: Type var
       }
   | Let
       { -- The alone info is the semicolon finishing a definition
-        definitions :: NonEmpty Definition
-      , expression :: Expression
-      , inferType :: Type
+        definitions :: NonEmpty (Definition var)
+      , expression :: Expression var
+      , inferType :: Type var
       }
   | Annotation
-      { expression :: Expression
-      , _type :: Type
-      , inferType :: Type
+      { expression :: Expression var
+      , _type :: Type var
+      , inferType :: Type var
       }
   deriving (Show, Eq, Ord)
 
 
-instance From Expression Value where
+instance From (Expression var) (Value var) where
   from v = EValue {value = v, inferType = getValueType v}
 
 
-buildValueDefinitionsMap :: Value -> Map ExpressionVariableId Expression
+buildValueDefinitionsMap
+  :: Value var -> Map ExpressionVariableId (Expression var)
 buildValueDefinitionsMap VInt {} = mempty
 buildValueDefinitionsMap VBool {} = mempty
 buildValueDefinitionsMap Function {body} = buildDefinitionsMap body
 
 
-buildDefinitionsMap :: Expression -> Map ExpressionVariableId Expression
+buildDefinitionsMap
+  :: Expression var -> Map ExpressionVariableId (Expression var)
 buildDefinitionsMap Variable {} = mempty
 buildDefinitionsMap EValue {value} = buildValueDefinitionsMap value
 buildDefinitionsMap Application {applicationFunction, applicationArgument} =
@@ -109,32 +118,36 @@ buildDefinitionsMap Let {definitions, expression} =
     (buildDefinitionsMap expression)
     (foldMap buildFromDefinition definitions)
   where
-    buildFromDefinition :: Definition -> Map ExpressionVariableId Expression
+    buildFromDefinition
+      :: Definition var -> Map ExpressionVariableId (Expression var)
     buildFromDefinition Definition' {name, definition} =
       Map.union (Map.singleton name definition) (buildDefinitionsMap definition)
 buildDefinitionsMap Annotation {expression} =
   buildDefinitionsMap expression
 
 
-instance FreeTypeVariables Expression where
-  freeTyVars (EValue {inferType}) = freeTyVars inferType
-  freeTyVars (Variable {inferType}) = freeTyVars inferType
-  freeTyVars (Application {inferType, applicationFunction, applicationArgument}) =
-    freeTyVars inferType
-      <> freeTyVars applicationFunction
-      <> freeTyVars applicationArgument
-  freeTyVars (If {inferType, condition, ifTrue, ifFalse}) =
-    freeTyVars inferType
-      <> freeTyVars ifTrue
-      <> freeTyVars ifFalse
-      <> freeTyVars condition
-  freeTyVars (Let {inferType, definitions, expression}) =
-    freeTyVars inferType
-      <> freeTyVars expression
-      <> foldMap freeTyVars definitions
-  freeTyVars Annotation {expression, _type, inferType} =
-    freeTyVars expression <> freeTyVars _type <> freeTyVars inferType
+instance
+  FreeVariables TypeVariableId var
+  => FreeVariables TypeVariableId (Expression var)
+  where
+  freeVariables (EValue {inferType}) = freeVariables inferType
+  freeVariables (Variable {inferType}) = freeVariables inferType
+  freeVariables (Application {inferType, applicationFunction, applicationArgument}) =
+    freeVariables inferType
+      <> freeVariables applicationFunction
+      <> freeVariables applicationArgument
+  freeVariables (If {inferType, condition, ifTrue, ifFalse}) =
+    freeVariables inferType
+      <> freeVariables ifTrue
+      <> freeVariables ifFalse
+      <> freeVariables condition
+  freeVariables (Let {inferType, definitions, expression}) =
+    freeVariables inferType
+      <> freeVariables expression
+      <> foldMap freeVariables definitions
+  freeVariables Annotation {expression, _type, inferType} =
+    freeVariables expression <> freeVariables _type <> freeVariables inferType
 
 
-getType :: HasCallStack => Expression -> Type
+getType :: HasCallStack => Expression var -> Type var
 getType e = e.inferType

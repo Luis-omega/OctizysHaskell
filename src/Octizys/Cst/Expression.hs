@@ -1,6 +1,7 @@
+{-# HLINT ignore "Use guards" #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-{-# HLINT ignore "Use guards" #-}
 module Octizys.Cst.Expression
   ( Parameter (ParameterAlone, ParameterWithType, name, _type, colon)
   , FunctionParameter
@@ -60,8 +61,12 @@ module Octizys.Cst.Expression
   )
 where
 
+import Control.Arrow ((<<<))
+import Data.Foldable (Foldable (foldl'))
 import Data.List.NonEmpty (NonEmpty)
+import qualified Data.Set as Set
 import Data.Text (Text)
+import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Cst.InfoId
   ( InfoId
   )
@@ -83,6 +88,10 @@ newtype ExpressionVariableId = ExpressionVariableId' {unExpressionVariableId :: 
   deriving (Show)
 
 
+instance FreeVariables ExpressionVariableId ExpressionVariableId where
+  freeVariables = Set.singleton
+
+
 -- | The set of parameters
 data Parameter
   = ParameterAlone {name :: (InfoId, ExpressionVariableId)}
@@ -92,6 +101,11 @@ data Parameter
       , _type :: Type
       }
   deriving (Show, Eq, Ord)
+
+
+instance FreeVariables ExpressionVariableId Parameter where
+  freeVariables ParameterAlone {name} = Set.singleton (snd name)
+  freeVariables ParameterWithType {name} = Set.singleton (snd name)
 
 
 data FunctionParameter
@@ -107,8 +121,22 @@ data FunctionParameter
   deriving (Show, Eq, Ord)
 
 
+instance FreeVariables ExpressionVariableId FunctionParameter where
+  freeVariables FunctionParameterWithType {parameter} = freeVariables parameter
+  freeVariables FunctionParameterAlone {parameter} = freeVariables parameter
+
+
 newtype Parameters = Parameters' {unParameters :: NonEmpty (Parameter, InfoId)}
   deriving (Show, Eq, Ord)
+
+
+instance FreeVariables ExpressionVariableId Parameters where
+  freeVariables p =
+    foldl'
+      (<>)
+      mempty
+      ( (freeVariables <<< fst) <$> p.unParameters
+      )
 
 
 -- | Either a Let definition or a Top level definition

@@ -6,6 +6,7 @@ module Octizys.Pretty.Formatter (Formatter (format)) where
 import Data.Text (Text)
 import qualified Octizys.Ast.Expression as Ast
 import qualified Octizys.Ast.Node as Ast
+import Octizys.Ast.Type (InferenceVariable)
 import qualified Octizys.Ast.Type as Ast
 import qualified Octizys.Cst.Comment as Cst
 import qualified Octizys.Cst.Expression as Cst
@@ -47,23 +48,60 @@ instance
   format ctx = maybe mempty (format ctx)
 
 
-instance Formatter ann (FormatContext ann) Ast.Type where
-  format = Ast.Type.format
+instance
+  Formatter ann (FormatContext ann) var
+  => Formatter ann (FormatContext ann) (Ast.Type var)
+  where
+  format = Ast.Type.format format
 
 
-instance Formatter ann (FormatContext ann) Ast.Value where
-  format = Ast.Expression.formatValue
+instance
+  Formatter ann (FormatContext ann) var
+  => Formatter ann (FormatContext ann) (Ast.Value var)
+  where
+  format = Ast.Expression.formatValue format
 
 
-instance Formatter ann (FormatContext ann) Ast.Definition where
-  format = Ast.Expression.formatDefinition
+instance Formatter ann (FormatContext ann) InferenceVariable where
+  format = Ast.Type.formatInferenceVariable
 
 
-instance Formatter ann (FormatContext ann) Ast.Expression where
-  format = Ast.Expression.formatExpression
+instance Formatter ann (FormatContext ann) Ast.TypeVariable where
+  format = Ast.Type.formatTypeVariable
 
 
-instance Formatter ann (FormatContext ann) Ast.Node where
+instance
+  Formatter ann (FormatContext ann) var
+  => Formatter ann (FormatContext ann) (Ast.MonoType var)
+  where
+  format = Ast.Type.formatMono format
+
+
+instance
+  Formatter ann (FormatContext ann) var
+  => Formatter ann (FormatContext ann) (Ast.Scheme var)
+  where
+  format = Ast.Type.formatScheme format
+
+
+instance
+  Formatter ann (FormatContext ann) var
+  => Formatter ann (FormatContext ann) (Ast.Definition var)
+  where
+  format = Ast.Expression.formatDefinition format
+
+
+instance
+  Formatter ann (FormatContext ann) var
+  => Formatter ann (FormatContext ann) (Ast.Expression var)
+  where
+  format = Ast.Expression.formatExpression format
+
+
+instance
+  Formatter ann (FormatContext ann) var
+  => Formatter ann (FormatContext ann) (Ast.Node var)
+  where
   format ctx (Ast.NType t) = format ctx t
   format ctx (Ast.NValue t) = format ctx t
   format ctx (Ast.NDef t) = format ctx t

@@ -5,9 +5,13 @@ module Octizys.Inference.Errors where
 
 import qualified Octizys.Cst.Expression as CstE
 
+import Data.Map (Map)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Octizys.Ast.Node as Ast
+import Octizys.Ast.Type (InferenceVariable)
 import qualified Octizys.Ast.Type as AstT
 import Octizys.Cst.Expression (ExpressionVariableId)
 import qualified Octizys.Cst.Node as Cst
@@ -35,12 +39,14 @@ data InferenceError
     FunctionWithoutParams CstE.Expression
   | -- This is a bug in the translation process
     UnboundExpressionVar ExpressionVariableId
-  | CantUnify Constraint
+  | CantUnify
+      (AstT.Type InferenceVariable)
+      (AstT.Type InferenceVariable)
   | ContainsFreeVariablesAfterSolving
       Cst.Node
-      Ast.Node
+      (Ast.Node InferenceVariable)
       (Set.Set TypeVariableId)
-      [Substitution]
+      Substitution
   | RecursiveSubstitution Substitution
   deriving (Show)
 
@@ -88,7 +94,7 @@ data ConstraintInfo = ConstraintInfo'
   , cst :: Cst.Node
   -- ^ The original node that instigated
   -- the constraint.
-  , ast :: Ast.Node
+  , ast :: Ast.Node InferenceVariable
   -- ^ The node translated to ast, it contains
   -- all the info to report errors!
   }
@@ -96,8 +102,8 @@ data ConstraintInfo = ConstraintInfo'
 
 
 data Constraint = Constraint'
-  { constraintType1 :: AstT.Type
-  , constraintType2 :: AstT.Type
+  { constraintType1 :: AstT.Type InferenceVariable
+  , constraintType2 :: AstT.Type InferenceVariable
   , constraintInfo :: ConstraintInfo
   }
   deriving (Show, Ord, Eq)
@@ -107,7 +113,7 @@ getConstraintCst :: Constraint -> Cst.Node
 getConstraintCst c = c.constraintInfo.cst
 
 
-getConstraintAst :: Constraint -> Ast.Node
+getConstraintAst :: Constraint -> Ast.Node InferenceVariable
 getConstraintAst c = c.constraintInfo.ast
 
 
@@ -124,23 +130,44 @@ instance Formatter ann (FormatContext ann) Constraint where
           else basicDoc
 
 
-data Substitution = Substitution'
-  { variableId :: TypeVariableId
-  , value :: AstT.Type
-  , substitutionInfo :: ConstraintInfo
+newtype Substitution = Substitution'
+  { substitutionMap
+      :: Map TypeVariableId (Either InferenceError (AstT.Type InferenceVariable))
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show)
+  deriving
+    (Monoid, Semigroup)
+    via ( Map
+            TypeVariableId
+            ( Either
+                InferenceError
+                (AstT.Type InferenceVariable)
+            )
+        )
 
 
 instance Formatter ann (FormatContext ann) Substitution where
   format ctx s =
-    let basicDoc =
-          formatTypeVar ctx s.variableId
-            <+> pretty '~'
-            <+> format ctx s.value
-     in if shouldShowConstraintReason ctx
-          then basicDoc <+> format ctx s.substitutionInfo.reason
-          else basicDoc
+    Pretty.list
+      ( ( \(ty, v) ->
+            Pretty.parens
+              ( formatTypeVar ctx ty
+                  <> pretty ','
+                  <> case v of
+                    Left e -> format ctx (Text.pack $ show e)
+                    Right y -> format ctx y
+              )
+        )
+          <$> Map.toList s.substitutionMap
+      )
+
+
+singletonSubstitution
+  :: TypeVariableId
+  -> AstT.Type InferenceVariable
+  -> Substitution
+singletonSubstitution x v =
+  Substitution' (Map.singleton x (Right v))
 
 
 buildConstraintUnifyReportDescriptions

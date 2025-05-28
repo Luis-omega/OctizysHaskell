@@ -1,13 +1,9 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Octizys.Classes.FreeVariables where
 
 import Data.Set (Set)
-import Octizys.Cst.Expression (ExpressionVariableId)
-import Octizys.Cst.Type (TypeVariableId)
 
 
-class FreeExpressionVariables t where
-  freeExpVars :: t -> Set ExpressionVariableId
-
-
-class FreeTypeVariables t where
-  freeTyVars :: t -> Set TypeVariableId
+class Ord var => FreeVariables var t where
+  freeVariables :: t -> Set var

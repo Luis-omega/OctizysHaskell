@@ -11,8 +11,10 @@ import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
 import Octizys.Ast.Expression
 import Octizys.Ast.Type
-  ( Type (Arrow, VType, remain, start)
+  ( MonoType (Arrow, VType, remain, start)
+  , Type (TMono)
   , TypeValue (BoolType)
+  , TypeVariable
   )
 import Octizys.Classes.From (From (from))
 import Octizys.Cst.Expression (ExpressionVariableId)
@@ -30,8 +32,8 @@ import qualified Prettyprinter as Pretty
 data EvaluationError
   = UnknowExpressionVar
       ExpressionVariableId
-      (Map ExpressionVariableId Expression)
-  | InvalidArgumentApplication Expression
+      (Map ExpressionVariableId (Expression TypeVariable))
+  | InvalidArgumentApplication (Expression TypeVariable)
   deriving (Show)
 
 
@@ -58,18 +60,18 @@ instance Formatter ann (FormatContext ann) EvaluationError where
 
 substituteInDef
   :: ExpressionVariableId
-  -> Expression
-  -> Definition
-  -> Definition
+  -> Expression TypeVariable
+  -> Definition TypeVariable
+  -> Definition TypeVariable
 substituteInDef vId e def =
   def {definition = substitute vId e def.definition}
 
 
 substituteInValue
   :: ExpressionVariableId
-  -> Expression
-  -> Value
-  -> Value
+  -> Expression TypeVariable
+  -> Value TypeVariable
+  -> Value TypeVariable
 substituteInValue vId e v =
   case v of
     VInt {} -> v
@@ -86,10 +88,10 @@ inside another expression.
 substitute
   :: ExpressionVariableId
   -- Replace the variable for this
-  -> Expression
+  -> Expression TypeVariable
   -- Replace the variable in this expression
-  -> Expression
-  -> Expression
+  -> Expression TypeVariable
+  -> Expression TypeVariable
 substitute vId replacementExp e =
   case e of
     EValue {value} -> e {value = substituteInValue vId replacementExp value}
@@ -125,9 +127,9 @@ evalLog header msg = debug (pretty header <> msg)
 evaluateExpression
   :: Error EvaluationError :> es
   => Logger :> es
-  => Map ExpressionVariableId Expression
-  -> Expression
-  -> Eff es Value
+  => Map ExpressionVariableId (Expression TypeVariable)
+  -> Expression TypeVariable
+  -> Eff es (Value TypeVariable)
 evaluateExpression _ EValue {value} = pure value
 evaluateExpression context Variable {name} =
   case Map.lookup name context of
@@ -149,7 +151,7 @@ evaluateExpression
         Function
           { parameters = (param, _) :| otherParams
           , body
-          , inferType = Arrow {remain}
+          , inferType = TMono (Arrow {remain})
           } -> do
             evalLog
               "Substituting variable: "
@@ -176,12 +178,17 @@ evaluateExpression
                     Function
                       { parameters = x :| rest
                       , body = from application
-                      , inferType = newType
+                      , inferType = from newType
                       }
         _ -> throwError $ InvalidArgumentApplication e
 evaluateExpression context If {condition, ifTrue, ifFalse} = do
   c <- evaluateExpression context condition
-  if c == VBool {boolValue = True, inferType = VType BoolType}
+  if c
+    == VBool
+      { boolValue =
+          True
+      , inferType = from $ VType @TypeVariable BoolType
+      }
     then evaluateExpression context ifTrue
     else evaluateExpression context ifFalse
 evaluateExpression context Let {expression} = do

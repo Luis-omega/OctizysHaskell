@@ -19,39 +19,43 @@ import qualified Prettyprinter as Pretty
 
 
 formatDefinition
-  :: FormatContext ann
-  -> Definition
+  :: (FormatContext ann -> var -> Doc ann)
+  -> FormatContext ann
+  -> Definition var
   -> Doc ann
-formatDefinition ctx Definition' {name, definition, inferType} =
+formatDefinition fmtVar ctx Definition' {name, definition, inferType} =
   formatExpressionVar ctx name
     <+> ":"
-    <+> Type.format ctx inferType
+    <+> Type.format fmtVar ctx inferType
     <+> "="
-    <+> formatExpression ctx definition
+    <+> formatExpression fmtVar ctx definition
 
 
 formatParameterFunction
-  :: FormatContext ann
-  -> (ExpressionVariableId, Type)
+  :: (FormatContext ann -> var -> Doc ann)
+  -> FormatContext ann
+  -> (ExpressionVariableId, Type var)
   -> Doc ann
-formatParameterFunction ctx (expr, t) =
-  Pretty.parens (formatExpressionVar ctx expr <+> ":" <+> Type.format ctx t)
+formatParameterFunction fmtVar ctx (expr, t) =
+  Pretty.parens
+    (formatExpressionVar ctx expr <+> ":" <+> Type.format fmtVar ctx t)
 
 
 formatParametersFunction
-  :: FormatContext ann
-  -> NonEmpty (ExpressionVariableId, Type)
+  :: (FormatContext ann -> var -> Doc ann)
+  -> FormatContext ann
+  -> NonEmpty (ExpressionVariableId, Type var)
   -> Doc ann
-formatParametersFunction ctx ps =
+formatParametersFunction fmtVar ctx ps =
   (Pretty.vsep <<< toList)
     ( ( Pretty.group
-          <<< formatParameterFunction ctx
+          <<< formatParameterFunction fmtVar ctx
       )
         <$> ps
     )
 
 
-needsParentsInApplication :: Expression -> Bool
+needsParentsInApplication :: Expression var -> Bool
 needsParentsInApplication e =
   case e of
     EValue {value = VInt {}} -> False
@@ -64,8 +68,13 @@ needsParentsInApplication e =
     Annotation {} -> True
 
 
-annotateType :: FormatContext ann -> Doc ann -> Type -> Doc ann
-annotateType ctx doc t =
+annotateType
+  :: (FormatContext ann -> var -> Doc ann)
+  -> FormatContext ann
+  -> Doc ann
+  -> Type var
+  -> Doc ann
+annotateType fmtVar ctx doc t =
   if shouldShowTypes ctx
     then
       Pretty.parens
@@ -75,18 +84,23 @@ annotateType ctx doc t =
                   ctx
                   ( Pretty.line'
                       <> formatText ":"
-                      <> Type.format ctx t
+                      <> Type.format fmtVar ctx t
                   )
             )
         )
     else doc
 
 
-formatValue :: FormatContext ann -> Value -> Doc ann
-formatValue _ VInt {intValue} = pretty @Text intValue
-formatValue _ VBool {boolValue} = pretty boolValue
-formatValue ctx Function {parameters, body, inferType} =
+formatValue
+  :: (FormatContext ann -> var -> Doc ann)
+  -> FormatContext ann
+  -> Value var
+  -> Doc ann
+formatValue _ _ VInt {intValue} = pretty @Text intValue
+formatValue _ _ VBool {boolValue} = pretty boolValue
+formatValue fmtVar ctx Function {parameters, body, inferType} =
   annotateType
+    fmtVar
     ctx
     ( Pretty.vsep
         [ formatText "\\"
@@ -94,6 +108,7 @@ formatValue ctx Function {parameters, body, inferType} =
               ctx
               ( Pretty.line
                   <> formatParametersFunction
+                    fmtVar
                     ctx
                     parameters
               )
@@ -102,7 +117,7 @@ formatValue ctx Function {parameters, body, inferType} =
                   <<< nest ctx
                )
               ( Pretty.line
-                  <> formatExpression ctx body
+                  <> formatExpression fmtVar ctx body
               )
         ]
     )
@@ -110,16 +125,21 @@ formatValue ctx Function {parameters, body, inferType} =
 
 
 formatExpression
-  :: FormatContext ann -> Expression -> Doc ann
-formatExpression ctx EValue {value} = formatValue ctx value
-formatExpression ctx Variable {name, inferType} =
+  :: (FormatContext ann -> var -> Doc ann)
+  -> FormatContext ann
+  -> Expression var
+  -> Doc ann
+formatExpression fmtVar ctx EValue {value} = formatValue fmtVar ctx value
+formatExpression fmtVar ctx Variable {name, inferType} =
   annotateType
+    fmtVar
     ctx
     ( formatExpressionVar ctx name
     )
     inferType
-formatExpression ctx Application {applicationFunction, applicationArgument, inferType} =
+formatExpression fmtVar ctx Application {applicationFunction, applicationArgument, inferType} =
   annotateType
+    fmtVar
     ctx
     ( (Pretty.group <<< nest ctx)
         ( Pretty.line'
@@ -134,37 +154,40 @@ formatExpression ctx Application {applicationFunction, applicationArgument, infe
         then
           Pretty.parens
             ( formatExpression
+                fmtVar
                 ctx
                 expr
             )
-        else formatExpression ctx expr
-formatExpression ctx If {condition, ifTrue, ifFalse, inferType} =
+        else formatExpression fmtVar ctx expr
+formatExpression fmtVar ctx If {condition, ifTrue, ifFalse, inferType} =
   annotateType
+    fmtVar
     ctx
     ( (Pretty.group <<< Pretty.vsep)
         [ formatText "if"
             <> nest
               ctx
               ( Pretty.line
-                  <> formatExpression ctx condition
+                  <> formatExpression fmtVar ctx condition
               )
         , formatText "then"
             <> nest
               ctx
               ( Pretty.line
-                  <> formatExpression ctx ifTrue
+                  <> formatExpression fmtVar ctx ifTrue
               )
         , formatText "else"
             <> nest
               ctx
               ( Pretty.line
-                  <> formatExpression ctx ifFalse
+                  <> formatExpression fmtVar ctx ifFalse
               )
         ]
     )
     inferType
-formatExpression ctx Let {definitions, expression, inferType} =
+formatExpression fmtVar ctx Let {definitions, expression, inferType} =
   annotateType
+    fmtVar
     ctx
     ( Pretty.parens
         ( (Pretty.group <<< Pretty.vsep)
@@ -174,7 +197,7 @@ formatExpression ctx Let {definitions, expression, inferType} =
                   ( Pretty.line
                       <> (Pretty.vsep <<< toList)
                         ( ( (<> formatText ";")
-                              <<< formatDefinition ctx
+                              <<< formatDefinition fmtVar ctx
                           )
                             <$> definitions
                         )
@@ -184,20 +207,20 @@ formatExpression ctx Let {definitions, expression, inferType} =
                 <> nest
                   ctx
                   ( Pretty.line
-                      <> formatExpression ctx expression
+                      <> formatExpression fmtVar ctx expression
                   )
             ]
         )
     )
     inferType
-formatExpression ctx Annotation {expression, inferType} =
+formatExpression fmtVar ctx Annotation {expression, inferType} =
   (Pretty.parens <<< Pretty.group)
-    ( formatExpression ctx expression
+    ( formatExpression fmtVar ctx expression
         <> Pretty.line
         <> nest
           ctx
           ( formatText ":"
               <> Pretty.line
-              <> Type.format ctx inferType
+              <> Type.format fmtVar ctx inferType
           )
     )

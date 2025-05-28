@@ -90,7 +90,7 @@ freshTypeVar = generate
 
 
 data InferenceState = InferenceState'
-  { knowTypes :: Map ExpressionVariableId AstT.Type
+  { knowTypes :: Map ExpressionVariableId (ExpressionVariableId, AstT.Type)
   , constraintsMap :: Map TypeVariableId Constraint
   }
   deriving (Show, Ord, Eq)
@@ -118,7 +118,7 @@ lookupKnowType
   -> Eff es (Maybe AstT.Type)
 lookupKnowType var = do
   assocMap <- gets knowTypes
-  pure $ lookup var assocMap
+  pure (snd <$> lookup var assocMap)
 
 
 initialInferenceState :: InferenceState
@@ -135,7 +135,7 @@ insertKnowType
   -> AstT.Type
   -> Eff es ()
 insertKnowType vid t = do
-  modify (\s -> s {knowTypes = Map.insert vid t s.knowTypes})
+  modify (\s -> s {knowTypes = Map.insert vid (vid, t) s.knowTypes})
 
 
 cstToAstType
