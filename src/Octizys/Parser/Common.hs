@@ -242,6 +242,7 @@ identifierParser = do
                         , "True"
                         , "False"
                         , "Bool"
+                        , "forall"
                         ]
         )
         "keyword found expected identifier"
@@ -323,6 +324,13 @@ comma
 comma = punctuationChar ','
 
 
+dot
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es InfoId
+dot = punctuationChar '.'
+
+
 leftParen
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
@@ -384,6 +392,13 @@ inKeyword
   => SymbolResolution :> es
   => Eff es InfoId
 inKeyword = keyword "in"
+
+
+forallKeyword
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es InfoId
+forallKeyword = keyword "forall"
 
 
 between
