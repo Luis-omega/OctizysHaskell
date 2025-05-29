@@ -8,7 +8,6 @@ module Octizys.Cst.Type
       , Arrow
       , Parens
       , Variable
-      , Scheme
       )
   , info
   , start
@@ -17,10 +16,6 @@ module Octizys.Cst.Type
   , rparen
   , _type
   , variableId
-  , _forall
-  , arguments
-  , dot
-  , body
   , TypeVariableId
     ( TypeVariableId'
     , unTypeVariableId
@@ -71,10 +66,4 @@ data Type
   | -- | All variables are translated at parsing time to a internal
     -- identifier. You can think of it as a pointer in symbol table.
     Variable {info :: InfoId, variableId :: TypeVariableId}
-  | Scheme
-      { _forall :: InfoId
-      , arguments :: NonEmpty (InfoId, TypeVariableId)
-      , dot :: InfoId
-      , body :: Type
-      }
   deriving (Show, Eq, Ord)

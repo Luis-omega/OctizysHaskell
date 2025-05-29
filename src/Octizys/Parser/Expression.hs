@@ -3,20 +3,24 @@
 {-# HLINT ignore "Use tuple-section" #-}
 module Octizys.Parser.Expression where
 
-import Control.Monad (join)
+import Control.Monad (forM, join)
 import Data.Char (isDigit)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
 import Octizys.Cst.Expression
   ( Definition
       ( Definition'
-      , colon
       , definition
       , equal
       , name
-      , outputType
-      , parameters
       )
+  , DefinitionTypeAnnotation
+    ( DefinitionTypeAnnotation'
+    , colon
+    , outputType
+    , parameters
+    , schemeStart
+    )
   , Expression
     ( Annotation
     , Application
@@ -55,6 +59,12 @@ import Octizys.Cst.Expression
     )
   , Parameter (ParameterAlone, ParameterWithType, colon, name, _type)
   , Parameters (Parameters')
+  , SchemeStart
+    ( SchemeStart'
+    , dot
+    , typeArguments
+    , _forall
+    )
   )
 import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Type (Type)
@@ -72,6 +82,7 @@ import Octizys.Effects.Parser.Effect (Parser, getParseState, putParseState)
 import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolution
   , definitionOfExpressionVariable
+  , definitionOfTypeVariable
   , foundExpressionVariable
   , removeExpressionDefinition
   )
@@ -345,6 +356,48 @@ removeDefinitions = mapM_ removeDefinition
       removeExpressionDefinition (snd _name)
 
 
+schemeStartParser
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es SchemeStart
+schemeStartParser = do
+  _forall <- Common.forallKeyword
+  paramInfos <- some identifierParser
+  arguments <-
+    forM
+      paramInfos
+      ( \(nam, inf, parSpan) -> do
+          tvid <- definitionOfTypeVariable nam parSpan
+          pure (inf, tvid)
+      )
+  _dot <- Common.dot
+  pure
+    SchemeStart'
+      { _forall
+      , typeArguments = arguments
+      , dot = _dot
+      }
+
+
+definitionTypeAnnotation
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es DefinitionTypeAnnotation
+definitionTypeAnnotation = do
+  colon <- Common.colon
+  schemeStart <- optional schemeStartParser
+  parameters <-
+    join <$> (optional parametersParser <?> ('p' :| "arameter"))
+  outputType <- parseType
+  pure
+    DefinitionTypeAnnotation'
+      { colon
+      , schemeStart
+      , parameters
+      , outputType
+      }
+
+
 definitionParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
@@ -355,10 +408,7 @@ definitionParser = do
   (maybeParams, maybeOutput) <- case maybeColonInfo of
     Nothing -> pure (Nothing, Nothing)
     Just _ -> do
-      maybeParams <-
-        join <$> (optional parametersParser <?> ('p' :| "arameter"))
-      maybeOut <-
-        optional typeAtomNoVar
+      optional typeAtomNoVar
       pure (maybeParams, maybeOut)
   eq <- Common.equal
   -- We need to be sure that we are in a definition before
@@ -372,10 +422,6 @@ definitionParser = do
   pure
     Definition'
       { name = (inf, ei)
-      , colon = maybeColonInfo
-      , parameters =
-          Parameters' <$> maybeParams
-      , outputType = maybeOutput
       , definition
       , equal = eq
       }

@@ -5,7 +5,6 @@ module Octizys.Parser.Type
   , typeAtomNoVar
   ) where
 
-import Control.Monad (forM)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
 import Octizys.Cst.InfoId (InfoId)
@@ -15,20 +14,14 @@ import Octizys.Cst.Type
       , BoolType
       , IntType
       , Parens
-      , Scheme
       , Variable
-      , arguments
-      , body
-      , dot
       , variableId
-      , _forall
       )
   )
 import qualified Octizys.Cst.Type as Type
 import Octizys.Effects.Parser.Combinators
   ( char
   , many
-  , some
   , (<?>)
   , (<|>)
   )
@@ -36,14 +29,11 @@ import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolution
   , createInformation
-  , definitionOfTypeVariable
   , foundTypeVariable
   )
 import Octizys.Parser.Common
   ( OctizysParseError
   , between
-  , dot
-  , forallKeyword
   , identifierParser
   , keyword
   , leftParen
@@ -51,7 +41,6 @@ import Octizys.Parser.Common
   , rightParen
   , token
   )
-import qualified Octizys.Parser.Common as Common
 import Prelude hiding (span)
 
 
@@ -158,33 +147,8 @@ typeArrowParser = do
     (r : emain) -> pure Arrow {start, remain = r :| emain}
 
 
-typeSchemeParser
-  :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Type
-typeSchemeParser = do
-  _forall <- forallKeyword
-  paramInfos <- some identifierParser
-  arguments <-
-    forM
-      paramInfos
-      ( \(nam, inf, parSpan) -> do
-          tvid <- definitionOfTypeVariable nam parSpan
-          pure (inf, tvid)
-      )
-  _dot <- Common.dot
-  body <- typeParser
-  pure
-    Scheme
-      { _forall
-      , arguments
-      , dot = _dot
-      , body
-      }
-
-
 typeParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
   => Eff es Type
-typeParser = typeSchemeParser <|> typeArrowParser
+typeParser = typeArrowParser

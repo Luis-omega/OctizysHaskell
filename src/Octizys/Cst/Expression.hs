@@ -11,14 +11,20 @@ module Octizys.Cst.Expression
     , rparen
     , parameter
     )
+  , SchemeStart (SchemeStart', _forall, typeArguments, dot)
+  , DefinitionTypeAnnotation
+    ( DefinitionTypeAnnotation'
+    , colon
+    , schemeStart
+    , parameters
+    , outputType
+    )
   , Definition
     ( Definition'
     , name
-    , parameters
     , equal
     , definition
-    , outputType
-    , colon
+    , _type
     )
   , Function (Function', start, arrow, body, parameters)
   , Expression
@@ -70,7 +76,7 @@ import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Cst.InfoId
   ( InfoId
   )
-import Octizys.Cst.Type (Type)
+import Octizys.Cst.Type (Type, TypeVariableId)
 import Octizys.Cst.VariableId (VariableId)
 import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
 
@@ -139,12 +145,29 @@ instance FreeVariables ExpressionVariableId Parameters where
       )
 
 
+-- | forall a b c .
+data SchemeStart = SchemeStart'
+  { _forall :: InfoId
+  , typeArguments :: NonEmpty (InfoId, TypeVariableId)
+  , dot :: InfoId
+  }
+  deriving (Show, Eq, Ord)
+
+
+data DefinitionTypeAnnotation = DefinitionTypeAnnotation'
+  { colon :: InfoId
+  , schemeStart :: Maybe SchemeStart
+  , -- x : a , FinalType
+    parameters :: Maybe Parameters
+  , outputType :: Type
+  }
+  deriving (Show, Eq, Ord)
+
+
 -- | Either a Let definition or a Top level definition
 data Definition = Definition'
   { name :: (InfoId, ExpressionVariableId)
-  , colon :: Maybe InfoId
-  , parameters :: Maybe Parameters
-  , outputType :: Maybe Type
+  , _type :: Maybe DefinitionTypeAnnotation
   , equal :: InfoId
   , definition :: Expression
   }
@@ -154,9 +177,7 @@ data Definition = Definition'
 -- | A lambda function.
 data Function = Function'
   { start :: InfoId
-  , -- This is the difference between `Definition` and `Function`
-    -- The InfoIds represents parens
-    parameters :: NonEmpty FunctionParameter
+  , parameters :: NonEmpty FunctionParameter
   , arrow :: InfoId
   , body :: Expression
   }

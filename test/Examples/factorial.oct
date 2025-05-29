@@ -1,4 +1,4 @@
-factorial_standard : n :Int , Int =
+factorial_standard : n :Int |- Int =
     if lt n 2
     then
       1
@@ -6,14 +6,14 @@ factorial_standard : n :Int , Int =
       mul n (factorial_standard (minus n 1));
 
 
-factorial_acc : n:Int , acc:Int, Int =
+factorial_acc : n:Int , acc:Int |- Int =
     if lt n 2
     then
       acc
     else
       factorial_acc (minus n 1) (mul n acc);
 
-factorial_acc_sass : n:Int, acc:Int, Int =
+factorial_acc_sass : n:Int, acc:Int |- Int =
     if lt n 2
     then
       acc
@@ -24,3 +24,17 @@ factorial_acc_sass : n:Int, acc:Int, Int =
         factorial_acc_sass new_n new_acc
     ;
 
+
+factorial_standard_lambda = \ n : Int |-
+    if lt n 2
+    then
+      1
+    else
+      mul n (factorial_standard_lambda (minus n 1));
+
+id :
+  forall a b c d
+  .
+  x:a ,y:d , z:a
+  |- a
+  = x;

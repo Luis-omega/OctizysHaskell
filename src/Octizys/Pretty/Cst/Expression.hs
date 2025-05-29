@@ -2,9 +2,16 @@ module Octizys.Pretty.Cst.Expression where
 
 import Control.Arrow ((<<<))
 import Data.List.NonEmpty (NonEmpty (..), toList)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
 import Octizys.Cst.Expression
-  ( Definition (Definition', definition, name, outputType, parameters)
+  ( Definition (Definition', definition, name, _type)
+  , DefinitionTypeAnnotation
+    ( DefinitionTypeAnnotation'
+    , outputType
+    , parameters
+    , schemeStart
+    )
   , Expression
     ( Annotation
     , Application
@@ -36,11 +43,13 @@ import Octizys.Cst.Expression
     )
   , Parameter (ParameterAlone, ParameterWithType, name, _type)
   , Parameters (Parameters', unParameters)
+  , SchemeStart (SchemeStart', typeArguments)
   )
 import qualified Octizys.Pretty.Cst.Type as Type
 import Octizys.Pretty.FormatContext
   ( FormatContext
   , formatExpressionVar
+  , formatTypeVar
   , nest
   )
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
@@ -99,49 +108,78 @@ formatParameters ctx (Parameters' {unParameters}) =
               )
 
 
+formatSchemeStart
+  :: FormatContext ann
+  -> SchemeStart
+  -> Doc ann
+formatSchemeStart ctx SchemeStart' {typeArguments} =
+  pretty @Text "forall"
+    <> Pretty.line
+    <> nest
+      ctx
+      ( Pretty.fillSep
+          (formatTypeVar ctx <$> NonEmpty.toList typeArguments)
+      )
+    <> Pretty.line
+    <> pretty '.'
+
+
+formatDefinitionTypeAnnotation
+  :: FormatContext ann
+  -> DefinitionTypeAnnotation
+  -> Doc ann
+formatDefinitionTypeAnnotation
+  ctx
+  DefinitionTypeAnnotation'
+    { schemeStart
+    , parameters
+    , outputType
+    } =
+    let
+      scheme = maybe mempty (formatSchemeStart ctx) schemeStart
+      pars =
+        case parameters of
+          Just (ps, _) ->
+            (nest ctx <<< Pretty.group)
+              ( Pretty.line
+                  <> formatParameters
+                    ctx
+                    ps
+              )
+          Nothing -> mempty
+      outType =
+        case parameters of
+          Nothing ->
+            Pretty.group
+              ( Pretty.line <> Type.format ctx outputType
+              )
+          Just _ ->
+            Pretty.group
+              ( pretty ','
+                  <> Pretty.line
+                  <> Type.format ctx outputType
+              )
+     in
+      pretty ':'
+        <> scheme
+        <> pars
+        <> nest ctx outType
+
+
 formatDefinition
   :: FormatContext ann
   -> Definition
   -> Doc ann
 formatDefinition
   ctx
-  (Definition' {name = (_, v), parameters, definition, outputType}) =
+  (Definition' {name = (_, v), _type, definition}) =
     let n = formatExpressionVar ctx v
-        pars =
-          case parameters of
-            Just ps ->
-              pText ""
-                <+> pretty ':'
-                <> (nest ctx <<< Pretty.group)
-                  ( Pretty.line
-                      <> formatParameters
-                        ctx
-                        ps
-                  )
-            Nothing -> mempty
-        outType =
-          case outputType of
-            Just t ->
-              case parameters of
-                Nothing ->
-                  Pretty.group
-                    ( pretty ':'
-                        <> (Pretty.line <> Type.format ctx t)
-                    )
-                Just _ ->
-                  Pretty.group
-                    ( pretty ','
-                        <> Pretty.line
-                        <> Type.format ctx t
-                    )
-            Nothing -> mempty
         def =
           ( Pretty.line
               <> formatExpression ctx definition
           )
      in n
-          <> pars
-          <> outType
+          <> maybe mempty (formatDefinitionTypeAnnotation ctx) _type
           <> (Pretty.group <<< nest ctx)
             ( Pretty.line
                 <> pText "="

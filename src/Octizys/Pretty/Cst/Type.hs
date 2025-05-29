@@ -10,10 +10,7 @@ import Octizys.Cst.Type
       , BoolType
       , IntType
       , Parens
-      , Scheme
       , Variable
-      , arguments
-      , body
       , remain
       , start
       )
@@ -37,7 +34,6 @@ needsParentsInArrow t =
     Arrow {} -> True
     Parens {} -> True
     Variable {} -> False
-    Scheme {} -> True
 
 
 format :: FormatContext ann -> Type -> Doc ann
@@ -62,14 +58,3 @@ format ctx t =
     Parens {_type = t2} ->
       format ctx t2
     Variable {variableId = v} -> formatTypeVar ctx v
-    Scheme {arguments, body} ->
-      pretty @Text "forall"
-        <> Pretty.line
-        <> nest
-          ctx
-          ( Pretty.fillSep
-              ((formatTypeVar ctx <<< snd) <$> NonEmpty.toList arguments)
-          )
-        <> Pretty.line
-        <> pretty '.'
-        <> nest ctx (Pretty.line <> format ctx body)
