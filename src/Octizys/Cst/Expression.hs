@@ -4,13 +4,6 @@
 
 module Octizys.Cst.Expression
   ( Parameter (ParameterAlone, ParameterWithType, name, _type, colon)
-  , FunctionParameter
-    ( FunctionParameterAlone
-    , FunctionParameterWithType
-    , lparen
-    , rparen
-    , parameter
-    )
   , SchemeStart (SchemeStart', _forall, typeArguments, dot)
   , DefinitionTypeAnnotation
     ( DefinitionTypeAnnotation'
@@ -26,7 +19,12 @@ module Octizys.Cst.Expression
     , definition
     , _type
     )
-  , Function (Function', start, arrow, body, parameters)
+  , Function
+    ( Function'
+    , start
+    , body
+    , parameters
+    )
   , Expression
     ( EInt
     , EBool
@@ -63,7 +61,12 @@ module Octizys.Cst.Expression
     ( ExpressionVariableId'
     , unExpressionVariableId
     )
-  , Parameters (Parameters', unParameters)
+  , Parameters
+    ( Parameters'
+    , initParameter
+    , otherParameters
+    , bodySeparator
+    )
   )
 where
 
@@ -114,25 +117,11 @@ instance FreeVariables ExpressionVariableId Parameter where
   freeVariables ParameterWithType {name} = Set.singleton (snd name)
 
 
-data FunctionParameter
-  = FunctionParameterWithType
-      { lparen :: InfoId
-      , parameter :: Parameter
-      , rparen :: InfoId
-      }
-  | FunctionParameterAlone
-      { parameter :: Parameter
-      -- ^ This must be only  `ParameterWithType`
-      }
-  deriving (Show, Eq, Ord)
-
-
-instance FreeVariables ExpressionVariableId FunctionParameter where
-  freeVariables FunctionParameterWithType {parameter} = freeVariables parameter
-  freeVariables FunctionParameterAlone {parameter} = freeVariables parameter
-
-
-newtype Parameters = Parameters' {unParameters :: NonEmpty (Parameter, InfoId)}
+data Parameters = Parameters'
+  { initParameter :: Parameter
+  , otherParameters :: [(InfoId, Parameter)]
+  , bodySeparator :: InfoId
+  }
   deriving (Show, Eq, Ord)
 
 
@@ -140,8 +129,8 @@ instance FreeVariables ExpressionVariableId Parameters where
   freeVariables p =
     foldl'
       (<>)
-      mempty
-      ( (freeVariables <<< fst) <$> p.unParameters
+      (freeVariables p.initParameter)
+      ( (freeVariables <<< snd) <$> p.otherParameters
       )
 
 
@@ -157,8 +146,7 @@ data SchemeStart = SchemeStart'
 data DefinitionTypeAnnotation = DefinitionTypeAnnotation'
   { colon :: InfoId
   , schemeStart :: Maybe SchemeStart
-  , -- x : a , FinalType
-    parameters :: Maybe Parameters
+  , parameters :: Maybe Parameters
   , outputType :: Type
   }
   deriving (Show, Eq, Ord)
@@ -176,9 +164,9 @@ data Definition = Definition'
 
 -- | A lambda function.
 data Function = Function'
-  { start :: InfoId
-  , parameters :: NonEmpty FunctionParameter
-  , arrow :: InfoId
+  { -- `\`
+    start :: InfoId
+  , parameters :: Parameters
   , body :: Expression
   }
   deriving (Show, Eq, Ord)
@@ -221,3 +209,4 @@ data Expression
       , _type :: Type
       }
   deriving (Show, Eq, Ord)
+

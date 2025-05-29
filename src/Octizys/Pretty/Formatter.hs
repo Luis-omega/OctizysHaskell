@@ -138,10 +138,6 @@ instance Formatter ann (FormatContext ann) Cst.Parameters where
   format = Cst.Expression.formatParameters
 
 
-instance Formatter ann (FormatContext ann) Cst.FunctionParameter where
-  format = Cst.Expression.formatParameterFunction
-
-
 instance Formatter ann (FormatContext ann) Cst.Definition where
   format = Cst.Expression.formatDefinition
 
@@ -157,7 +153,6 @@ instance Formatter ann (FormatContext ann) Cst.Expression where
 instance Formatter ann (FormatContext ann) Cst.Node where
   format ctx (Cst.NType t) = format ctx t
   format ctx (Cst.NParam t) = format ctx t
-  format ctx (Cst.NFunParam t) = format ctx t
   format ctx (Cst.NDef t) = format ctx t
   format ctx (Cst.NFunction t) = format ctx t
   format ctx (Cst.NExp t) = format ctx t
@@ -165,3 +160,4 @@ instance Formatter ann (FormatContext ann) Cst.Node where
 
 instance Formatter ann (FormatContext ann) Cst.Module where
   format = Cst.TopItem.formatModule
+

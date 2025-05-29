@@ -8,7 +8,6 @@ import Octizys.Cst.Expression
   ( Definition
   , Expression
   , Function
-  , FunctionParameter
   , Parameter
   )
 import Octizys.Cst.Type (Type)
@@ -17,7 +16,6 @@ import Octizys.Cst.Type (Type)
 data Node
   = NType Type
   | NParam Parameter
-  | NFunParam FunctionParameter
   | NDef Definition
   | NFunction Function
   | NExp Expression
@@ -30,10 +28,6 @@ instance From Node Type where
 
 instance From Node Parameter where
   from = NParam
-
-
-instance From Node FunctionParameter where
-  from = NFunParam
 
 
 instance From Node Definition where

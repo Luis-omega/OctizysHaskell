@@ -316,6 +316,12 @@ rightArrow
   => Eff es InfoId
 rightArrow = keyword "->"
 
+turnstile
+  :: Parser OctizysParseError :> es
+  => SymbolResolution :> es
+  => Eff es InfoId
+turnstile = keyword "|-"
+
 
 comma
   :: Parser OctizysParseError :> es

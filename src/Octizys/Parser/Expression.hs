@@ -3,7 +3,7 @@
 {-# HLINT ignore "Use tuple-section" #-}
 module Octizys.Parser.Expression where
 
-import Control.Monad (forM, join)
+import Control.Monad (forM)
 import Data.Char (isDigit)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
@@ -13,6 +13,7 @@ import Octizys.Cst.Expression
       , definition
       , equal
       , name
+      , _type
       )
   , DefinitionTypeAnnotation
     ( DefinitionTypeAnnotation'
@@ -51,14 +52,9 @@ import Octizys.Cst.Expression
     , _then
     , _type
     )
-  , Function (Function', arrow, body, parameters, start)
-  , FunctionParameter
-    ( FunctionParameterAlone
-    , FunctionParameterWithType
-    , parameter
-    )
+  , Function (Function', body, parameters, start)
   , Parameter (ParameterAlone, ParameterWithType, colon, name, _type)
-  , Parameters (Parameters')
+  , Parameters (Parameters', bodySeparator, initParameter, otherParameters)
   , SchemeStart
     ( SchemeStart'
     , dot
@@ -78,13 +74,14 @@ import Octizys.Effects.Parser.Combinators
   , (<?>)
   , (<|>)
   )
-import Octizys.Effects.Parser.Effect (Parser, getParseState, putParseState)
+import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolution
   , definitionOfExpressionVariable
   , definitionOfTypeVariable
   , foundExpressionVariable
   , removeExpressionDefinition
+  , removeTypeDefinition
   )
 import Octizys.Parser.Common
   ( OctizysParseError
@@ -98,14 +95,13 @@ import Octizys.Parser.Common
   , lambdaStart
   , leftParen
   , letKeyword
-  , rightArrow
   , rightParen
   , semicolon
   , thenKeyword
   , tokenAndregister
   )
 import qualified Octizys.Parser.Common as Common
-import Octizys.Parser.Type (parseType, typeAtom, typeAtomNoVar)
+import Octizys.Parser.Type (parseType, typeAtom)
 import Prelude hiding (span)
 
 
@@ -222,16 +218,6 @@ applicationParser = do
           }
 
 
-parameterAlone
-  :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Parameter
-parameterAlone = do
-  (nam, inf, parSpan) <- identifierParser
-  ei <- definitionOfExpressionVariable nam parSpan
-  pure $ ParameterAlone (inf, ei)
-
-
 parameterParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
@@ -252,62 +238,55 @@ parameterParser = do
     Nothing -> pure $ ParameterAlone (inf, ei)
 
 
-parametersParserAux
+otherParameterParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
-  => Eff es [(Parameter, InfoId)]
-parametersParserAux = do
-  originalState <- getParseState
-  start <- parameterParser
-  maybeInfoComma <- optional (try comma)
-  case maybeInfoComma of
-    Nothing -> do
-      putParseState originalState
-      pure []
-    Just infoComma -> do
-      remain <- parametersParserAux <|> pure []
-      pure ((start, infoComma) : remain)
+  => Eff es (InfoId, Parameter)
+otherParameterParser = do
+  commaInfo <- comma
+  param <- parameterParser
+  pure (commaInfo, param)
 
 
 parametersParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
-  => Eff es (Maybe (NonEmpty (Parameter, InfoId)))
+  => Eff es Parameters
 parametersParser = do
-  result <- parametersParserAux
-  pure $ case result of
-    (x : y) -> Just (x :| y)
-    _ -> Nothing
-
-
-functionParametersParser
-  :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff
-      es
-      (NonEmpty FunctionParameter)
-functionParametersParser =
-  some
-    ( ( (\(a, b, c) -> FunctionParameterWithType a b c)
-          <$> between
-            leftParen
-            rightParen
-            parameterParser
-      )
-        <|> (FunctionParameterAlone <$> parameterAlone)
-    )
+  initParameter <- parameterParser
+  otherParameters <- many otherParameterParser
+  bodySeparator <- Common.turnstile
+  pure
+    Parameters'
+      { initParameter
+      , otherParameters
+      , bodySeparator
+      }
 
 
 removeParameters
   :: SymbolResolution :> es
-  => NonEmpty Parameter
+  => Parameters
   -> Eff es ()
-removeParameters = mapM_ removeParameter
+removeParameters Parameters' {initParameter, otherParameters} =
+  mapM_
+    removeParameter
+    (initParameter : (snd <$> otherParameters))
   where
     removeParameter (ParameterWithType {_type = __type, name = _name}) =
       removeExpressionDefinition (snd _name)
     removeParameter (ParameterAlone {name = _name}) =
       removeExpressionDefinition (snd _name)
+
+
+removeTypeParameters
+  :: SymbolResolution :> es
+  => SchemeStart
+  -> Eff es ()
+removeTypeParameters SchemeStart' {typeArguments} =
+  mapM_
+    removeTypeDefinition
+    (snd <$> typeArguments)
 
 
 functionParser
@@ -316,18 +295,13 @@ functionParser
   => Eff es Function
 functionParser = do
   startInfo <- lambdaStart
-  parameters <- functionParametersParser
-  arrowInfo <- rightArrow
+  parameters <- parametersParser
   body <- expressionParser
-  removeParameters
-    ( parameter
-        <$> parameters
-    )
+  removeParameters parameters
   pure
     Function'
       { start = startInfo
       , parameters
-      , arrow = arrowInfo
       , body
       }
 
@@ -379,15 +353,14 @@ schemeStartParser = do
       }
 
 
-definitionTypeAnnotation
+definitionTypeAnnotationParser
   :: Parser OctizysParseError :> es
   => SymbolResolution :> es
   => Eff es DefinitionTypeAnnotation
-definitionTypeAnnotation = do
+definitionTypeAnnotationParser = do
   colon <- Common.colon
   schemeStart <- optional schemeStartParser
-  parameters <-
-    join <$> (optional parametersParser <?> ('p' :| "arameter"))
+  parameters <- optional parametersParser
   outputType <- parseType
   pure
     DefinitionTypeAnnotation'
@@ -404,26 +377,28 @@ definitionParser
   => Eff es Definition
 definitionParser = do
   (nam, inf, span) <- identifierParser
-  maybeColonInfo <- optional Common.colon
-  (maybeParams, maybeOutput) <- case maybeColonInfo of
-    Nothing -> pure (Nothing, Nothing)
-    Just _ -> do
-      optional typeAtomNoVar
-      pure (maybeParams, maybeOut)
+  maybeType <- optional definitionTypeAnnotationParser
   eq <- Common.equal
   -- We need to be sure that we are in a definition before
   -- we register the variable, since we say a '=' we know
   -- that this is a definition and can register it.
   ei <- definitionOfExpressionVariable nam span
   definition <- expressionParser
-  case maybeParams of
+  case maybeType of
     Nothing -> pure ()
-    Just l -> removeParameters (fst <$> l)
+    Just
+      DefinitionTypeAnnotation'
+        { parameters = maybePs
+        , schemeStart = maybeTypePs
+        } -> do
+        maybe (pure ()) removeParameters maybePs
+        maybe (pure ()) removeTypeParameters maybeTypePs
   pure
     Definition'
       { name = (inf, ei)
-      , definition
+      , _type = maybeType
       , equal = eq
+      , definition
       }
 
 
@@ -457,3 +432,4 @@ expressionParser =
       <|> applicationParser
   )
     <?> ('e' :| "xpression")
+

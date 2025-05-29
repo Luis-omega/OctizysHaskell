@@ -1,7 +1,7 @@
 module Octizys.Pretty.Cst.Expression where
 
 import Control.Arrow ((<<<))
-import Data.List.NonEmpty (NonEmpty (..), toList)
+import Data.List.NonEmpty (toList)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
 import Octizys.Cst.Expression
@@ -36,13 +36,8 @@ import Octizys.Cst.Expression
     , _type
     )
   , Function (Function', body, parameters)
-  , FunctionParameter
-    ( FunctionParameterAlone
-    , FunctionParameterWithType
-    , parameter
-    )
   , Parameter (ParameterAlone, ParameterWithType, name, _type)
-  , Parameters (Parameters', unParameters)
+  , Parameters (Parameters', initParameter, otherParameters)
   , SchemeStart (SchemeStart', typeArguments)
   )
 import qualified Octizys.Pretty.Cst.Type as Type
@@ -83,29 +78,29 @@ formatParameters
   :: FormatContext ann
   -> Parameters
   -> Doc ann
-formatParameters ctx (Parameters' {unParameters}) =
-  case unParameters of
-    (start :| remain) ->
-      (nest ctx <<< Pretty.vsep)
-        ( Pretty.group
-            ( formatParameter
-                ctx
-                (fst start)
-            )
-            : ( prettyArg
-                  <$> remain
-              )
+formatParameters ctx (Parameters' {initParameter, otherParameters}) =
+  Pretty.vsep
+    ( Pretty.group
+        ( formatParameter
+            ctx
+            initParameter
         )
-      where
-        prettyArg (p, _) =
-          pText ","
-            <> nest
-              ctx
-              ( Pretty.line
-                  <> formatParameter
-                    ctx
-                    p
-              )
+        : ( prettyArg
+              <$> otherParameters
+          )
+    )
+    <> Pretty.line
+    <> pText "|-"
+  where
+    prettyArg (_, p) =
+      pText ","
+        <> nest
+          ctx
+          ( Pretty.line
+              <> formatParameter
+                ctx
+                p
+          )
 
 
 formatSchemeStart
@@ -118,7 +113,7 @@ formatSchemeStart ctx SchemeStart' {typeArguments} =
     <> nest
       ctx
       ( Pretty.fillSep
-          (formatTypeVar ctx <$> NonEmpty.toList typeArguments)
+          ((formatTypeVar ctx <<< snd) <$> NonEmpty.toList typeArguments)
       )
     <> Pretty.line
     <> pretty '.'
@@ -139,7 +134,7 @@ formatDefinitionTypeAnnotation
       scheme = maybe mempty (formatSchemeStart ctx) schemeStart
       pars =
         case parameters of
-          Just (ps, _) ->
+          Just ps ->
             (nest ctx <<< Pretty.group)
               ( Pretty.line
                   <> formatParameters
@@ -150,7 +145,7 @@ formatDefinitionTypeAnnotation
       outType =
         case parameters of
           Nothing ->
-            Pretty.group
+            (nest ctx <<< Pretty.group)
               ( Pretty.line <> Type.format ctx outputType
               )
           Just _ ->
@@ -187,40 +182,6 @@ formatDefinition
             )
 
 
-formatParameterFunction
-  :: FormatContext ann
-  -> FunctionParameter
-  -> Doc ann
-formatParameterFunction
-  ctx
-  (FunctionParameterWithType {parameter = p}) =
-    pText "("
-      <> Pretty.nest
-        2
-        ( Pretty.line
-            <> formatParameter ctx p
-            <> Pretty.line
-        )
-      <> pText ")"
-formatParameterFunction
-  ctx
-  (FunctionParameterAlone {parameter = p}) =
-    formatParameter ctx p
-
-
-prettyParametersFunction
-  :: FormatContext ann
-  -> NonEmpty FunctionParameter
-  -> Doc ann
-prettyParametersFunction ctx ps =
-  (Pretty.vsep <<< toList)
-    ( ( Pretty.group
-          <<< formatParameterFunction ctx
-      )
-        <$> ps
-    )
-
-
 formatFunction
   :: FormatContext ann
   -> Function
@@ -231,17 +192,16 @@ formatFunction ctx (Function' {parameters, body}) =
         <> nest
           ctx
           ( Pretty.line
-              <> prettyParametersFunction
+              <> formatParameters
                 ctx
                 parameters
           )
-    , pText "->"
-        <> ( Pretty.group
-              <<< nest ctx
-           )
-          ( Pretty.line
-              <> formatExpression ctx body
-          )
+    , ( Pretty.group
+          <<< nest ctx
+      )
+        ( Pretty.line
+            <> formatExpression ctx body
+        )
     ]
 
 
@@ -357,3 +317,4 @@ formatExpression ctx e =
                   <> Type.format ctx _type
               )
         )
+
