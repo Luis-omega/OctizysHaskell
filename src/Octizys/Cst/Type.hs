@@ -17,28 +17,11 @@ module Octizys.Cst.Type
   , _type
   , variableId
   , TypeVariableId
-    ( TypeVariableId'
-    , unTypeVariableId
-    )
+  , InfoId
   ) where
 
 import Data.List.NonEmpty (NonEmpty)
-import Octizys.Cst.InfoId
-  ( InfoId
-  )
-import Octizys.Cst.VariableId (VariableId)
-import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
-
-
--- | A wrapper around VariableId to represent type variables.
-newtype TypeVariableId = TypeVariableId' {unTypeVariableId :: VariableId}
-  deriving
-    ( Eq
-    , GenerateFromInt
-    , Ord
-    )
-    via VariableId
-  deriving (Show)
+import Octizys.Common.Id (InfoId, TypeVariableId)
 
 
 {- | Stores source information in a separate place, so

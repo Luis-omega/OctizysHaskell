@@ -7,6 +7,7 @@ import Control.Monad (forM)
 import Data.Char (isDigit)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
+import Octizys.Common.Id (InfoId)
 import Octizys.Cst.Expression
   ( Definition
       ( Definition'
@@ -62,7 +63,6 @@ import Octizys.Cst.Expression
     , _forall
     )
   )
-import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Type (Type)
 import Octizys.Effects.Parser.Combinators
   ( many
@@ -432,4 +432,3 @@ expressionParser =
       <|> applicationParser
   )
     <?> ('e' :| "xpression")
-

@@ -1,7 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-
-module Octizys.Report where
+module Octizys.Common.Report where
 
 import Data.Text (Text)
 import Octizys.Pretty.FormatContext (FormatContext, nest)

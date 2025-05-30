@@ -78,7 +78,9 @@ common common_extensions
     DuplicateRecordFields
     ExplicitForAll
     FlexibleContexts
+    FlexibleInstances
     LambdaCase
+    MultiParamTypeClasses
     NamedFieldPuns
     NamedWildCards
     NumericUnderscores
@@ -107,19 +109,24 @@ library
     Octizys.Ast.Type
     Octizys.Classes.FreeVariables
     Octizys.Classes.From
+    Octizys.Common.HistoryMap
+    Octizys.Common.Id
+    Octizys.Common.LogicPath
+    Octizys.Common.Name
+    Octizys.Common.PackageName
+    Octizys.Common.Qualifier
+    Octizys.Common.Report
     Octizys.Cst.Comment
     Octizys.Cst.Expression
     Octizys.Cst.Fixpoint
-    Octizys.Cst.InfoId
     Octizys.Cst.Node
     Octizys.Cst.Span
     Octizys.Cst.TopItem
     Octizys.Cst.Type
-    Octizys.Cst.VariableId
     Octizys.Effects.Console.Effect
     Octizys.Effects.Console.Interpreter
-    Octizys.Effects.Generator.Effect
-    Octizys.Effects.Generator.Interpreter
+    Octizys.Effects.IdGenerator.Effect
+    Octizys.Effects.IdGenerator.Interpreter
     Octizys.Effects.Logger.ConsoleInterpreter
     Octizys.Effects.Logger.Effect
     Octizys.Effects.Parser.Backend
@@ -128,7 +135,6 @@ library
     Octizys.Effects.Parser.Interpreter
     Octizys.Effects.SymbolResolution.Effect
     Octizys.Effects.SymbolResolution.Interpreter
-    Octizys.HistoryMap
     Octizys.Inference.ConstraintsGeneration
     Octizys.Inference.ConstraintsSolver
     Octizys.Inference.Errors
@@ -145,7 +151,6 @@ library
     Octizys.Pretty.FormatContext
     Octizys.Pretty.Formatter
     Octizys.Pretty.Markup
-    Octizys.Report
 
   -- Modules included in this library but not exported.
   -- other-modules:

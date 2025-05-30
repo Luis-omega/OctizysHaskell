@@ -1,6 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
-module Octizys.HistoryMap
+module Octizys.Common.HistoryMap
   ( HistoryMap
   , pushValue
   , popValue

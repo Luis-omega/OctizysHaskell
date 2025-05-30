@@ -3,8 +3,8 @@ present at the top of a file
 -}
 module Octizys.Cst.TopItem where
 
+import Octizys.Common.Id (InfoId)
 import Octizys.Cst.Expression (Definition)
-import Octizys.Cst.InfoId (InfoId)
 
 
 data Module = Module'

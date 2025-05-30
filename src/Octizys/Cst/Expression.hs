@@ -58,9 +58,6 @@ module Octizys.Cst.Expression
     , _type
     )
   , ExpressionVariableId
-    ( ExpressionVariableId'
-    , unExpressionVariableId
-    )
   , Parameters
     ( Parameters'
     , initParameter
@@ -76,29 +73,8 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
-import Octizys.Cst.InfoId
-  ( InfoId
-  )
+import Octizys.Common.Id (ExpressionVariableId, InfoId)
 import Octizys.Cst.Type (Type, TypeVariableId)
-import Octizys.Cst.VariableId (VariableId)
-import Octizys.Effects.Generator.Interpreter (GenerateFromInt)
-
-
-{- | A Wrapper around VariableId to represent expressions
-of variables.
--}
-newtype ExpressionVariableId = ExpressionVariableId' {unExpressionVariableId :: VariableId}
-  deriving
-    ( Eq
-    , Ord
-    , GenerateFromInt
-    )
-    via VariableId
-  deriving (Show)
-
-
-instance FreeVariables ExpressionVariableId ExpressionVariableId where
-  freeVariables = Set.singleton
 
 
 -- | The set of parameters
@@ -209,4 +185,3 @@ data Expression
       , _type :: Type
       }
   deriving (Show, Eq, Ord)
-

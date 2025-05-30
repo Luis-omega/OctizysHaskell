@@ -7,7 +7,7 @@ module Octizys.Parser.Type
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
-import Octizys.Cst.InfoId (InfoId)
+import Octizys.Common.Id (InfoId)
 import Octizys.Cst.Type
   ( Type
       ( Arrow

@@ -5,12 +5,12 @@ module Octizys.Parser.Common where
 
 import Data.Text (Text)
 import Effectful (Eff, (:>))
+import Octizys.Common.Id (InfoId)
 import Octizys.Cst.Comment
   ( BlockComment (BlockComment')
   , Comment (Block, Line, blockComment, lineComment, span)
   , LineComment (LineComment')
   )
-import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Span (Span (Span', end, start))
 import Octizys.Effects.Parser.Combinators
   ( char
@@ -315,6 +315,7 @@ rightArrow
   => SymbolResolution :> es
   => Eff es InfoId
 rightArrow = keyword "->"
+
 
 turnstile
   :: Parser OctizysParseError :> es

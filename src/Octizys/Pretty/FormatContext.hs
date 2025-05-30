@@ -17,14 +17,14 @@ module Octizys.Pretty.FormatContext
   , setShowTypeVar
   ) where
 
-import Control.Arrow ((<<<))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
-import Octizys.Cst.Expression
-  ( ExpressionVariableId (unExpressionVariableId)
+import Octizys.Common.Id
+  ( ExpressionVariableId (qualifier, uniqueId)
+  , TypeVariableId (qualifier, uniqueId)
+  , idRaw
   )
-import Octizys.Cst.Type (TypeVariableId (unTypeVariableId))
 import Prettyprinter (Doc, Pretty (pretty))
 import qualified Prettyprinter as Pretty
 
@@ -37,14 +37,16 @@ data Formatters ann = Formatters'
 
 defaultTyVariableFormatter :: TypeVariableId -> Doc ann
 defaultTyVariableFormatter x =
-  pretty @Text "_t"
-    <> pretty ((show <<< unTypeVariableId) x)
+  pretty x.qualifier
+    <> pretty @Text "_t"
+    <> pretty (show x.uniqueId.idRaw)
 
 
 defaultExpVariableFormatter :: ExpressionVariableId -> Doc ann
 defaultExpVariableFormatter x =
-  pretty @Text "_e"
-    <> pretty ((show <<< unExpressionVariableId) x)
+  pretty x.qualifier
+    <> pretty @Text "_e"
+    <> pretty (show x.uniqueId.idRaw)
 
 
 defaultFormatters :: Formatters ann

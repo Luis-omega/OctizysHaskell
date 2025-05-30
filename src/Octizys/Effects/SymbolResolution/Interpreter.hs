@@ -35,11 +35,16 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 
 import Effectful.Error.Static (Error, throwError)
+import Octizys.Common.HistoryMap
+  ( empty
+  , lookup
+  , popValue
+  , pushValue
+  )
 import Octizys.Cst.Expression (ExpressionVariableId)
-import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Span (Span)
-import Octizys.Cst.Type (TypeVariableId)
-import Octizys.Effects.Generator.Effect (Generator, generate)
+import Octizys.Cst.Type (InfoId, TypeVariableId)
+import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
 import Octizys.Effects.SymbolResolution.Effect
   ( SourceExpressionVariableInfo
       ( SourceExpressionVariableInfo'
@@ -75,12 +80,6 @@ import Octizys.Effects.SymbolResolution.Effect
     , typeVarTable
     )
   )
-import Octizys.HistoryMap
-  ( empty
-  , lookup
-  , popValue
-  , pushValue
-  )
 import Prelude hiding (lookup, span)
 
 
@@ -111,26 +110,26 @@ initialSymbolResolutionState =
 -- ============================================
 
 createInfoId
-  :: Generator InfoId :> es
+  :: IdGenerator InfoId :> es
   => Eff es InfoId
-createInfoId = generate
+createInfoId = generateId
 
 
 createExpVarId
-  :: Generator ExpressionVariableId :> es
+  :: IdGenerator ExpressionVariableId :> es
   => Eff es ExpressionVariableId
-createExpVarId = generate
+createExpVarId = generateId
 
 
 createTypeVarId
-  :: Generator TypeVariableId :> es
+  :: IdGenerator TypeVariableId :> es
   => Eff es TypeVariableId
-createTypeVarId = generate
+createTypeVarId = generateId
 
 
 registerNewExpressionVariable
-  :: Generator TypeVariableId :> es
-  => Generator ExpressionVariableId :> es
+  :: IdGenerator TypeVariableId :> es
+  => IdGenerator ExpressionVariableId :> es
   => Text
   -- ^ The name of the variable
   -> Maybe Span
@@ -167,7 +166,7 @@ registerNewExpressionVariable name maybeSpan st = do
 
 
 registerNewTypeVariable
-  :: Generator TypeVariableId :> es
+  :: IdGenerator TypeVariableId :> es
   => Maybe Text
   -- ^ The name of the variable
   -> Maybe Span
@@ -209,9 +208,9 @@ registerNewTypeVariable maybeName maybeSpan st = do
 runSymbolResolution
   :: State SymbolResolutionState :> es
   => Error SymbolResolutionError :> es
-  => Generator TypeVariableId :> es
-  => Generator ExpressionVariableId :> es
-  => Generator InfoId :> es
+  => IdGenerator TypeVariableId :> es
+  => IdGenerator ExpressionVariableId :> es
+  => IdGenerator InfoId :> es
   => Eff (SymbolResolution : es) a
   -> Eff es a
 runSymbolResolution = interpret \_ -> \case
@@ -364,9 +363,9 @@ runSymbolResolution = interpret \_ -> \case
 
 runSymbolResolutionFull
   :: Error SymbolResolutionError :> es
-  => Generator TypeVariableId :> es
-  => Generator ExpressionVariableId :> es
-  => Generator InfoId :> es
+  => IdGenerator TypeVariableId :> es
+  => IdGenerator ExpressionVariableId :> es
+  => IdGenerator InfoId :> es
   => SymbolResolutionState
   -> Eff (SymbolResolution : State SymbolResolutionState : es) a
   -> Eff es (a, SymbolResolutionState)

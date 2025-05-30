@@ -1,6 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-
 module Octizys.Inference.Errors where
 
 import qualified Octizys.Cst.Expression as CstE
@@ -13,6 +10,9 @@ import qualified Data.Text as Text
 import qualified Octizys.Ast.Node as Ast
 import Octizys.Ast.Type (InferenceVariable)
 import qualified Octizys.Ast.Type as AstT
+import Octizys.Common.Report
+  ( LongDescription (LongDescription', afterDescription, preDescription, source)
+  )
 import Octizys.Cst.Expression (ExpressionVariableId)
 import qualified Octizys.Cst.Node as Cst
 import Octizys.Cst.Type
@@ -26,9 +26,6 @@ import Octizys.Pretty.FormatContext
   , shouldShowConstraintReason
   )
 import Octizys.Pretty.Formatter (Formatter (format))
-import Octizys.Report
-  ( LongDescription (LongDescription', afterDescription, preDescription, source)
-  )
 import Prettyprinter (Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 import Prelude hiding (lookup)

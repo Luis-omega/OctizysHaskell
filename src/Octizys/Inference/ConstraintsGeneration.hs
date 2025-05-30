@@ -6,6 +6,7 @@ module Octizys.Inference.ConstraintsGeneration where
 import qualified Octizys.Cst.Expression as CstE
 import qualified Octizys.Cst.Type as CstT
 
+import Control.Applicative ((<|>))
 import Control.Arrow ((<<<))
 import Control.Monad (foldM)
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -18,16 +19,16 @@ import Effectful.Error.Static (Error, throwError)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Local (State, gets, modify)
 import qualified Octizys.Ast.Expression as AstE
+import Octizys.Ast.Type (InferenceVariable (MetaVariable), TypeVariable)
 import qualified Octizys.Ast.Type as AstT
 import Octizys.Classes.From (From (from))
-import Octizys.Cst.Expression (ExpressionVariableId)
-import Octizys.Cst.InfoId (InfoId)
+import Octizys.Common.Id (ExpressionVariableId, InfoId, TypeVariableId)
 import Octizys.Cst.Type
   ( Type
   , TypeVariableId
   )
 import qualified Octizys.Cst.Type as Cst
-import Octizys.Effects.Generator.Effect (Generator, generate)
+import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
 import Octizys.Effects.Logger.Effect (Logger, debug)
 import Octizys.Effects.SymbolResolution.Effect
   ( SymbolResolutionState (expVarTable)
@@ -64,7 +65,7 @@ import Prelude hiding (lookup)
 
 data Output = Output'
   { constraints :: [Constraint]
-  , expression :: AstE.Expression
+  , expression :: AstE.Expression InferenceVariable
   }
   deriving (Show, Ord, Eq)
 
@@ -84,61 +85,51 @@ addConstraint c o =
 
 
 freshTypeVar
-  :: Generator TypeVariableId :> es
+  :: IdGenerator TypeVariableId :> es
   => Eff es TypeVariableId
-freshTypeVar = generate
+freshTypeVar = generateId
 
 
 data InferenceState = InferenceState'
-  { knowTypes :: Map ExpressionVariableId (ExpressionVariableId, AstT.Type)
-  , newDefinitionTypes
-      :: Map ExpressionVariableId (ExpressionVariableId, TypeVariableId)
-  , constraintsMap :: Map TypeVariableId Constraint
+  { knowTypes :: Map ExpressionVariableId (AstT.Type TypeVariable)
+  -- ^ Symbols that were defined on imports or on a previous pass of
+  -- the interpreter.
+  , localDefinedSymbols
+      :: Map ExpressionVariableId (AstT.Type InferenceVariable)
   }
   deriving (Show, Ord, Eq)
 
 
 lookupExpressionVar
-  :: ( Reader SymbolResolutionState :> es
-     , Error InferenceError :> es
-     , State InferenceState :> es
-     )
-  => ExpressionVariableId
-  -> Eff es TypeVariableId
-lookupExpressionVar var = do
-  assocMap <- asks expVarTable
-  case lookup var assocMap of
-    Just row -> pure $ typeId row
-    Nothing -> throwError (UnboundExpressionVar var)
-
-
-lookupKnowType
   :: ( Error InferenceError :> es
      , State InferenceState :> es
      )
   => ExpressionVariableId
-  -> Eff es (Maybe AstT.Type)
-lookupKnowType var = do
-  assocMap <- gets knowTypes
-  newsMap <- gets newDefinitionTypes
-  pure
-    ( (snd <$> lookup var assocMap)
-        <|> ((from <<< snd) <$> lookup var newsMap)
-    )
+  -> Eff es (AstT.Type InferenceVariable)
+lookupExpressionVar var = do
+  knowMap <- gets knowTypes
+  newsMap <- gets localDefinedSymbols
+  case (snd <$> lookup var knowMap)
+    <|> ((from <<< snd) <$> lookup var newsMap) of
+    Just value -> pure value
+    Nothing -> do
+      newTypeVar <- freshTypeVar
+      let newType :: AstT.Type InferenceVariable = from $ MetaVariable newTypeVar
+      modify (\s -> s {localDefinedSymbols = (var, newType)})
+      pure newType
 
 
 initialInferenceState :: InferenceState
 initialInferenceState =
   InferenceState'
     { knowTypes = mempty
-    , constraintsMap = mempty
     }
 
 
 insertKnowType
   :: State InferenceState :> es
   => ExpressionVariableId
-  -> AstT.Type
+  -> AstT.Type InferenceVariable
   -> Eff es ()
 insertKnowType vid t = do
   modify (\s -> s {knowTypes = Map.insert vid (vid, t) s.knowTypes})
@@ -151,7 +142,7 @@ To register the variables a b c
 insertNewDefinitionType
   :: State InferenceState :> es
   => ExpressionVariableId
-  -> AstT.Type
+  -> AstT.Type InferenceVariable
   -> Eff es TypeVariableId
 insertNewDefinitionType =
   modify (\s -> s {knowTypes = Map.insert vid (vid, t) s.knowTypes})
@@ -159,7 +150,7 @@ insertNewDefinitionType =
 
 cstToAstType
   :: Type
-  -> AstT.Type
+  -> AstT.Type InferenceVariable
 cstToAstType t =
   case t of
     Cst.BoolType {} -> from AstT.BoolType
@@ -172,7 +163,7 @@ cstToAstType t =
             , remain = newRemain
             }
     Cst.Parens {_type} -> cstToAstType _type
-    Cst.Variable {variableId} -> AstT.Variable {variableId}
+    Cst.Variable {variableId} -> AstT.Variable {}
 
 
 definitionParametersToParameters
@@ -187,7 +178,7 @@ definitionParametersToParameters
       ( NonEmpty
           ( [Constraint]
           , ExpressionVariableId
-          , AstT.Type
+          , AstT.Type InferenceVariable
           )
       )
 definitionParametersToParameters params =
@@ -195,7 +186,7 @@ definitionParametersToParameters params =
   where
     transParam
       :: (CstE.Parameter, InfoId)
-      -> Eff es ([Constraint], ExpressionVariableId, AstT.Type)
+      -> Eff es ([Constraint], ExpressionVariableId, AstT.Type InferenceVariable)
     transParam (p, _) = do
       pType <- lookupExpressionVar (snd p.name)
       case p of
@@ -222,11 +213,11 @@ definitionCstToAst
   :: ( Reader SymbolResolutionState :> es
      , Error InferenceError :> es
      , State InferenceState :> es
-     , Generator TypeVariableId :> es
+     , IdGenerator TypeVariableId :> es
      , Logger :> es
      )
   => CstE.Definition
-  -> Eff es ([Constraint], AstE.Definition)
+  -> Eff es ([Constraint], AstE.Definition InferenceVariable)
 definitionCstToAst d = do
   outBody <- infer d.definition
   -- In
@@ -356,7 +347,7 @@ infer
   :: State InferenceState :> es
   => Error InferenceError :> es
   => Reader SymbolResolutionState :> es
-  => Generator TypeVariableId :> es
+  => IdGenerator TypeVariableId :> es
   => Logger :> es
   => CstE.Expression
   -> Eff es Output
@@ -585,10 +576,10 @@ check
   :: State InferenceState :> es
   => Error InferenceError :> es
   => Reader SymbolResolutionState :> es
-  => Generator TypeVariableId :> es
+  => IdGenerator TypeVariableId :> es
   => Logger :> es
   => CstE.Expression
-  -> AstT.Type
+  -> AstT.Type InferenceVariable
   -> ConstraintReason
   -> Eff es Output
 check expr ty reason = do

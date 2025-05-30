@@ -44,11 +44,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (pack)
 import qualified Data.Text as Text
-import Octizys.Cst.Span (Position, makeInitialPosition)
-import qualified Octizys.Cst.Span as Span
-import Octizys.Pretty.FormatContext (Configuration, FormatContext, nest)
-import Octizys.Pretty.Formatter (Formatter (format))
-import Octizys.Report
+import Octizys.Common.Report
   ( LongDescription
       ( LongDescription'
       , afterDescription
@@ -58,6 +54,10 @@ import Octizys.Report
   , Report (Report', descriptions, reportKind, shortDescription)
   , ReportKind (ReportError)
   )
+import Octizys.Cst.Span (Position, makeInitialPosition)
+import qualified Octizys.Cst.Span as Span
+import Octizys.Pretty.FormatContext (Configuration, FormatContext, nest)
+import Octizys.Pretty.Formatter (Formatter (format))
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 

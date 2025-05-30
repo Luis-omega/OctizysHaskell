@@ -18,14 +18,12 @@ module Octizys.Effects.SymbolResolution.Effect where
 import Data.Text (Text)
 import Effectful (Effect)
 import Effectful.TH (makeEffect)
+import Octizys.Common.Id (ExpressionVariableId, InfoId, TypeVariableId)
 import Octizys.Cst.Comment (Comment)
-import Octizys.Cst.Expression (ExpressionVariableId)
-import Octizys.Cst.InfoId (InfoId)
 import Octizys.Cst.Span (Span)
-import Octizys.Cst.Type (TypeVariableId)
 
 import Data.Map (Map)
-import Octizys.HistoryMap
+import Octizys.Common.HistoryMap
 
 
 data SourceInfo = SourceInfo'

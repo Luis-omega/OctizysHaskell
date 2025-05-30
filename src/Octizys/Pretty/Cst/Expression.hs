@@ -317,4 +317,3 @@ formatExpression ctx e =
                   <> Type.format ctx _type
               )
         )
-

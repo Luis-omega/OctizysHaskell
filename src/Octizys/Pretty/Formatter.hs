@@ -160,4 +160,3 @@ instance Formatter ann (FormatContext ann) Cst.Node where
 
 instance Formatter ann (FormatContext ann) Cst.Module where
   format = Cst.TopItem.formatModule
-
