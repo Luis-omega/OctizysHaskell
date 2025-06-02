@@ -5,7 +5,6 @@ import Data.List.NonEmpty (NonEmpty, toList)
 import Data.Text (Text)
 import Octizys.Ast.Expression
 import Octizys.Ast.Type (Type)
-import Octizys.Cst.Expression (ExpressionVariableId)
 import qualified Octizys.Pretty.Ast.Type as Type
 import Octizys.Pretty.FormatContext
   ( FormatContext
@@ -16,6 +15,7 @@ import Octizys.Pretty.FormatContext
   )
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
+import Octizys.Common.Id (ExpressionVariableId)
 
 
 formatDefinition

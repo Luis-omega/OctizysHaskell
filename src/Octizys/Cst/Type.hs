@@ -7,7 +7,7 @@ module Octizys.Cst.Type
       , IntType
       , Arrow
       , Parens
-      , Variable
+      , TVariable
       )
   , info
   , start
@@ -15,38 +15,41 @@ module Octizys.Cst.Type
   , lparen
   , rparen
   , _type
-  , variableId
+  ,variable
   , TypeVariableId
   , InfoId
   ) where
 
 import Data.List.NonEmpty (NonEmpty)
 import Octizys.Common.Id (InfoId, TypeVariableId)
+import Octizys.Cst.SourceInfo (SourceInfo)
+
 
 
 {- | Stores source information in a separate place, so
     we can mutate or do other things on it without
     modifying the tree.
 -}
-data Type
+data Type tvar
   = -- | The boolean type hardcoded. Right now we don't have sum types or
     --  support for user defined types.
-    BoolType {info :: InfoId}
+    BoolType {info :: SourceInfo}
   | -- | The int type hacoded. See `BoolType`
-    IntType {info :: InfoId}
+    IntType {info :: SourceInfo}
   | -- | Represent a function type.
     -- It can have multiple items, and it must have at least one.
     Arrow
-      { start :: Type
-      , remain :: NonEmpty (InfoId, Type)
+      { start :: Type tvar
+      , remain :: NonEmpty (SourceInfo, Type tvar)
       }
   | -- | Represents a type inside parentheses.
     Parens
-      { lparen :: InfoId
-      , _type :: Type
-      , rparen :: InfoId
+      { lparen :: SourceInfo
+      , _type :: Type tvar
+      , rparen :: SourceInfo
       }
   | -- | All variables are translated at parsing time to a internal
     -- identifier. You can think of it as a pointer in symbol table.
-    Variable {info :: InfoId, variableId :: TypeVariableId}
+    TVariable {info :: SourceInfo, variable::tvar}
   deriving (Show, Eq, Ord)
+

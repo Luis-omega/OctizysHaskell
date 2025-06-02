@@ -121,6 +121,7 @@ library
     Octizys.Cst.Fixpoint
     Octizys.Cst.Node
     Octizys.Cst.Span
+    Octizys.Cst.SourceInfo
     Octizys.Cst.TopItem
     Octizys.Cst.Type
     Octizys.Effects.Console.Effect
@@ -133,8 +134,8 @@ library
     Octizys.Effects.Parser.Combinators
     Octizys.Effects.Parser.Effect
     Octizys.Effects.Parser.Interpreter
-    Octizys.Effects.SymbolResolution.Effect
-    Octizys.Effects.SymbolResolution.Interpreter
+    --Octizys.Effects.SymbolResolution.Effect
+    --Octizys.Effects.SymbolResolution.Interpreter
     Octizys.Inference.ConstraintsGeneration
     Octizys.Inference.ConstraintsSolver
     Octizys.Inference.Errors

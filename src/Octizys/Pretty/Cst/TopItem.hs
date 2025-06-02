@@ -7,10 +7,20 @@ import Prettyprinter (Doc, vsep)
 
 
 formatModule
-  :: FormatContext ann
-  -> Module
+  :: ( FormatContext ann
+       -> evar
+       -> Doc ann
+     )
+  -> ( FormatContext ann
+       -> tvar
+       -> Doc ann
+     )
+  -> FormatContext ann
+  -> Module evar tvar
   -> Doc ann
 formatModule
+  fmtEvar
+  fmtTvar
   ctx
   ( Module'
       { lastComments = _lastComment
@@ -20,6 +30,9 @@ formatModule
     -- TODO: missing last comment!
     vsep
       ( formatDefinition
+          fmtEvar
+          fmtTvar
           ctx
           <$> (fst <$> _definitions)
       )
+

@@ -2,7 +2,6 @@ module Octizys.Pretty.Cst.Type (needsParentsInArrow, format) where
 
 import Control.Arrow ((<<<))
 import Data.List.NonEmpty (cons)
-import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
 import Octizys.Cst.Type
   ( Type
@@ -10,34 +9,37 @@ import Octizys.Cst.Type
       , BoolType
       , IntType
       , Parens
-      , Variable
+      , TVariable
       , remain
       , start
+      , variable
       )
-  , variableId
   , _type
   )
 import Octizys.Pretty.FormatContext
   ( FormatContext
-  , formatTypeVar
   , nest
   )
 import Prettyprinter (Doc, Pretty (pretty))
 import qualified Prettyprinter as Pretty
 
 
-needsParentsInArrow :: Type -> Bool
+needsParentsInArrow :: Type tvar -> Bool
 needsParentsInArrow t =
   case t of
     IntType {} -> False
     BoolType {} -> False
     Arrow {} -> True
     Parens {} -> True
-    Variable {} -> False
+    TVariable {} -> False
 
 
-format :: FormatContext ann -> Type -> Doc ann
-format ctx t =
+format
+  :: (FormatContext ann -> tvar -> Doc ann)
+  -> FormatContext ann
+  -> Type tvar
+  -> Doc ann
+format formatTVar ctx t =
   case t of
     IntType _ -> pretty @Text "Int"
     BoolType _ -> pretty @Text "Bool"
@@ -53,8 +55,9 @@ format ctx t =
       where
         prettyArg ty =
           if needsParentsInArrow ty
-            then Pretty.parens (format ctx ty)
-            else format ctx ty
+            then Pretty.parens (format formatTVar ctx ty)
+            else format formatTVar ctx ty
     Parens {_type = t2} ->
-      format ctx t2
-    Variable {variableId = v} -> formatTypeVar ctx v
+      format formatTVar ctx t2
+    TVariable {variable = v} -> formatTVar ctx v
+

@@ -3,12 +3,15 @@ module Octizys.Common.LogicPath (LogicPath, makeLogicPath) where
 import Data.List.NonEmpty (NonEmpty, toList)
 import Data.Text (Text)
 import Octizys.Common.Name (Name)
+import Octizys.Common.PackageName (PackageName)
 import Prettyprinter (Pretty (pretty))
-import qualified Prettyprinter as Pretty
 
 
 -- | Represents a module direction.
-newtype LogicPath = LogicPath' {logicPathRaw :: NonEmpty Name}
+data LogicPath = LogicPath'
+  { packageName :: PackageName
+  , logicPathRaw :: NonEmpty Name
+  }
   deriving (Show, Eq, Ord)
 
 
@@ -20,5 +23,5 @@ instance Pretty LogicPath where
   pretty lp =
     let withSeparator =
           ((\x -> pretty x <> pretty '/') <$> toList lp.logicPathRaw)
-     in foldl (<>) mempty withSeparator
+     in pretty lp.packageName <> pretty '/' <> foldl (<>) mempty withSeparator
 

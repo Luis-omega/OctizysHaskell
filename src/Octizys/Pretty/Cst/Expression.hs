@@ -24,18 +24,18 @@ import Octizys.Cst.Expression
     , Variable
     , applicationFunction
     , applicationRemain
+    , body
     , boolValue
     , condition
     , definitions
     , expression
-    , functionValue
     , ifFalse
     , ifTrue
     , intValue
     , name
+    , parameters
     , _type
     )
-  , Function (Function', body, parameters)
   , Parameter (ParameterAlone, ParameterWithType, name, _type)
   , Parameters (Parameters', initParameter, otherParameters)
   , SchemeStart (SchemeStart', typeArguments)
@@ -43,8 +43,6 @@ import Octizys.Cst.Expression
 import qualified Octizys.Pretty.Cst.Type as Type
 import Octizys.Pretty.FormatContext
   ( FormatContext
-  , formatExpressionVar
-  , formatTypeVar
   , nest
   )
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
@@ -56,74 +54,116 @@ pText = pretty @Text
 
 
 formatParameter
-  :: FormatContext ann
-  -> Parameter
+  :: ( FormatContext ann
+       -> evar
+       -> Doc ann
+     )
+  -> ( FormatContext ann
+       -> tvar
+       -> Doc ann
+     )
+  -> FormatContext ann
+  -> Parameter evar tvar
   -> Doc ann
 formatParameter
+  formatEvar
+  _
   ctx
-  (ParameterAlone {name = (_, v)}) = formatExpressionVar ctx v
+  (ParameterAlone {name = (_, v)}) = formatEvar ctx v
 formatParameter
+  formatEvar
+  formatTvar
   ctx
   (ParameterWithType {name = (_, v), _type = t}) =
-    formatExpressionVar ctx v
+    formatEvar ctx v
       <+> pText ":"
       <> nest
         ctx
         ( Pretty.line
-            <> Type.format ctx t
+            <> Type.format formatTvar ctx t
         )
 
 
 formatParameters
-  :: FormatContext ann
-  -> Parameters
+  :: ( FormatContext ann
+       -> evar
+       -> Doc ann
+     )
+  -> ( FormatContext ann
+       -> tvar
+       -> Doc ann
+     )
+  -> FormatContext ann
+  -> Parameters evar tvar
   -> Doc ann
-formatParameters ctx (Parameters' {initParameter, otherParameters}) =
-  Pretty.vsep
-    ( Pretty.group
-        ( formatParameter
+formatParameters
+  formatEvar
+  formatTvar
+  ctx
+  (Parameters' {initParameter, otherParameters}) =
+    Pretty.vsep
+      ( Pretty.group
+          ( formatParameter
+              formatEvar
+              formatTvar
+              ctx
+              initParameter
+          )
+          : ( prettyArg
+                <$> otherParameters
+            )
+      )
+      <> Pretty.line
+      <> pText "|-"
+    where
+      prettyArg (_, p) =
+        pText ","
+          <> nest
             ctx
-            initParameter
-        )
-        : ( prettyArg
-              <$> otherParameters
-          )
-    )
-    <> Pretty.line
-    <> pText "|-"
-  where
-    prettyArg (_, p) =
-      pText ","
-        <> nest
-          ctx
-          ( Pretty.line
-              <> formatParameter
-                ctx
-                p
-          )
+            ( Pretty.line
+                <> formatParameter
+                  formatEvar
+                  formatTvar
+                  ctx
+                  p
+            )
 
 
 formatSchemeStart
-  :: FormatContext ann
-  -> SchemeStart
+  :: ( FormatContext ann
+       -> tvar
+       -> Doc ann
+     )
+  -> FormatContext ann
+  -> SchemeStart evar tvar
   -> Doc ann
-formatSchemeStart ctx SchemeStart' {typeArguments} =
+formatSchemeStart fmtTvar ctx SchemeStart' {typeArguments} =
   pretty @Text "forall"
     <> Pretty.line
     <> nest
       ctx
       ( Pretty.fillSep
-          ((formatTypeVar ctx <<< snd) <$> NonEmpty.toList typeArguments)
+          ((fmtTvar ctx <<< snd) <$> NonEmpty.toList typeArguments)
       )
     <> Pretty.line
     <> pretty '.'
 
 
 formatDefinitionTypeAnnotation
-  :: FormatContext ann
-  -> DefinitionTypeAnnotation
+  :: ( FormatContext ann
+       -> evar
+       -> Doc ann
+     )
+  -> ( FormatContext ann
+       -> tvar
+       -> Doc ann
+     )
+  -> FormatContext ann
+  -> DefinitionTypeAnnotation evar tvar
   -> Doc ann
 formatDefinitionTypeAnnotation
+  fmtEvar
+  fmtTvar
   ctx
   DefinitionTypeAnnotation'
     { schemeStart
@@ -131,13 +171,15 @@ formatDefinitionTypeAnnotation
     , outputType
     } =
     let
-      scheme = maybe mempty (formatSchemeStart ctx) schemeStart
+      scheme = maybe mempty (formatSchemeStart fmtTvar ctx) schemeStart
       pars =
         case parameters of
           Just ps ->
             (nest ctx <<< Pretty.group)
               ( Pretty.line
                   <> formatParameters
+                    fmtEvar
+                    fmtTvar
                     ctx
                     ps
               )
@@ -146,13 +188,13 @@ formatDefinitionTypeAnnotation
         case parameters of
           Nothing ->
             (nest ctx <<< Pretty.group)
-              ( Pretty.line <> Type.format ctx outputType
+              ( Pretty.line <> Type.format fmtTvar ctx outputType
               )
           Just _ ->
             Pretty.group
               ( pretty ','
                   <> Pretty.line
-                  <> Type.format ctx outputType
+                  <> Type.format fmtTvar ctx outputType
               )
      in
       pretty ':'
@@ -162,19 +204,29 @@ formatDefinitionTypeAnnotation
 
 
 formatDefinition
-  :: FormatContext ann
-  -> Definition
+  :: ( FormatContext ann
+       -> evar
+       -> Doc ann
+     )
+  -> ( FormatContext ann
+       -> tvar
+       -> Doc ann
+     )
+  -> FormatContext ann
+  -> Definition evar tvar
   -> Doc ann
 formatDefinition
+  fmtEvar
+  fmtTvar
   ctx
   (Definition' {name = (_, v), _type, definition}) =
-    let n = formatExpressionVar ctx v
+    let n = fmtEvar ctx v
         def =
           ( Pretty.line
-              <> formatExpression ctx definition
+              <> formatExpression fmtEvar fmtTvar ctx definition
           )
      in n
-          <> maybe mempty (formatDefinitionTypeAnnotation ctx) _type
+          <> maybe mempty (formatDefinitionTypeAnnotation fmtEvar fmtTvar ctx) _type
           <> (Pretty.group <<< nest ctx)
             ( Pretty.line
                 <> pText "="
@@ -182,30 +234,7 @@ formatDefinition
             )
 
 
-formatFunction
-  :: FormatContext ann
-  -> Function
-  -> Doc ann
-formatFunction ctx (Function' {parameters, body}) =
-  Pretty.vsep
-    [ pText "\\"
-        <> nest
-          ctx
-          ( Pretty.line
-              <> formatParameters
-                ctx
-                parameters
-          )
-    , ( Pretty.group
-          <<< nest ctx
-      )
-        ( Pretty.line
-            <> formatExpression ctx body
-        )
-    ]
-
-
-needsParentsInApplication :: Expression -> Bool
+needsParentsInApplication :: Expression evar tvar -> Bool
 needsParentsInApplication e =
   case e of
     EInt {} -> False
@@ -220,24 +249,53 @@ needsParentsInApplication e =
 
 
 formatExpression
-  :: FormatContext ann
-  -> Expression
+  :: ( FormatContext ann
+       -> evar
+       -> Doc ann
+     )
+  -> ( FormatContext ann
+       -> tvar
+       -> Doc ann
+     )
+  -> FormatContext ann
+  -> Expression evar tvar
   -> Doc ann
-formatExpression ctx e =
+formatExpression fmtEvar fmtTvar ctx e =
   case e of
     EInt {intValue} -> pretty intValue
     EBool {boolValue} ->
       pText $ if boolValue then "True" else "False"
-    Variable {name} -> formatExpressionVar ctx name
+    Variable {name} -> fmtEvar ctx name
     Parens {expression} ->
       Pretty.parens $
         formatExpression
+          fmtEvar
+          fmtTvar
           ctx
           expression
-    EFunction {functionValue} ->
-      formatFunction
-        ctx
-        functionValue
+    EFunction {parameters, body} ->
+      Pretty.vsep
+        [ pText "\\"
+            <> nest
+              ctx
+              ( Pretty.line
+                  <> formatParameters
+                    fmtEvar
+                    fmtTvar
+                    ctx
+                    parameters
+              )
+        , ( Pretty.group
+              <<< nest ctx
+          )
+            ( Pretty.line
+                <> formatExpression
+                  fmtEvar
+                  fmtTvar
+                  ctx
+                  body
+            )
+        ]
     Application
       { applicationFunction =
         _function
@@ -259,29 +317,48 @@ formatExpression ctx e =
               then
                 Pretty.parens
                   ( formatExpression
+                      fmtEvar
+                      fmtTvar
                       ctx
                       expr
                   )
-              else formatExpression ctx expr
+              else
+                formatExpression
+                  fmtEvar
+                  fmtTvar
+                  ctx
+                  expr
     If {condition = _condition, ifTrue = __then, ifFalse = __else} ->
       (Pretty.group <<< Pretty.vsep)
         [ pText "if"
             <> nest
               ctx
               ( Pretty.line
-                  <> formatExpression ctx _condition
+                  <> formatExpression
+                    fmtEvar
+                    fmtTvar
+                    ctx
+                    _condition
               )
         , pText "then"
             <> nest
               ctx
               ( Pretty.line
-                  <> formatExpression ctx __then
+                  <> formatExpression
+                    fmtEvar
+                    fmtTvar
+                    ctx
+                    __then
               )
         , pText "else"
             <> nest
               ctx
               ( Pretty.line
-                  <> formatExpression ctx __else
+                  <> formatExpression
+                    fmtEvar
+                    fmtTvar
+                    ctx
+                    __else
               )
         ]
     Let {definitions, expression = _in} ->
@@ -292,7 +369,7 @@ formatExpression ctx e =
               ( Pretty.line
                   <> (Pretty.vsep <<< toList)
                     ( ( (<> pText ";")
-                          <<< formatDefinition ctx
+                          <<< formatDefinition fmtEvar fmtTvar ctx
                           <<< fst
                       )
                         <$> definitions
@@ -303,17 +380,26 @@ formatExpression ctx e =
             <> Pretty.nest
               2
               ( Pretty.line
-                  <> formatExpression ctx _in
+                  <> formatExpression
+                    fmtEvar
+                    fmtTvar
+                    ctx
+                    _in
               )
         ]
     Annotation {expression = _expression, _type} ->
       (Pretty.parens <<< Pretty.group)
-        ( formatExpression ctx _expression
+        ( formatExpression
+            fmtEvar
+            fmtTvar
+            ctx
+            _expression
             <> Pretty.line
             <> nest
               ctx
               ( pText ":"
                   <> Pretty.line
-                  <> Type.format ctx _type
+                  <> Type.format fmtTvar ctx _type
               )
         )
+

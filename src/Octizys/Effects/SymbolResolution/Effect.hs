@@ -24,31 +24,10 @@ import Octizys.Cst.Span (Span)
 
 import Data.Map (Map)
 import Octizys.Common.HistoryMap
+import Octizys.Common.Qualifier (Qualifier)
+import Octizys.Common.Name (Name)
 
 
-data SourceInfo = SourceInfo'
-  { span :: Span
-  , preComments :: [Comment]
-  , afterComment :: Maybe Comment
-  }
-  deriving (Show, Eq, Ord)
-
-
-data SourceTypeVariableInfo = SourceTypeVariableInfo'
-  { name :: Maybe Text
-  , typeVariableId :: TypeVariableId
-  , typeDefinitionSpan :: Maybe Span
-  }
-  deriving (Show, Eq, Ord)
-
-
-data SourceExpressionVariableInfo = SourceExpressionVariableInfo'
-  { name :: Text
-  , expressionVariableId :: ExpressionVariableId
-  , expDefinitionSpan :: Maybe Span
-  , typeId :: TypeVariableId
-  }
-  deriving (Show, Eq, Ord)
 
 
 data SymbolResolutionState = SymbolResolutionState'

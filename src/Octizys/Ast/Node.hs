@@ -6,7 +6,7 @@ module Octizys.Ast.Node where
 import Octizys.Ast.Expression (Definition, Expression, Value)
 import Octizys.Ast.Type (Type)
 import Octizys.Classes.From (From (from))
-import Octizys.Cst.Expression (ExpressionVariableId)
+import Octizys.Common.Id (ExpressionVariableId)
 
 
 data Node var
@@ -36,3 +36,4 @@ instance From (Node var) (ExpressionVariableId, Type var) where
 
 instance From (Node var) (Value var) where
   from = NValue
+

@@ -114,8 +114,11 @@ instance
   format ctx (Ast.NExp t) = format ctx t
 
 
-instance Formatter ann (FormatContext ann) Cst.Type where
-  format = Cst.Type.format
+instance
+  Formatter ann (FormatContext ann) tvar
+  => Formatter ann (FormatContext ann) (Cst.Type tvar)
+  where
+  format = Cst.Type.format format
 
 
 instance Formatter ann (FormatContext ann) Cst.LineComment where
@@ -130,33 +133,59 @@ instance Formatter ann (FormatContext ann) Cst.Comment where
   format _ = Cst.Expression.formatComment
 
 
-instance Formatter ann (FormatContext ann) Cst.Parameter where
-  format = Cst.Expression.formatParameter
+instance
+  ( Formatter ann (FormatContext ann) evar
+  , Formatter ann (FormatContext ann) tvar
+  )
+  => Formatter ann (FormatContext ann) (Cst.Parameter evar tvar)
+  where
+  format = Cst.Expression.formatParameter format format
 
 
-instance Formatter ann (FormatContext ann) Cst.Parameters where
-  format = Cst.Expression.formatParameters
+instance
+  ( Formatter ann (FormatContext ann) evar
+  , Formatter ann (FormatContext ann) tvar
+  )
+  => Formatter ann (FormatContext ann) (Cst.Parameters evar tvar)
+  where
+  format = Cst.Expression.formatParameters format format
 
 
-instance Formatter ann (FormatContext ann) Cst.Definition where
-  format = Cst.Expression.formatDefinition
+instance
+  ( Formatter ann (FormatContext ann) evar
+  , Formatter ann (FormatContext ann) tvar
+  )
+  => Formatter ann (FormatContext ann) (Cst.Definition evar tvar)
+  where
+  format = Cst.Expression.formatDefinition format format
 
 
-instance Formatter ann (FormatContext ann) Cst.Function where
-  format = Cst.Expression.formatFunction
+instance
+  ( Formatter ann (FormatContext ann) evar
+  , Formatter ann (FormatContext ann) tvar
+  )
+  => Formatter ann (FormatContext ann) (Cst.Expression evar tvar)
+  where
+  format = Cst.Expression.formatExpression format format
 
 
-instance Formatter ann (FormatContext ann) Cst.Expression where
-  format = Cst.Expression.formatExpression
-
-
-instance Formatter ann (FormatContext ann) Cst.Node where
+instance
+  ( Formatter ann (FormatContext ann) evar
+  , Formatter ann (FormatContext ann) tvar
+  )
+  => Formatter ann (FormatContext ann) (Cst.Node evar tvar)
+  where
   format ctx (Cst.NType t) = format ctx t
   format ctx (Cst.NParam t) = format ctx t
   format ctx (Cst.NDef t) = format ctx t
-  format ctx (Cst.NFunction t) = format ctx t
   format ctx (Cst.NExp t) = format ctx t
 
 
-instance Formatter ann (FormatContext ann) Cst.Module where
-  format = Cst.TopItem.formatModule
+instance
+  ( Formatter ann (FormatContext ann) evar
+  , Formatter ann (FormatContext ann) tvar
+  )
+  => Formatter ann (FormatContext ann) (Cst.Module evar tvar)
+  where
+  format = Cst.TopItem.formatModule format format
+
