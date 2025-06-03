@@ -36,4 +36,3 @@ instance From (Node var) (ExpressionVariableId, Type var) where
 
 instance From (Node var) (Value var) where
   from = NValue
-

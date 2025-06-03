@@ -188,4 +188,3 @@ instance
   => Formatter ann (FormatContext ann) (Cst.Module evar tvar)
   where
   format = Cst.TopItem.formatModule format format
-

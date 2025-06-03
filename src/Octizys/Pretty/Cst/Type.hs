@@ -60,4 +60,3 @@ format formatTVar ctx t =
     Parens {_type = t2} ->
       format formatTVar ctx t2
     TVariable {variable = v} -> formatTVar ctx v
-

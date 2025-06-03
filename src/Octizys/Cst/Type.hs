@@ -15,7 +15,7 @@ module Octizys.Cst.Type
   , lparen
   , rparen
   , _type
-  ,variable
+  , variable
   , TypeVariableId
   , InfoId
   ) where
@@ -23,7 +23,6 @@ module Octizys.Cst.Type
 import Data.List.NonEmpty (NonEmpty)
 import Octizys.Common.Id (InfoId, TypeVariableId)
 import Octizys.Cst.SourceInfo (SourceInfo)
-
 
 
 {- | Stores source information in a separate place, so
@@ -50,6 +49,5 @@ data Type tvar
       }
   | -- | All variables are translated at parsing time to a internal
     -- identifier. You can think of it as a pointer in symbol table.
-    TVariable {info :: SourceInfo, variable::tvar}
+    TVariable {info :: SourceInfo, variable :: tvar}
   deriving (Show, Eq, Ord)
-

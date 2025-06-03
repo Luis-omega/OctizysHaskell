@@ -24,4 +24,3 @@ instance Pretty LogicPath where
     let withSeparator =
           ((\x -> pretty x <> pretty '/') <$> toList lp.logicPathRaw)
      in pretty lp.packageName <> pretty '/' <> foldl (<>) mempty withSeparator
-

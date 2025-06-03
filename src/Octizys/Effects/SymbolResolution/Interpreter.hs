@@ -251,7 +251,7 @@ runSymbolResolution = interpret \_ -> \case
       Just expId ->
         case Map.lookup expId (expVarTable originalState) of
           Just expInfo ->
-            case expInfo.expDefinitionSpan of
+            case expInfo . expDefinitionSpan of
               --  We need to create a new variable
               -- and register it.
               Just _ -> do
@@ -297,7 +297,7 @@ runSymbolResolution = interpret \_ -> \case
       Just typeId ->
         case Map.lookup typeId (typeVarTable originalState) of
           Just typeInfo ->
-            case typeInfo.typeDefinitionSpan of
+            case typeInfo . typeDefinitionSpan of
               --  We need to create a new variable
               -- and register it.
               Just _ -> do
@@ -336,17 +336,17 @@ runSymbolResolution = interpret \_ -> \case
         pure var
   RemoveExpressionDefinition expId ->
     modify $ \s ->
-      case Map.lookup expId s.expVarTable of
+      case Map.lookup expId s . expVarTable of
         Just expInfo ->
-          s {expNamesToId = popValue expInfo.name s.expNamesToId}
+          s {expNamesToId = popValue expInfo . name s . expNamesToId}
         Nothing -> s
   RemoveTypeDefinition typeId -> do
     s <- get
-    case Map.lookup typeId s.typeVarTable of
+    case Map.lookup typeId s . typeVarTable of
       Just typeInfo ->
-        case typeInfo.name of
+        case typeInfo . name of
           Just tName ->
-            put s {typeNamesToId = popValue tName s.typeNamesToId}
+            put s {typeNamesToId = popValue tName s . typeNamesToId}
           -- A bug, a type without a name is a internal thing
           -- that the parser shouldn't touch!
           Nothing -> throwError $ AttemptToDeleteAnonymousVariable typeInfo
@@ -355,7 +355,7 @@ runSymbolResolution = interpret \_ -> \case
     st <- get
     infoId <- createInfoId
     let info = SourceInfo' span pre after
-    put st {infoTable = Map.insert infoId info st.infoTable}
+    put st {infoTable = Map.insert infoId info st . infoTable}
     pure infoId
   GetSymbolResolutionState -> get
   PutSymbolResolutionState s -> put s

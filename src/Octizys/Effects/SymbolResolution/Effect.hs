@@ -24,10 +24,8 @@ import Octizys.Cst.Span (Span)
 
 import Data.Map (Map)
 import Octizys.Common.HistoryMap
-import Octizys.Common.Qualifier (Qualifier)
 import Octizys.Common.Name (Name)
-
-
+import Octizys.Common.Qualifier (Qualifier)
 
 
 data SymbolResolutionState = SymbolResolutionState'

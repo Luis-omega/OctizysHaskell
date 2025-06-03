@@ -34,4 +34,3 @@ instance From (Node evar tvar) (Definition evar tvar) where
 
 instance From (Node evar tvar) (Expression evar tvar) where
   from = NExp
-

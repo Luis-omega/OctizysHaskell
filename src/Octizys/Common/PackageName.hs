@@ -20,4 +20,3 @@ makePackageName = undefined
 
 instance Pretty PackageName where
   pretty p = pretty p.packageNameRaw
-

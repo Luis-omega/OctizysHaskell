@@ -19,4 +19,3 @@ data SourceVariable = SourceVariable'
   , name :: Name
   }
   deriving (Show, Eq, Ord)
-

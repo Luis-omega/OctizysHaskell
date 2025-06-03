@@ -20,4 +20,3 @@ makeName = Just <<< Name'
 
 instance Pretty Name where
   pretty = pretty <<< nameRaw
-

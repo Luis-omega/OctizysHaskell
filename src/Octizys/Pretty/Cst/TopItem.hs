@@ -35,4 +35,3 @@ formatModule
           ctx
           <$> (fst <$> _definitions)
       )
-

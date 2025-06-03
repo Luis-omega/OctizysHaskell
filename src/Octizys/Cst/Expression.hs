@@ -172,4 +172,3 @@ data Expression evar tvar
       , _type :: Type tvar
       }
   deriving (Show, Eq, Ord)
-

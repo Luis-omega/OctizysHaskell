@@ -119,8 +119,8 @@ library
     Octizys.Cst.Comment
     Octizys.Cst.Expression
     Octizys.Cst.Node
-    Octizys.Cst.Span
     Octizys.Cst.SourceInfo
+    Octizys.Cst.Span
     Octizys.Cst.TopItem
     Octizys.Cst.Type
     Octizys.Effects.Console.Effect
@@ -133,8 +133,6 @@ library
     Octizys.Effects.Parser.Combinators
     Octizys.Effects.Parser.Effect
     Octizys.Effects.Parser.Interpreter
-    --Octizys.Effects.SymbolResolution.Effect
-    --Octizys.Effects.SymbolResolution.Interpreter
     Octizys.Inference.ConstraintsGeneration
     Octizys.Inference.ConstraintsSolver
     Octizys.Inference.Errors
@@ -151,7 +149,10 @@ library
     Octizys.Pretty.FormatContext
     Octizys.Pretty.Formatter
     Octizys.Pretty.Markup
+    Octizys.SymbolResolution
 
+  --Octizys.Effects.SymbolResolution.Effect
+  --Octizys.Effects.SymbolResolution.Interpreter
   -- Modules included in this library but not exported.
   -- other-modules:
 

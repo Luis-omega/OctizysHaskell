@@ -12,7 +12,7 @@ import Effectful.Dispatch.Dynamic (HasCallStack)
 import Octizys.Ast.Type (Type)
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
-import Octizys.Common.Id (ExpressionVariableId,TypeVariableId)
+import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 
 
 data Definition var = Definition'
@@ -150,4 +150,3 @@ instance
 
 getType :: HasCallStack => Expression var -> Type var
 getType e = e.inferType
-

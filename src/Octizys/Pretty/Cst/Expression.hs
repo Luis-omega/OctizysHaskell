@@ -402,4 +402,3 @@ formatExpression fmtEvar fmtTvar ctx e =
                   <> Type.format fmtTvar ctx _type
               )
         )
-

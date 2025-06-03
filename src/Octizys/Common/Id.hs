@@ -56,4 +56,3 @@ data ExpressionVariableId = ExpressionVariableId'
 
 instance GenerateIdFromInt ExpressionVariableId where
   generateIdFromInt q x = ExpressionVariableId' q (Id' x)
-

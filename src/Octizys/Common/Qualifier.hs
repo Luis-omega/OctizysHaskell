@@ -18,4 +18,3 @@ instance Pretty Qualifier where
   pretty (SingleFile nm) = pretty nm
   pretty (ModuleQualifier lp) = pretty lp
   pretty (Repl nm) = pretty @Text "!Repl/" <> pretty nm
-
