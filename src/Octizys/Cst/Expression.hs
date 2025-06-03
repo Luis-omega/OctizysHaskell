@@ -106,7 +106,7 @@ instance Ord evar => FreeVariables evar (Parameters evar tvar) where
 
 
 -- | forall a b c .
-data SchemeStart evar tvar = SchemeStart'
+data SchemeStart tvar = SchemeStart'
   { _forall :: SourceInfo
   , typeArguments :: NonEmpty (SourceInfo, tvar)
   , dot :: SourceInfo
@@ -116,7 +116,7 @@ data SchemeStart evar tvar = SchemeStart'
 
 data DefinitionTypeAnnotation evar tvar = DefinitionTypeAnnotation'
   { colon :: SourceInfo
-  , schemeStart :: Maybe (SchemeStart evar tvar)
+  , schemeStart :: Maybe (SchemeStart tvar)
   , parameters :: Maybe (Parameters evar tvar)
   , outputType :: Type tvar
   }

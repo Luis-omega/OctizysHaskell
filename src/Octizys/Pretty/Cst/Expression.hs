@@ -135,7 +135,7 @@ formatSchemeStart
        -> Doc ann
      )
   -> FormatContext ann
-  -> SchemeStart evar tvar
+  -> SchemeStart tvar
   -> Doc ann
 formatSchemeStart fmtTvar ctx SchemeStart' {typeArguments} =
   pretty @Text "forall"
