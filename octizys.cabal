@@ -118,7 +118,6 @@ library
     Octizys.Common.Report
     Octizys.Cst.Comment
     Octizys.Cst.Expression
-    Octizys.Cst.Fixpoint
     Octizys.Cst.Node
     Octizys.Cst.Span
     Octizys.Cst.SourceInfo
