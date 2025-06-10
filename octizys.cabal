@@ -133,6 +133,8 @@ library
     Octizys.Effects.Parser.Combinators
     Octizys.Effects.Parser.Effect
     Octizys.Effects.Parser.Interpreter
+    Octizys.Effects.Accumulator.Effect
+    Octizys.Effects.Accumulator.Interpreter
     Octizys.Inference.ConstraintsGeneration
     Octizys.Inference.ConstraintsSolver
     Octizys.Inference.Errors

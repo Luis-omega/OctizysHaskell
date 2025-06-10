@@ -45,7 +45,7 @@ data InferenceError
       (Set.Set TypeVariableId)
       Substitution
   | RecursiveSubstitution Substitution
-  deriving (Show)
+  deriving (Show, Ord, Eq)
 
 
 data ConstraintReason
@@ -132,7 +132,7 @@ newtype Substitution = Substitution'
   { substitutionMap
       :: Map TypeVariableId (Either InferenceError (AstT.Type InferenceVariable))
   }
-  deriving (Show)
+  deriving (Show, Eq, Ord)
   deriving
     (Monoid, Semigroup)
     via ( Map

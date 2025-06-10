@@ -18,8 +18,12 @@ import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
 import Effectful.Reader.Static (Reader, asks)
 import Effectful.State.Static.Local (State, gets, modify)
+import Effectful.Writer.Static.Local (Writer)
 import qualified Octizys.Ast.Expression as AstE
-import Octizys.Ast.Type (InferenceVariable (MetaVariable), TypeVariable)
+import Octizys.Ast.Type
+  ( InferenceVariable (MetaVariable, UserVariable)
+  , TypeVariable
+  )
 import qualified Octizys.Ast.Type as AstT
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Id (ExpressionVariableId, InfoId, TypeVariableId)
@@ -28,6 +32,7 @@ import Octizys.Cst.Type
   , TypeVariableId
   )
 import qualified Octizys.Cst.Type as Cst
+import Octizys.Effects.Accumulator.Interpreter (Accumulator, accumulate)
 import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
 import Octizys.Effects.Logger.Effect (Logger, debug)
 import Octizys.Inference.Errors
@@ -57,25 +62,49 @@ import qualified Prettyprinter as Pretty
 import Prelude hiding (lookup)
 
 
-data Output = Output'
-  { constraints :: [Constraint]
-  , expression :: AstE.Expression InferenceVariable
+data KnowTypes = KnowTypes'
+  { imports :: Map ExpressionVariableId (AstT.Type TypeVariable)
+  , locals :: Map ExpressionVariableId (AstT.Type TypeVariable)
   }
   deriving (Show, Ord, Eq)
 
 
-instance Formatter ann (FormatContext ann) Output where
-  format ctx Output' {constraints, expression} =
-    Pretty.parens
-      ( Pretty.list (format ctx <$> constraints)
-          <+> ","
-          <+> format ctx expression
-      )
+lookupKnowExpressionVar
+  :: Reader KnowTypes :> es
+  => ExpressionVariableId
+  -> Eff es (Maybe (AstT.Type InferenceVariable))
+lookupKnowExpressionVar var = do
+  importsMap <- asks imports
+  localsMap <- asks locals
+  pure (from <$> (lookup var importsMap <|> lookup var localsMap))
 
 
-addConstraint :: Constraint -> Output -> Output
-addConstraint c o =
-  o {constraints = c : o.constraints}
+newtype RecursiveTypes = RecursiveTypes'
+  { recursiveTypes :: Map ExpressionVariableId InferenceVariable
+  }
+  deriving (Show, Ord, Eq)
+
+
+lookupRecursiveExpressionVar
+  :: Reader RecursiveTypes :> es
+  => ExpressionVariableId
+  -> Eff es (Maybe InferenceVariable)
+lookupRecursiveExpressionVar var = do
+  newsMap <- asks recursiveTypes
+  pure (lookup var newsMap)
+
+
+newtype InferenceErrors = InferenceErrors
+  { errors :: [InferenceError]
+  }
+  deriving (Show, Ord, Eq)
+
+
+addConstraint
+  :: Accumulator Constraint :> es
+  => Constraint
+  -> Eff es ()
+addConstraint = accumulate
 
 
 freshTypeVar
@@ -84,89 +113,28 @@ freshTypeVar
 freshTypeVar = generateId
 
 
-data InferenceState = InferenceState'
-  { knowTypes :: Map ExpressionVariableId (AstT.Type TypeVariable)
-  -- ^ Symbols that were defined on imports or on a previous pass of
-  -- the interpreter.
-  , localDefinedSymbols
-      :: Map ExpressionVariableId (AstT.Type InferenceVariable)
-  }
-  deriving (Show, Ord, Eq)
-
-
-lookupExpressionVar
-  :: ( Error InferenceError :> es
-     , State InferenceState :> es
-     )
-  => ExpressionVariableId
-  -> Eff es (AstT.Type InferenceVariable)
-lookupExpressionVar var = do
-  knowMap <- gets knowTypes
-  newsMap <- gets localDefinedSymbols
-  case (snd <$> lookup var knowMap)
-    <|> ((from <<< snd) <$> lookup var newsMap) of
-    Just value -> pure value
-    Nothing -> do
-      newTypeVar <- freshTypeVar
-      let newType :: AstT.Type InferenceVariable = from $ MetaVariable newTypeVar
-      modify (\s -> s {localDefinedSymbols = (var, newType)})
-      pure newType
-
-
-initialInferenceState :: InferenceState
-initialInferenceState =
-  InferenceState'
-    { knowTypes = mempty
-    }
-
-
-insertKnowType
-  :: State InferenceState :> es
-  => ExpressionVariableId
-  -> AstT.Type InferenceVariable
-  -> Eff es ()
-insertKnowType vid t = do
-  modify (\s -> s {knowTypes = Map.insert vid (vid, t) s.knowTypes})
-
-
-{- | For use in this case:
-let x : forall a b c . ... = ...
-To register the variables a b c
--}
-insertNewDefinitionType
-  :: State InferenceState :> es
-  => ExpressionVariableId
-  -> AstT.Type InferenceVariable
-  -> Eff es TypeVariableId
-insertNewDefinitionType =
-  modify (\s -> s {knowTypes = Map.insert vid (vid, t) s.knowTypes})
-
-
-cstToAstType
-  :: Type
-  -> AstT.Type InferenceVariable
-cstToAstType t =
+cstToAstMonoType
+  :: Type TypeVariableId
+  -> AstT.MonoType InferenceVariable
+cstToAstMonoType t =
   case t of
     Cst.BoolType {} -> from AstT.BoolType
     Cst.IntType {} -> from AstT.IntType
     Cst.Arrow {start, remain} ->
-      let newStart = cstToAstType start
-          newRemain = cstToAstType <$> (snd <$> remain)
+      let newStart = cstToAstMonoType start
+          newRemain = cstToAstMonoType <$> (snd <$> remain)
        in AstT.Arrow
             { start = newStart
             , remain = newRemain
             }
-    Cst.Parens {_type} -> cstToAstType _type
-    Cst.TVariable {variableId} -> AstT.Variable {}
+    Cst.Parens {_type} -> cstToAstMonoType _type
+    Cst.TVariable {variable} ->
+      AstT.Variable (UserVariable variable)
 
 
-definitionParametersToParameters
+cstParameterToAstParameter
   :: forall es
-   . ( Reader SymbolResolutionState :> es
-     , Error InferenceError :> es
-     , State InferenceState :> es
-     )
-  => CstE.Parameters
+   . CstE.Parameters ExpressionVariableId TypeVariableId
   -> Eff
       es
       ( NonEmpty
@@ -175,42 +143,58 @@ definitionParametersToParameters
           , AstT.Type InferenceVariable
           )
       )
-definitionParametersToParameters params =
+cstParameterToAstParameter p = do
+  pType <- lookupExpressionVar (snd p.name)
+  case p of
+    CstE.ParameterAlone {name = pName} ->
+      pure ([], snd pName, AstT.Variable pType)
+    CstE.ParameterWithType {name = pName} -> do
+      let annotationType = cstToAstType p._type
+          tableType = AstT.Variable pType
+          constraintType =
+            Constraint'
+              { constraintType1 = annotationType
+              , constraintType2 = tableType
+              , constraintInfo =
+                  ConstraintInfo'
+                    { reason = ParameterTypeAnnotation
+                    , cst = from p
+                    , ast = from (snd pName, tableType)
+                    }
+              }
+      pure ([constraintType], snd pName, tableType)
+
+
+cstParametersToAstParameters
+  :: forall es
+   . CstE.Parameters ExpressionVariableId TypeVariableId
+  -> Eff
+      es
+      ( NonEmpty
+          ( [Constraint]
+          , ExpressionVariableId
+          , AstT.Type InferenceVariable
+          )
+      )
+cstParametersToAstParameters params =
   mapM transParam (CstE.unParameters params)
   where
     transParam
-      :: (CstE.Parameter, InfoId)
+      :: ( CstE.Parameter
+            ExpressionVariableId
+            TypeVariableId
+         , InfoId
+         )
       -> Eff es ([Constraint], ExpressionVariableId, AstT.Type InferenceVariable)
-    transParam (p, _) = do
-      pType <- lookupExpressionVar (snd p.name)
-      case p of
-        CstE.ParameterAlone {name = pName} ->
-          pure ([], snd pName, AstT.Variable pType)
-        CstE.ParameterWithType {name = pName} -> do
-          let annotationType = cstToAstType p._type
-              tableType = AstT.Variable pType
-              constraintType =
-                Constraint'
-                  { constraintType1 = annotationType
-                  , constraintType2 = tableType
-                  , constraintInfo =
-                      ConstraintInfo'
-                        { reason = ParameterTypeAnnotation
-                        , cst = from p
-                        , ast = from (snd pName, tableType)
-                        }
-                  }
-          pure ([constraintType], snd pName, tableType)
+    transParam (p, _) = cstParameterToAstParameter p
 
 
 definitionCstToAst
-  :: ( Reader SymbolResolutionState :> es
-     , Error InferenceError :> es
-     , State InferenceState :> es
+  :: ( Error InferenceError :> es
      , IdGenerator TypeVariableId :> es
      , Logger :> es
      )
-  => CstE.Definition
+  => CstE.Definition ExpressionVariableId TypeVariableId
   -> Eff es ([Constraint], AstE.Definition InferenceVariable)
 definitionCstToAst d = do
   outBody <- infer d.definition
@@ -338,13 +322,12 @@ inferLog d = debug (pretty @Text "Infer:" <> d)
 
 
 infer
-  :: State InferenceState :> es
-  => Error InferenceError :> es
-  => Reader SymbolResolutionState :> es
+  :: Error InferenceError :> es
+  => Accumulator Constraint :> es
   => IdGenerator TypeVariableId :> es
   => Logger :> es
-  => CstE.Expression
-  -> Eff es Output
+  => CstE.Expression ExpressionVariableId TypeVariableId
+  -> Eff es (AstE.Expression TypeVariable)
 infer expr = do
   inferLog
     ( pretty @Text "Got:"
@@ -356,26 +339,18 @@ infer expr = do
     case expr of
       CstE.EInt {intValue} -> do
         pure $
-          Output'
-            { constraints = []
-            , expression =
-                from
-                  AstE.VInt
-                    { intValue = intValue
-                    , inferType = from AstT.IntType
-                    }
-            }
+          from
+            AstE.VInt
+              { intValue = intValue
+              , inferType = from AstT.IntType
+              }
       CstE.EBool {boolValue} -> do
         pure $
-          Output'
-            { constraints = []
-            , expression =
-                from
-                  AstE.VBool
-                    { boolValue = boolValue
-                    , inferType = from AstT.BoolType
-                    }
-            }
+          from
+            AstE.VBool
+              { boolValue = boolValue
+              , inferType = from AstT.BoolType
+              }
       CstE.Variable {name} -> do
         eid <- lookupExpressionVar name
         maybeType <- lookupKnowType name
@@ -389,34 +364,28 @@ infer expr = do
                     { name = name
                     , inferType = knowTy
                     }
-             in pure $
-                  Output'
-                    { constraints =
-                        [ Constraint'
-                            { constraintType1 = AstT.Variable eid
-                            , constraintType2 = knowTy
-                            , constraintInfo =
-                                ConstraintInfo'
-                                  { reason = IsKnowType
-                                  , cst = from expr
-                                  , ast = from newExp
-                                  }
-                            }
-                        ]
-                    , expression = newExp
+                constraint =
+                  Constraint'
+                    { constraintType1 = AstT.Variable eid
+                    , constraintType2 = knowTy
+                    , constraintInfo =
+                        ConstraintInfo'
+                          { reason = IsKnowType
+                          , cst = from expr
+                          , ast = from newExp
+                          }
                     }
+             in do
+                  addConstraint constraint
+                  pure newExp
           Nothing -> do
             pure $
-              Output'
-                { constraints = []
-                , expression =
-                    AstE.Variable
-                      { name = name
-                      , inferType = AstT.Variable eid
-                      }
+              AstE.Variable
+                { name = name
+                , inferType = AstT.Variable eid
                 }
       CstE.Parens {expression} -> infer expression
-      CstE.EFunction {functionValue = f} -> do
+      f@CstE.EFunction {} -> do
         lastArgType <- infer f.body
         newParams <-
           mapM
@@ -432,7 +401,7 @@ infer expr = do
             let newEnd =
                   NonEmpty.prependList
                     (maybe [] ((snd <$>) <<< NonEmpty.toList) remain)
-                    ( AstE.getType lastArgType.expression
+                    ( AstE.getType lastArgType
                         :| []
                     )
                 inferredType = AstT.Arrow {start = snd value, remain = newEnd}
@@ -440,14 +409,10 @@ infer expr = do
                   from
                     AstE.Function
                       { parameters = newParams
-                      , body = lastArgType.expression
+                      , body = lastArgType
                       , inferType = inferredType
                       }
-             in pure $
-                  Output'
-                    { constraints = lastArgType.constraints
-                    , expression = outExpression
-                    }
+             in pure outExpression
       CstE.Application
         { applicationFunction = fun
         , applicationRemain = args
@@ -462,7 +427,7 @@ infer expr = do
               let
                 preIsArrow =
                   Constraint'
-                    { constraintType1 = AstE.getType preOut.expression
+                    { constraintType1 = AstE.getType preOut
                     , constraintType2 =
                         AstT.Arrow
                           { start = domain
@@ -477,17 +442,12 @@ infer expr = do
                     }
                 newApp =
                   AstE.Application
-                    { applicationFunction = preOut.expression
-                    , applicationArgument = outArgDomain.expression
+                    { applicationFunction = preOut
+                    , applicationArgument = outArgDomain
                     , inferType = codomain
                     }
-              pure
-                ( Output'
-                    { constraints =
-                        preIsArrow : (outArgDomain.constraints <> preOut.constraints)
-                    , expression = newApp
-                    }
-                )
+              addConstraint preIsArrow
+              pure newApp
       CstE.If {condition = cond, ifTrue, ifFalse, _then, _else} -> do
         condOut <- infer cond
         thenOut <- infer ifTrue
@@ -495,10 +455,10 @@ infer expr = do
         let
           newIf =
             AstE.If
-              { condition = condOut.expression
-              , ifTrue = thenOut.expression
-              , ifFalse = elseOut.expression
-              , inferType = AstE.getType thenOut.expression
+              { condition = condOut
+              , ifTrue = thenOut
+              , ifFalse = elseOut
+              , inferType = AstE.getType thenOut
               }
           conditionIsBool =
             Constraint'
@@ -508,7 +468,7 @@ infer expr = do
                   ConstraintInfo'
                     { reason = IfCasesShouldMatch
                     , cst = from cond
-                    , ast = from condOut.expression
+                    , ast = from condOut
                     }
               }
           thenIsElse =
@@ -522,36 +482,21 @@ infer expr = do
                     , ast = from newIf
                     }
               }
-        pure $
-          Output'
-            { constraints =
-                conditionIsBool
-                  : thenIsElse
-                  : ( condOut.constraints
-                        <> elseOut.constraints
-                        <> thenOut.constraints
-                    )
-            , expression = newIf
-            }
+        addConstraint thenIsElse
+        addConstraint conditionIsBool
+        pure newIf
       CstE.Let {definitions, expression = _in} -> do
         defs <- mapM definitionCstToAst (fst <$> definitions)
         inOut <- infer _in
         let
-          newConstraints =
-            concatMap fst (NonEmpty.toList defs)
-              <> inOut.constraints
           newExp =
             AstE.Let
               { definitions = snd <$> defs
-              , expression = inOut.expression
-              , inferType = AstE.getType inOut.expression
+              , expression = inOut
+              , inferType = AstE.getType inOut
               }
          in
-          pure $
-            Output'
-              { constraints = newConstraints
-              , expression = newExp
-              }
+          pure newExp
       CstE.Annotation {expression = exprr, _type = ann} -> do
         let newTypeAnn = cstToAstType ann
         check exprr newTypeAnn TypeAnnotation
@@ -567,15 +512,13 @@ checkLog d = debug (pretty @Text "Check:" <> d)
 
 
 check
-  :: State InferenceState :> es
-  => Error InferenceError :> es
-  => Reader SymbolResolutionState :> es
+  :: Error InferenceError :> es
   => IdGenerator TypeVariableId :> es
   => Logger :> es
-  => CstE.Expression
+  => CstE.Expression ExpressionVariableId TypeVariableId
   -> AstT.Type InferenceVariable
   -> ConstraintReason
-  -> Eff es Output
+  -> Eff es (AstE.Expression TypeVariable)
 check expr ty reason = do
   checkLog
     ( pretty @Text "Got exp:"
@@ -586,28 +529,20 @@ check expr ty reason = do
     case (expr, ty) of
       (CstE.EInt {intValue}, AstT.VType AstT.IntType) ->
         pure $
-          Output'
-            { constraints = []
-            , expression =
-                from
-                  AstE.VInt
-                    { intValue =
-                        intValue
-                    , inferType = from AstT.IntType
-                    }
-            }
+          from
+            AstE.VInt
+              { intValue =
+                  intValue
+              , inferType = from AstT.IntType
+              }
       (CstE.EBool {boolValue}, AstT.VType AstT.BoolType) ->
         pure $
-          Output'
-            { constraints = []
-            , expression =
-                from
-                  AstE.VBool
-                    { boolValue =
-                        boolValue
-                    , inferType = from AstT.BoolType
-                    }
-            }
+          from
+            AstE.VBool
+              { boolValue =
+                  boolValue
+              , inferType = from AstT.BoolType
+              }
       -- TODO:
       -- ( CstE.EFunction
       --     (CstE.Function' {parameters, body})

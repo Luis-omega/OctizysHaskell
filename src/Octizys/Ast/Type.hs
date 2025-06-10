@@ -25,11 +25,13 @@ instance FreeVariables TypeVariableId TypeValue where
 data InferenceVariable
   = ErrorVariable
   | MetaVariable TypeVariableId
+  | UserVariable TypeVariableId
   deriving (Show, Eq, Ord)
 
 
 instance FreeVariables TypeVariableId InferenceVariable where
   freeVariables (MetaVariable tid) = singleton tid
+  freeVariables (UserVariable tid) = singleton tid
   freeVariables ErrorVariable = mempty
 
 
@@ -57,6 +59,12 @@ data MonoType var
 
 instance From (MonoType var) TypeValue where
   from = VType
+
+
+instance From outVar inVar => From (MonoType outVar) (MonoType inVar) where
+  from VType {value} = VType {value}
+  from Arrow {start, remain} = Arrow {start = from start, remain = from <$> remain}
+  from (Variable var) = Variable (from var)
 
 
 instance
@@ -89,6 +97,14 @@ instance
       (Set.fromList (NonEmpty.toList s.arguments))
 
 
+instance From outVar inVar => From (Scheme outVar) (Scheme inVar) where
+  from Scheme' {arguments, body} =
+    Scheme'
+      { arguments = arguments
+      , body = from body
+      }
+
+
 data Type var
   = TMono (MonoType var)
   | TPoly (Scheme var)
@@ -105,6 +121,11 @@ instance From (Type var) (MonoType var) where
 
 instance From (Type var) (Scheme var) where
   from = TPoly
+
+
+instance From outVar inVar => From (Type outVar) (Type inVar) where
+  from (TMono m) = TMono (from m)
+  from (TPoly m) = TPoly (from m)
 
 
 instance

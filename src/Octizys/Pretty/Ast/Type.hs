@@ -22,6 +22,7 @@ import qualified Prettyprinter as Pretty
 formatInferenceVariable :: FormatContext ann -> InferenceVariable -> Doc ann
 formatInferenceVariable _ ErrorVariable = pretty @Text "ErrorVariable"
 formatInferenceVariable ctx (MetaVariable vid) = formatTypeVar ctx vid
+formatInferenceVariable ctx (UserVariable vid) = formatTypeVar ctx vid
 
 
 formatTypeVariable :: FormatContext ann -> TypeVariable -> Doc ann
