@@ -1,5 +1,5 @@
 {
-  description = "A JAM implementation in Haskell by the ConfiturePeanut team.";
+  description = "The Ocitzys programming language implemented on Haskell.";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
@@ -57,6 +57,9 @@
               pkgs.rlwrap
               pkgs.just
             ];
+            shellHook = ''
+              export NIX_DEVELOP_OCTIZYS="true"
+            '';
           };
           defaultPackage = pkgs.octizys;
           formatter = treefmtEval.config.build.wrapper;
