@@ -10,10 +10,10 @@ import qualified Data.Text as Text
 import qualified Octizys.Ast.Node as Ast
 import Octizys.Ast.Type (InferenceVariable)
 import qualified Octizys.Ast.Type as AstT
+import Octizys.Common.Id (ExpressionVariableId)
 import Octizys.Common.Report
   ( LongDescription (LongDescription', afterDescription, preDescription, source)
   )
-import Octizys.Cst.Expression (ExpressionVariableId)
 import qualified Octizys.Cst.Node as Cst
 import Octizys.Cst.Type
   ( TypeVariableId
@@ -33,14 +33,14 @@ import Prelude hiding (lookup)
 
 data InferenceError
   = -- This shouldn't happen, is a bug.
-    FunctionWithoutParams CstE.Expression
+    FunctionWithoutParams (CstE.Expression ExpressionVariableId TypeVariableId)
   | -- This is a bug in the translation process
     UnboundExpressionVar ExpressionVariableId
   | CantUnify
       (AstT.Type InferenceVariable)
       (AstT.Type InferenceVariable)
   | ContainsFreeVariablesAfterSolving
-      Cst.Node
+      (Cst.Node ExpressionVariableId TypeVariableId)
       (Ast.Node InferenceVariable)
       (Set.Set TypeVariableId)
       Substitution
@@ -88,7 +88,7 @@ instance Formatter ann (FormatContext ann) ConstraintReason where
 
 data ConstraintInfo = ConstraintInfo'
   { reason :: ConstraintReason
-  , cst :: Cst.Node
+  , cst :: Cst.Node ExpressionVariableId TypeVariableId
   -- ^ The original node that instigated
   -- the constraint.
   , ast :: Ast.Node InferenceVariable
@@ -106,7 +106,8 @@ data Constraint = Constraint'
   deriving (Show, Ord, Eq)
 
 
-getConstraintCst :: Constraint -> Cst.Node
+getConstraintCst
+  :: Constraint -> Cst.Node ExpressionVariableId TypeVariableId
 getConstraintCst c = c.constraintInfo.cst
 
 

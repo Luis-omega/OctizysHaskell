@@ -17,7 +17,7 @@ import Octizys.Ast.Type
   , TypeVariable
   )
 import Octizys.Classes.From (From (from))
-import Octizys.Cst.Expression (ExpressionVariableId)
+import Octizys.Common.Id (ExpressionVariableId)
 import Octizys.Effects.Logger.Effect (Logger, debug)
 import Octizys.Pretty.FormatContext
   ( FormatContext

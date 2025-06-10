@@ -247,6 +247,9 @@ isNotKeyword s =
               , "False"
               , "Bool"
               , "forall"
+              , "import"
+              , "as"
+              , "unqualified"
               ]
 
 
@@ -267,33 +270,52 @@ identifierParser = do
 
 nameParser
   :: Parser OctizysParseError :> es
-  => Eff es (Name, SourceInfo, Span)
+  => Eff es (Name, SourceInfo)
 nameParser = do
-  (iden, info, span) <- identifierParser
-  case makeName iden of
-    Just name -> pure (name, info, span)
-    Nothing -> errorCustom $ CantParseName iden
+  (iden, info, _) <- identifierParser
+  name <-
+    maybe
+      (errorCustom $ CantParseName iden)
+      pure
+      (makeName iden)
+  pure (name, info)
+
+
+localVariable
+  :: Parser OctizysParseError :> es
+  => Eff es (SourceVariable, SourceInfo)
+localVariable = do
+  (name, nameInfo) <- nameParser
+  pure (SourceVariable' {qualifier = Nothing, name}, nameInfo)
+
+
+sourceVariableParserRaw
+  :: Parser OctizysParseError :> es
+  => Eff es SourceVariable
+sourceVariableParserRaw = do
+  name <- identifierOrKeywordRaw >>= toName
+  names <- many $ do
+    _ <- moduleSeparator <?> ('m' :| "odule separator")
+    localName <- identifierOrKeywordRaw
+    toName localName
+  let
+    variable = case reverse names of
+      [] -> from ([] @Name, name)
+      (realName : others) ->
+        from (name : reverse others, realName)
+  pure
+    variable
+  where
+    toName x = maybe (errorCustom $ CantParseName x) pure (makeName x)
 
 
 sourceVariableParser
   :: Parser OctizysParseError :> es
-  => Eff es SourceVariable
+  => Eff es (SourceVariable, SourceInfo)
 sourceVariableParser = do
-  (name, info, _) <- identifierOrKeyword
-  names <- many $ do
-    _ <- moduleSeparator <?> ('m' :| "odule separator")
-    localName <- nameParser
-    pure localName
-  let
-    variable = case reverse names of
-      [] -> SourceVariable' {qualifier = Nothing, name}
-      (realName : others) ->
-        SourceVariable'
-          { qualifier = Just (from (name :| reverse others))
-          , name = realName
-          }
-  pure
-    variable
+  (var, (span, pre, after)) <- token sourceVariableParserRaw
+  let sourceInfo = makeSourceInfo span pre after
+  pure (var, sourceInfo)
 
 
 tokenAndregister
@@ -436,6 +458,24 @@ forallKeyword
   :: Parser OctizysParseError :> es
   => Eff es SourceInfo
 forallKeyword = keyword "forall"
+
+
+importKeyword
+  :: Parser OctizysParseError :> es
+  => Eff es SourceInfo
+importKeyword = keyword "import"
+
+
+asKeyword
+  :: Parser OctizysParseError :> es
+  => Eff es SourceInfo
+asKeyword = keyword "as"
+
+
+unqualifiedKeyword
+  :: Parser OctizysParseError :> es
+  => Eff es SourceInfo
+unqualifiedKeyword = keyword "unqualified"
 
 
 between

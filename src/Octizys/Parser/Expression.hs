@@ -7,7 +7,6 @@ import Control.Monad (forM)
 import Data.Char (isDigit)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
-import Octizys.Common.Id (InfoId)
 import Octizys.Cst.Expression
   ( Definition
       ( Definition'
@@ -35,6 +34,7 @@ import Octizys.Cst.Expression
     , Variable
     , applicationFunction
     , applicationRemain
+    , body
     , colon
     , condition
     , definitions
@@ -45,7 +45,9 @@ import Octizys.Cst.Expression
     , intValue
     , lparen
     , name
+    , parameters
     , rparen
+    , start
     , _else
     , _if
     , _in
@@ -53,7 +55,6 @@ import Octizys.Cst.Expression
     , _then
     , _type
     )
-  , Function (Function', body, parameters, start)
   , Parameter (ParameterAlone, ParameterWithType, colon, name, _type)
   , Parameters (Parameters', bodySeparator, initParameter, otherParameters)
   , SchemeStart
@@ -63,6 +64,7 @@ import Octizys.Cst.Expression
     , _forall
     )
   )
+import Octizys.Cst.SourceInfo (SourceInfo, SourceVariable)
 import Octizys.Cst.Type (Type)
 import Octizys.Effects.Parser.Combinators
   ( many
@@ -75,41 +77,33 @@ import Octizys.Effects.Parser.Combinators
   , (<|>)
   )
 import Octizys.Effects.Parser.Effect (Parser)
-import Octizys.Effects.SymbolResolution.Effect
-  ( SymbolResolution
-  , definitionOfExpressionVariable
-  , definitionOfTypeVariable
-  , foundExpressionVariable
-  , removeExpressionDefinition
-  , removeTypeDefinition
-  )
 import Octizys.Parser.Common
   ( OctizysParseError
   , between
   , comma
   , elseKeyword
-  , identifierParser
   , ifKeyword
   , inKeyword
   , keyword
   , lambdaStart
   , leftParen
   , letKeyword
+  , localVariable
   , rightParen
   , semicolon
+  , sourceVariableParser
   , thenKeyword
   , tokenAndregister
   )
 import qualified Octizys.Parser.Common as Common
-import Octizys.Parser.Type (parseType, typeAtom)
+import Octizys.Parser.Type (parseType)
 import Prelude hiding (span)
 
 
 parseExpression
   :: Parser OctizysParseError
     :> es
-  => SymbolResolution :> es
-  => Eff es Expression
+  => Eff es (Expression SourceVariable SourceVariable)
 parseExpression = expressionParser
 
 
@@ -117,8 +111,7 @@ parseExpression = expressionParser
 
 boolParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Expression
+  => Eff es (Expression SourceVariable SourceVariable)
 boolParser =
   ((`EBool` True) <$> keyword "True")
     <|> ((`EBool` False) <$> keyword "False")
@@ -126,8 +119,7 @@ boolParser =
 
 intParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Expression
+  => Eff es (Expression SourceVariable SourceVariable)
 intParser = do
   (value, inf) <-
     tokenAndregister
@@ -144,8 +136,7 @@ intParser = do
 
 typeAnnotationParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es (InfoId, Type)
+  => Eff es (SourceInfo, Type SourceVariable)
 typeAnnotationParser = do
   colonInfo <- Common.colon
   _type <- parseType
@@ -154,18 +145,15 @@ typeAnnotationParser = do
 
 variableParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Expression
+  => Eff es (Expression SourceVariable SourceVariable)
 variableParser = do
-  (name, inf, _) <- identifierParser
-  ei <- foundExpressionVariable name
-  pure Variable {info = inf, name = ei}
+  (name, info) <- sourceVariableParser
+  pure Variable {info, name}
 
 
 maybeAnnotation
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Expression
+  => Eff es (Expression SourceVariable SourceVariable)
 maybeAnnotation = do
   expr <- parseExpression
   maybeType <- optional typeAnnotationParser
@@ -177,8 +165,7 @@ maybeAnnotation = do
 
 parensExpressionParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Expression
+  => Eff es (Expression SourceVariable SourceVariable)
 parensExpressionParser = do
   (lparen, expression, rparen) <-
     between
@@ -190,8 +177,7 @@ parensExpressionParser = do
 
 atomExpressionParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Expression
+  => Eff es (Expression SourceVariable SourceVariable)
 atomExpressionParser =
   (boolParser <?> ('b' :| "oolean"))
     <|> (intParser <?> ('i' :| "nteger"))
@@ -201,8 +187,7 @@ atomExpressionParser =
 
 applicationParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Expression
+  => Eff es (Expression SourceVariable SourceVariable)
 applicationParser = do
   function <- atomExpressionParser
   -- the Try is a fix, if the parser of a identifier
@@ -220,28 +205,35 @@ applicationParser = do
 
 parameterParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Parameter
+  => Eff es (Parameter SourceVariable SourceVariable)
 parameterParser = do
-  (nam, inf, parSpan) <- identifierParser
+  -- TODO : add support to expression holes
+  (var, varInfo) <- localVariable
   maybeType <-
     optional
       ( do
           colonInfo <- Common.colon
-          _type <- typeAtom
+          _type <- parseType
           pure (colonInfo, _type)
       )
-  ei <- definitionOfExpressionVariable nam parSpan
   case maybeType of
     Just (colonInfo, t) ->
-      pure ParameterWithType {name = (inf, ei), colon = colonInfo, _type = t}
-    Nothing -> pure $ ParameterAlone (inf, ei)
+      pure
+        ParameterWithType
+          { name = (varInfo, var)
+          , colon = colonInfo
+          , _type = t
+          }
+    Nothing -> pure $ ParameterAlone (varInfo, var)
 
 
 otherParameterParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es (InfoId, Parameter)
+  => Eff
+      es
+      ( SourceInfo
+      , Parameter SourceVariable SourceVariable
+      )
 otherParameterParser = do
   commaInfo <- comma
   param <- parameterParser
@@ -250,8 +242,7 @@ otherParameterParser = do
 
 parametersParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Parameters
+  => Eff es (Parameters SourceVariable SourceVariable)
 parametersParser = do
   initParameter <- parameterParser
   otherParameters <- many otherParameterParser
@@ -264,42 +255,15 @@ parametersParser = do
       }
 
 
-removeParameters
-  :: SymbolResolution :> es
-  => Parameters
-  -> Eff es ()
-removeParameters Parameters' {initParameter, otherParameters} =
-  mapM_
-    removeParameter
-    (initParameter : (snd <$> otherParameters))
-  where
-    removeParameter (ParameterWithType {_type = __type, name = _name}) =
-      removeExpressionDefinition (snd _name)
-    removeParameter (ParameterAlone {name = _name}) =
-      removeExpressionDefinition (snd _name)
-
-
-removeTypeParameters
-  :: SymbolResolution :> es
-  => SchemeStart
-  -> Eff es ()
-removeTypeParameters SchemeStart' {typeArguments} =
-  mapM_
-    removeTypeDefinition
-    (snd <$> typeArguments)
-
-
 functionParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Function
+  => Eff es (Expression SourceVariable SourceVariable)
 functionParser = do
   startInfo <- lambdaStart
   parameters <- parametersParser
   body <- expressionParser
-  removeParameters parameters
   pure
-    Function'
+    EFunction
       { start = startInfo
       , parameters
       , body
@@ -308,8 +272,7 @@ functionParser = do
 
 ifParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Expression
+  => Eff es (Expression SourceVariable SourceVariable)
 ifParser = do
   _if <- ifKeyword
   condition <- expressionParser
@@ -320,29 +283,17 @@ ifParser = do
   pure If {..}
 
 
-removeDefinitions
-  :: SymbolResolution :> es
-  => NonEmpty Definition
-  -> Eff es ()
-removeDefinitions = mapM_ removeDefinition
-  where
-    removeDefinition (Definition' {name = _name}) =
-      removeExpressionDefinition (snd _name)
-
-
 schemeStartParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es SchemeStart
+  => Eff es (SchemeStart SourceVariable)
 schemeStartParser = do
   _forall <- Common.forallKeyword
-  paramInfos <- some identifierParser
+  paramInfos <- some (localVariable <?> ('t' :| "ype variable"))
   arguments <-
     forM
       paramInfos
-      ( \(nam, inf, parSpan) -> do
-          tvid <- definitionOfTypeVariable nam parSpan
-          pure (inf, tvid)
+      ( \(var, varInfo) -> do
+          pure (varInfo, var)
       )
   _dot <- Common.dot
   pure
@@ -355,8 +306,7 @@ schemeStartParser = do
 
 definitionTypeAnnotationParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es DefinitionTypeAnnotation
+  => Eff es (DefinitionTypeAnnotation SourceVariable SourceVariable)
 definitionTypeAnnotationParser = do
   colon <- Common.colon
   schemeStart <- optional schemeStartParser
@@ -373,29 +323,15 @@ definitionTypeAnnotationParser = do
 
 definitionParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Definition
+  => Eff es (Definition SourceVariable SourceVariable)
 definitionParser = do
-  (nam, inf, span) <- identifierParser
+  (definitionName, info) <- localVariable <?> ('i' :| "dentifier")
   maybeType <- optional definitionTypeAnnotationParser
   eq <- Common.equal
-  -- We need to be sure that we are in a definition before
-  -- we register the variable, since we say a '=' we know
-  -- that this is a definition and can register it.
-  ei <- definitionOfExpressionVariable nam span
   definition <- expressionParser
-  case maybeType of
-    Nothing -> pure ()
-    Just
-      DefinitionTypeAnnotation'
-        { parameters = maybePs
-        , schemeStart = maybeTypePs
-        } -> do
-        maybe (pure ()) removeParameters maybePs
-        maybe (pure ()) removeTypeParameters maybeTypePs
   pure
     Definition'
-      { name = (inf, ei)
+      { name = (info, definitionName)
       , _type = maybeType
       , equal = eq
       , definition
@@ -404,8 +340,7 @@ definitionParser = do
 
 letParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Expression
+  => Eff es (Expression SourceVariable SourceVariable)
 letParser = do
   _let <- letKeyword
   definitions <-
@@ -417,18 +352,16 @@ letParser = do
       )
   _in <- inKeyword
   expression <- parseExpression
-  removeDefinitions (fst <$> definitions)
   pure Let {_let, definitions, _in, expression}
 
 
 expressionParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es Expression
+  => Eff es (Expression SourceVariable SourceVariable)
 expressionParser =
   ( ifParser
       <|> letParser
-      <|> (EFunction <$> functionParser)
+      <|> functionParser
       <|> applicationParser
   )
     <?> ('e' :| "xpression")

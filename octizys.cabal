@@ -150,6 +150,7 @@ library
     Octizys.Pretty.Formatter
     Octizys.Pretty.Markup
     Octizys.SymbolResolution.MakeUniqueIds
+    Octizys.SymbolResolution.ImportsResolution
 
   --Octizys.Effects.SymbolResolution.Effect
   --Octizys.Effects.SymbolResolution.Interpreter

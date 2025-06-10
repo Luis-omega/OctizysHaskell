@@ -30,12 +30,6 @@ import Octizys.Cst.Type
 import qualified Octizys.Cst.Type as Cst
 import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
 import Octizys.Effects.Logger.Effect (Logger, debug)
-import Octizys.Effects.SymbolResolution.Effect
-  ( SymbolResolutionState (expVarTable)
-  )
-import Octizys.Effects.SymbolResolution.Interpreter
-  ( SourceExpressionVariableInfo (typeId)
-  )
 import Octizys.Inference.Errors
   ( Constraint (Constraint', constraintInfo, constraintType1, constraintType2)
   , ConstraintInfo (ConstraintInfo', ast, cst, reason)
@@ -163,7 +157,7 @@ cstToAstType t =
             , remain = newRemain
             }
     Cst.Parens {_type} -> cstToAstType _type
-    Cst.Variable {variableId} -> AstT.Variable {}
+    Cst.TVariable {variableId} -> AstT.Variable {}
 
 
 definitionParametersToParameters

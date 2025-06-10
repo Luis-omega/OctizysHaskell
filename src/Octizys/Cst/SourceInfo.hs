@@ -1,5 +1,7 @@
 module Octizys.Cst.SourceInfo where
 
+import qualified Data.List.NonEmpty as NonEmpty
+import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath)
 import Octizys.Common.Name (Name)
 import Octizys.Cst.Comment (Comment)
@@ -23,3 +25,15 @@ data SourceVariable = SourceVariable'
   , name :: Name
   }
   deriving (Show, Eq, Ord)
+
+
+instance From SourceVariable ([Name], Name) where
+  from (ps, name) =
+    case ps of
+      [] -> SourceVariable' {qualifier = Nothing, name}
+      (p : remain) ->
+        SourceVariable'
+          { qualifier =
+              Just (from (p NonEmpty.:| remain))
+          , name
+          }

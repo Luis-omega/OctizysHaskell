@@ -7,7 +7,6 @@ module Octizys.Parser.Type
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
-import Octizys.Classes.From (From (from))
 import Octizys.Common.Name (makeName)
 import Octizys.Cst.SourceInfo
   ( SourceInfo
@@ -39,10 +38,9 @@ import Octizys.Parser.Common
   , between
   , keyword
   , leftParen
-  , moduleSeparator
-  , nameParser
   , rightArrow
   , rightParen
+  , sourceVariableParser
   , token
   )
 import Prelude hiding (span)
@@ -98,19 +96,7 @@ typeVariable
   :: Parser OctizysParseError :> es
   => Eff es (Type SourceVariable)
 typeVariable = do
-  (name, info, _) <- nameParser
-  names <- many $ do
-    _ <- moduleSeparator <?> ('m' :| "odule separator")
-    localName <- nameParser
-    pure localName
-  let
-    variable = case reverse names of
-      [] -> SourceVariable' {qualifier = Nothing, name}
-      (realName : others) ->
-        SourceVariable'
-          { qualifier = Just (from (name :| reverse others))
-          , name = realName
-          }
+  (variable, info) <- sourceVariableParser
   pure
     TVariable {info, variable}
 
