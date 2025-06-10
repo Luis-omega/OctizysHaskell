@@ -3,16 +3,24 @@ present at the top of a file
 -}
 module Octizys.Cst.TopItem where
 
+import Data.Text (Text)
 import Octizys.Common.LogicPath (LogicPath)
 import Octizys.Common.Name (Name)
 import Octizys.Cst.Expression (Definition)
 import Octizys.Cst.SourceInfo (SourceInfo, SourceVariable)
+import Prettyprinter (Pretty (pretty))
+import qualified Prettyprinter as Pretty
 
 
 data ModulePath
   = ModuleLogicPath LogicPath
   | ModuleVarPath Name
   deriving (Show, Eq, Ord)
+
+
+instance Pretty ModulePath where
+  pretty (ModuleLogicPath l) = pretty l
+  pretty (ModuleVarPath n) = pretty n
 
 
 data ImportItem = ImportVariable
@@ -22,11 +30,30 @@ data ImportItem = ImportVariable
   deriving (Show, Eq, Ord)
 
 
+instance Pretty ImportItem where
+  pretty (ImportVariable {name}) = pretty name
+
+
+data ImportItems = ImportItems'
+  { items :: [(ImportItem, SourceInfo)]
+  , lastItem :: ImportItem
+  , lastComma :: Maybe SourceInfo
+  }
+  deriving (Show, Eq, Ord)
+
+
 data ImportAlias = ImportAlias'
   { _as :: SourceInfo
   , path :: (SourceInfo, ModulePath)
   }
   deriving (Show, Eq, Ord)
+
+
+instance Pretty ImportAlias where
+  pretty (ImportAlias' {_as, path}) =
+    pretty @Text "as"
+      <> Pretty.line
+      <> pretty (snd path)
 
 
 data ImportModule
@@ -40,7 +67,7 @@ data ImportModule
       , unqualified :: SourceInfo
       , path :: (SourceInfo, ModulePath)
       , lparen :: SourceInfo
-      , items :: [ImportItem]
+      , items :: Maybe ImportItems
       , rparen :: SourceInfo
       }
   deriving (Show, Eq, Ord)

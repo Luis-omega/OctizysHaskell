@@ -56,7 +56,7 @@ import Octizys.Common.Report
   )
 import Octizys.Cst.Span (Position, makeInitialPosition)
 import qualified Octizys.Cst.Span as Span
-import Octizys.Pretty.FormatContext (Configuration, FormatContext, nest)
+import Octizys.Pretty.FormatContext (FormatContext)
 import Octizys.Pretty.Formatter (Formatter (format))
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty

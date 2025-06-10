@@ -149,8 +149,8 @@ library
     Octizys.Pretty.FormatContext
     Octizys.Pretty.Formatter
     Octizys.Pretty.Markup
-    Octizys.SymbolResolution.MakeUniqueIds
     Octizys.SymbolResolution.ImportsResolution
+    Octizys.SymbolResolution.MakeUniqueIds
 
   --Octizys.Effects.SymbolResolution.Effect
   --Octizys.Effects.SymbolResolution.Interpreter

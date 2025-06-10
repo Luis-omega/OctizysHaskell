@@ -14,6 +14,7 @@ import Octizys.Cst.SourceInfo
 import Octizys.Cst.TopItem
   ( ImportAlias (ImportAlias', path, _as)
   , ImportItem (ImportVariable, info, name)
+  , ImportItems (ImportItems', items, lastComma, lastItem)
   , ImportModule
     ( ImportModuleAs'
     , ImportModuleUnqualified'
@@ -52,6 +53,7 @@ import Octizys.Parser.Common
   , localVariable
   , rightParen
   , sourceVariableParser
+  , trailingList
   , unqualifiedKeyword
   )
 import qualified Octizys.Parser.Common as Common
@@ -76,6 +78,16 @@ importItemParser
 importItemParser = do
   (var, info) <- localVariable
   pure ImportVariable {info, name = var.name}
+
+
+importItemsParser
+  :: Parser OctizysParseError :> es
+  => Eff es (Maybe ImportItems)
+importItemsParser = do
+  (items, maybeLast) <- trailingList Common.comma importItemParser
+  case maybeLast of
+    Just (lastItem, lastComma) -> pure $ Just (ImportItems' {items, lastItem, lastComma})
+    Nothing -> pure Nothing
 
 
 importAliasParser
@@ -104,7 +116,7 @@ importModuleParser = do
       pure ImportModuleAs' {_import, path, alias}
     Just unqualified -> do
       lparen <- leftParen
-      items <- many importItemParser
+      items <- importItemsParser
       rparen <- rightParen
       pure
         ImportModuleUnqualified'

@@ -489,3 +489,32 @@ between open close p = do
   ps <- p
   c <- close
   pure (o, ps, c)
+
+
+-- TODO : remove the reversions of list here, it can be done
+-- by using a list accumulator
+trailingList
+  :: Parser OctizysParseError :> es
+  => Eff es SourceInfo
+  -> Eff es a
+  -> Eff es ([(a, SourceInfo)], Maybe (a, Maybe SourceInfo))
+trailingList sep p = do
+  items <- many $ do
+    a <- try p
+    s <- sep
+    pure (a, s)
+  case reverse items of
+    [] -> do
+      lastI <- optional p
+      case lastI of
+        Just it -> pure ([], Just (it, Nothing))
+        Nothing -> pure ([], Nothing)
+    ((lastItem, lastComma) : remain) -> do
+      realLastItem <- optional p
+      case realLastItem of
+        Just it -> pure (items, Just (it, Nothing))
+        Nothing ->
+          pure
+            ( reverse remain
+            , Just (lastItem, Just lastComma)
+            )
