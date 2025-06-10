@@ -14,6 +14,10 @@ data SourceInfo = SourceInfo'
   deriving (Show, Eq, Ord)
 
 
+makeSourceInfo :: Span -> [Comment] -> Maybe Comment -> SourceInfo
+makeSourceInfo = SourceInfo'
+
+
 data SourceVariable = SourceVariable'
   { qualifier :: Maybe LogicPath
   , name :: Name

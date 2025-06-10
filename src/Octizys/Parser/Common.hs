@@ -5,7 +5,6 @@ module Octizys.Parser.Common where
 
 import Data.Text (Text)
 import Effectful (Eff, (:>))
-import Octizys.Common.Id (InfoId)
 import Octizys.Cst.Comment
   ( BlockComment (BlockComment')
   , Comment (Block, Line, blockComment, lineComment, span)
@@ -14,6 +13,7 @@ import Octizys.Cst.Comment
 import Octizys.Cst.Span (Span (Span', end, start))
 import Octizys.Effects.Parser.Combinators
   ( char
+  , errorCustom
   , errorMessage
   , getPosition
   , hidden
@@ -30,16 +30,19 @@ import Octizys.Effects.Parser.Combinators
 import Octizys.Effects.Parser.Effect
   ( Parser
   )
-import Octizys.Effects.SymbolResolution.Effect
-  ( SymbolResolution
-  , createInformation
-  )
 
 import Control.Arrow ((<<<))
 import Data.Char (isAlpha, isAlphaNum)
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Text as Text
+import Octizys.Classes.From (From (from))
+import Octizys.Common.Name (Name, makeName)
+import Octizys.Cst.SourceInfo
+  ( SourceInfo
+  , SourceVariable (SourceVariable', name, qualifier)
+  , makeSourceInfo
+  )
 import Octizys.Pretty.FormatContext (FormatContext)
 import Octizys.Pretty.Formatter (Formatter (format))
 import Prettyprinter (Pretty (pretty))
@@ -56,18 +59,20 @@ uninplemented :: forall a e es. Parser e :> es => Text -> Eff es a
 uninplemented s = errorMessage ("Uninplemented " <> s <> " parser")
 
 
-data OctizysParseError = Err1 | Err2
+data OctizysParseError = CantParseName Text | Err2
   deriving (Show, Eq, Ord)
 
 
 instance Pretty OctizysParseError where
-  pretty Err1 = pretty @String "Err1"
-  pretty Err2 = pretty @String "Err2"
+  pretty (CantParseName str) =
+    pretty @Text
+      "A bug, we parsed a identifier but is not a valid identifier: "
+      <> pretty str
+  pretty Err2 = pretty @Text "Err2"
 
 
 instance Formatter ann (FormatContext ann) OctizysParseError where
-  format _ Err1 = pretty @String "Err1"
-  format _ Err2 = pretty @String "Err2"
+  format _ = pretty
 
 
 skipSimpleSpaces
@@ -211,10 +216,10 @@ withPredicate1 predicate errorMsg p = do
     else errorMessage errorMsg
 
 
-identifierOrKeyword
+identifierOrKeywordRaw
   :: Parser OctizysParseError :> es
-  => Eff es (Text, (Span, [Comment], Maybe Comment))
-identifierOrKeyword = token $ do
+  => Eff es Text
+identifierOrKeywordRaw = do
   _head <- takeWhile1P (Just "identifier start character") isAlpha
   remain <-
     takeWhileP
@@ -223,50 +228,88 @@ identifierOrKeyword = token $ do
   pure full_string
 
 
+identifierOrKeyword
+  :: Parser OctizysParseError :> es
+  => Eff es (Text, (Span, [Comment], Maybe Comment))
+identifierOrKeyword = token identifierOrKeywordRaw
+
+
+isNotKeyword :: Text -> Bool
+isNotKeyword s =
+  s
+    `notElem` [ "if"
+              , "then"
+              , "else"
+              , "let"
+              , "in"
+              , "Int"
+              , "True"
+              , "False"
+              , "Bool"
+              , "forall"
+              ]
+
+
 identifierParser
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es (Text, InfoId, Span)
+  => Eff es (Text, SourceInfo, Span)
 identifierParser = do
   (iden, (span, pre, after)) <-
     try $
       withPredicate1
-        ( \(s, _) ->
-            s
-              `notElem` [ "if"
-                        , "then"
-                        , "else"
-                        , "let"
-                        , "in"
-                        , "Int"
-                        , "True"
-                        , "False"
-                        , "Bool"
-                        , "forall"
-                        ]
+        ( \(s, _) -> isNotKeyword s
         )
         "keyword found expected identifier"
         identifierOrKeyword
-  sourceInfo <- createInformation span pre after
+  let sourceInfo = makeSourceInfo span pre after
   pure (iden, sourceInfo, span)
+
+
+nameParser
+  :: Parser OctizysParseError :> es
+  => Eff es (Name, SourceInfo, Span)
+nameParser = do
+  (iden, info, span) <- identifierParser
+  case makeName iden of
+    Just name -> pure (name, info, span)
+    Nothing -> errorCustom $ CantParseName iden
+
+
+sourceVariableParser
+  :: Parser OctizysParseError :> es
+  => Eff es SourceVariable
+sourceVariableParser = do
+  (name, info, _) <- identifierOrKeyword
+  names <- many $ do
+    _ <- moduleSeparator <?> ('m' :| "odule separator")
+    localName <- nameParser
+    pure localName
+  let
+    variable = case reverse names of
+      [] -> SourceVariable' {qualifier = Nothing, name}
+      (realName : others) ->
+        SourceVariable'
+          { qualifier = Just (from (name :| reverse others))
+          , name = realName
+          }
+  pure
+    variable
 
 
 tokenAndregister
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
   => Eff es a
-  -> Eff es (a, InfoId)
+  -> Eff es (a, SourceInfo)
 tokenAndregister p = do
   (value, (span, pre, after)) <- token p
-  info <- createInformation span pre after
+  let info = makeSourceInfo span pre after
   pure (value, info)
 
 
 punctuationChar
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
   => Char
-  -> Eff es InfoId
+  -> Eff es SourceInfo
 punctuationChar c = do
   (_, info) <- tokenAndregister $ char c
   pure info
@@ -274,9 +317,8 @@ punctuationChar c = do
 
 keyword
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
   => Text
-  -> Eff es InfoId
+  -> Eff es SourceInfo
 keyword c = do
   (_, info) <- tokenAndregister $ text c
   pure info
@@ -284,137 +326,124 @@ keyword c = do
 
 colon
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 colon = punctuationChar ':'
 
 
 semicolon
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 semicolon = punctuationChar ';'
 
 
 equal
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 equal = punctuationChar '='
 
 
 lambdaStart
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 lambdaStart = punctuationChar '\\'
+
+
+moduleSeparator
+  :: Parser OctizysParseError :> es
+  => Eff es SourceInfo
+moduleSeparator = punctuationChar '/'
 
 
 rightArrow
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 rightArrow = keyword "->"
 
 
 turnstile
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 turnstile = keyword "|-"
 
 
 comma
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 comma = punctuationChar ','
 
 
 dot
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 dot = punctuationChar '.'
 
 
 leftParen
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 leftParen = punctuationChar '('
 
 
 rightParen
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 rightParen = punctuationChar ')'
 
 
 leftBrace
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 leftBrace = punctuationChar '{'
 
 
 rightBrace
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 rightBrace = punctuationChar '}'
 
 
 ifKeyword
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 ifKeyword = keyword "if"
 
 
 thenKeyword
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 thenKeyword = keyword "then"
 
 
 elseKeyword
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 elseKeyword = keyword "else"
 
 
 letKeyword
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 letKeyword = keyword "let"
 
 
 inKeyword
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 inKeyword = keyword "in"
 
 
 forallKeyword
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
+  => Eff es SourceInfo
 forallKeyword = keyword "forall"
 
 
 between
   :: Parser OctizysParseError :> es
-  => SymbolResolution :> es
-  => Eff es InfoId
-  -> Eff es InfoId
+  => Eff es SourceInfo
+  -> Eff es SourceInfo
   -> Eff es a
-  -> Eff es (InfoId, a, InfoId)
+  -> Eff es (SourceInfo, a, SourceInfo)
 between open close p = do
   o <- open
   ps <- p
