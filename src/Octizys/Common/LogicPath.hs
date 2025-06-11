@@ -38,7 +38,7 @@ instance Pretty LogicPath where
      in pretty '/' <> foldl (<>) mempty withSeparator
 
 
--- Adds the given name at the end of a logic path.
+-- | Adds the given name at the end of a logic path.
 addAtEnd :: Name -> LogicPath -> LogicPath
 addAtEnd name p =
   LogicPath'

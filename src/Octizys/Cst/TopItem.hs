@@ -3,7 +3,9 @@ present at the top of a file
 -}
 module Octizys.Cst.TopItem where
 
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
+import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath)
 import Octizys.Common.Name (Name)
 import Octizys.Cst.Expression (Definition)
@@ -21,6 +23,11 @@ data ModulePath
 instance Pretty ModulePath where
   pretty (ModuleLogicPath l) = pretty l
   pretty (ModuleVarPath n) = pretty n
+
+
+instance From LogicPath ModulePath where
+  from (ModuleLogicPath l) = l
+  from (ModuleVarPath n) = from (n :| [])
 
 
 data ImportItem = ImportVariable
@@ -42,6 +49,11 @@ data ImportItems = ImportItems'
   deriving (Show, Eq, Ord)
 
 
+instance From (NonEmpty Name) ImportItems where
+  from (ImportItems' {items, lastItem}) =
+    lastItem.name :| ((\(x, _) -> x.name) <$> items)
+
+
 data ImportAlias = ImportAlias'
   { _as :: SourceInfo
   , path :: (SourceInfo, ModulePath)
@@ -54,6 +66,10 @@ instance Pretty ImportAlias where
     pretty @Text "as"
       <> Pretty.line
       <> pretty (snd path)
+
+
+instance From LogicPath ImportAlias where
+  from (ImportAlias' _ (_, p)) = from p
 
 
 data ImportModule
