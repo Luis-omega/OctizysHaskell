@@ -153,9 +153,8 @@ library
     Octizys.Pretty.Markup
     Octizys.SymbolResolution.ImportsResolution
     Octizys.SymbolResolution.MakeUniqueIds
+    Octizys.Scope
 
-  --Octizys.Effects.SymbolResolution.Effect
-  --Octizys.Effects.SymbolResolution.Interpreter
   -- Modules included in this library but not exported.
   -- other-modules:
 
