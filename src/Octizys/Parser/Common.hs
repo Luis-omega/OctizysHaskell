@@ -59,7 +59,9 @@ uninplemented :: forall a e es. Parser e :> es => Text -> Eff es a
 uninplemented s = errorMessage ("Uninplemented " <> s <> " parser")
 
 
-data OctizysParseError = CantParseName Text | Err2
+data OctizysParseError
+  = CantParseName Text
+  | EmptyImportList
   deriving (Show, Eq, Ord)
 
 
@@ -68,7 +70,7 @@ instance Pretty OctizysParseError where
     pretty @Text
       "A bug, we parsed a identifier but is not a valid identifier: "
       <> pretty str
-  pretty Err2 = pretty @Text "Err2"
+  pretty EmptyImportList = pretty @Text "All unqualified imports must provide a list of imports."
 
 
 instance Formatter ann (FormatContext ann) OctizysParseError where

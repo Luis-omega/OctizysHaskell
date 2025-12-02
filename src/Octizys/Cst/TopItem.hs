@@ -49,9 +49,9 @@ data ImportItems = ImportItems'
   deriving (Show, Eq, Ord)
 
 
-instance From (NonEmpty Name) ImportItems where
+instance From (NonEmpty (SourceInfo, Name)) ImportItems where
   from (ImportItems' {items, lastItem}) =
-    lastItem.name :| ((\(x, _) -> x.name) <$> items)
+    (lastItem.info, lastItem.name) :| ((\(x, _) -> (x.info, x.name)) <$> items)
 
 
 data ImportAlias = ImportAlias'
@@ -83,7 +83,7 @@ data ImportModule
       , unqualified :: SourceInfo
       , path :: (SourceInfo, ModulePath)
       , lparen :: SourceInfo
-      , items :: Maybe ImportItems
+      , items :: ImportItems
       , rparen :: SourceInfo
       }
   deriving (Show, Eq, Ord)

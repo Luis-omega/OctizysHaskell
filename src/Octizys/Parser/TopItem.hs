@@ -37,7 +37,8 @@ import Octizys.Cst.TopItem
     )
   )
 import Octizys.Effects.Parser.Combinators
-  ( hidden
+  ( errorCustom
+  , hidden
   , many
   , optional
   , (<?>)
@@ -45,7 +46,7 @@ import Octizys.Effects.Parser.Combinators
   )
 import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Parser.Common
-  ( OctizysParseError
+  ( OctizysParseError (EmptyImportList)
   , asKeyword
   , comments
   , importKeyword
@@ -80,14 +81,15 @@ importItemParser = do
   pure ImportVariable {info, name = var.name}
 
 
+-- | This can raise an error
 importItemsParser
   :: Parser OctizysParseError :> es
-  => Eff es (Maybe ImportItems)
+  => Eff es ImportItems
 importItemsParser = do
   (items, maybeLast) <- trailingList Common.comma importItemParser
   case maybeLast of
-    Just (lastItem, lastComma) -> pure $ Just (ImportItems' {items, lastItem, lastComma})
-    Nothing -> pure Nothing
+    Just (lastItem, lastComma) -> pure $ ImportItems' {items, lastItem, lastComma}
+    Nothing -> errorCustom EmptyImportList
 
 
 importAliasParser

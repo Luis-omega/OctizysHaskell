@@ -1,7 +1,9 @@
 [default]
 extend-ignore-identifiers-re = [
   "ine",
-  "nam"
+  "nam",
+  "modul",
+  "dentifier"
 ]
 
 [default.extend-words]

@@ -59,13 +59,13 @@ addDefinedSymbol
   => Ast.Definition
   -> Eff es (Map ExpressionVariableId Ast.Expression)
 addDefinedSymbol d = do
-  mp <- addExpressionSymbols d.definition
-  let addedSymbol = Map.insert d.name d.definition mp
+  mp <- addExpressionSymbols d . definition
+  let addedSymbol = Map.insert d . name d . definition mp
   forM_
     (Map.toList addedSymbol)
     ( \(nam, ex) ->
         Inference.insertKnowType nam (Ast.getType ex)
     )
-  let newMap = Map.insert d.name d.definition addedSymbol
+  let newMap = Map.insert d . name d . definition addedSymbol
   put $ DefinedSymbols' newMap
   pure newMap

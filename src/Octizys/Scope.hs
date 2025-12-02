@@ -10,7 +10,7 @@ import Octizys.Cst.Span (Span)
 
 data ExpressionVariableInformation = ExpressionVariableInformation'
   { documentation :: [Comment]
-  -- ^ Any documentation comment in the orinal source.
+  -- ^ Any documentation comment in the original source.
   , span :: Span
   -- ^ The original source @Span@ of the definition.
   , _type :: Type TypeVariable

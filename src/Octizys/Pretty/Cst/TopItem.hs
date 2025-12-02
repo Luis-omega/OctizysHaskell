@@ -77,11 +77,8 @@ formatImportModule
             <> pretty (snd path)
             <> pretty '('
             <> Pretty.line
-            <> case items of
-              Just its ->
-                nest ctx (formatImportItems ctx its)
-                  <> Pretty.line
-              Nothing -> mempty
+            <> nest ctx (formatImportItems ctx items)
+            <> Pretty.line
             <> pretty ')'
         )
 

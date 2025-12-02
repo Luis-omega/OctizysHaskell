@@ -506,7 +506,7 @@ deregisterScheme sid svar =
     forM_ zipped (uncurry deregisterTvar)
 
 
-makeDefinitionTypeAnotationUnique
+makeDefinitionTypeAnnotationUnique
   :: ( State SymbolResolutionState :> es
      , IdGenerator TypeVariableId :> es
      , IdGenerator ExpressionVariableId :> es
@@ -518,7 +518,7 @@ makeDefinitionTypeAnotationUnique
           ExpressionVariableId
           TypeVariableId
       )
-makeDefinitionTypeAnotationUnique d = do
+makeDefinitionTypeAnnotationUnique d = do
   newScheme <- traverse makeSchemeStartUnique d.schemeStart
   newParams <- traverse makeParametersUnique d.parameters
   newType <- makeTypeVariablesUnique d.outputType
@@ -567,7 +567,7 @@ makeDefinitionUnique
     -- Thanks to recursive definitions, we define the variable
     -- before calling this function.
     newName <- findEvar (snd name) (fst name)
-    newType <- traverse makeDefinitionTypeAnotationUnique _type
+    newType <- traverse makeDefinitionTypeAnnotationUnique _type
     newDef <- makeVariablesUnique definition
     -- The scope of type schemes doesn't extend to other
     -- functions inside a recursive definition.

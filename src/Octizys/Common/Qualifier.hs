@@ -1,6 +1,7 @@
 module Octizys.Common.Qualifier (Qualifier) where
 
 import Data.Text (Text)
+import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath)
 import Octizys.Common.Name (Name)
 import Prettyprinter (Pretty (pretty))
@@ -12,6 +13,10 @@ data Qualifier
   | ModuleQualifier LogicPath
   | Repl Name
   deriving (Show, Eq, Ord)
+
+
+instance From Qualifier LogicPath where
+  from = ModuleQualifier
 
 
 instance Pretty Qualifier where
