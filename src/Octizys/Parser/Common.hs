@@ -5,13 +5,7 @@ module Octizys.Parser.Common where
 
 import Data.Text (Text)
 import Effectful (Eff, (:>))
-import Octizys.Cst.Comment
-  ( BlockComment (BlockComment')
-  , Comment (Block, Line, blockComment, lineComment, span)
-  , LineComment (LineComment')
-  )
-import Octizys.Cst.Span (Span (Span', end, start))
-import Octizys.Effects.Parser.Combinators
+import EffectfulParserCombinators.Combinators
   ( char
   , errorCustom
   , errorMessage
@@ -27,8 +21,14 @@ import Octizys.Effects.Parser.Combinators
   , (<?>)
   , (<|>)
   )
-import Octizys.Effects.Parser.Effect
+import EffectfulParserCombinators.Effect
   ( Parser
+  )
+import EffectfulParserCombinators.Span (Span (Span', end, start))
+import Octizys.Cst.Comment
+  ( BlockComment (BlockComment')
+  , Comment (Block, Line, blockComment, lineComment, span)
+  , LineComment (LineComment')
   )
 
 import Control.Arrow ((<<<))

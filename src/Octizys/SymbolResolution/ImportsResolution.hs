@@ -19,6 +19,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, runErrorNoCallStack, throwError)
+import EffectfulParserCombinators.Span (Span)
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 import Octizys.Common.LogicPath (LogicPath, addAtEnd)
@@ -29,7 +30,6 @@ import Octizys.Cst.SourceInfo
   ( SourceInfo (span)
   , SourceVariable (name)
   )
-import Octizys.Cst.Span (Span)
 import Octizys.Cst.TopItem
   ( ImportModule
       ( ImportModuleAs'

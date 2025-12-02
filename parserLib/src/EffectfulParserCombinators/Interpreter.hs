@@ -1,15 +1,17 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 
-module Octizys.Effects.Parser.Interpreter (runParser, runFullParser, runParserWith, ParserState) where
+module EffectfulParserCombinators.Interpreter (runParser, runFullParser, runParserWith, ParserState) where
 
-import Octizys.Effects.Parser.Backend
-  ( ParserError
-  , ParserState
-  , makeInitialState
-  )
-import Octizys.Effects.Parser.Effect
+import EffectfulParserCombinators.Effect
   ( Parser (CatchParseError, GetParseState, PutParseState, ThrowParseError)
+  )
+import EffectfulParserCombinators.Error
+  ( ParserError
+  )
+import EffectfulParserCombinators.ParserState
+  ( ParserState
+  , makeInitialState
   )
 
 import Control.Arrow ((<<<))

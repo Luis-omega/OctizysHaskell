@@ -1,7 +1,16 @@
 {-# LANGUAGE DataKinds #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
-module Octizys.Test.Effects.Parser where
+module EffectfulParserCombinators.Test.Parser where
+
+import EffectfulParserCombinators.Combinators hiding (text)
+import qualified EffectfulParserCombinators.Combinators as C
+import EffectfulParserCombinators.Effect
+  ( Parser
+  )
+import EffectfulParserCombinators.Error (ParserError, humanReadableError)
+import EffectfulParserCombinators.Interpreter (runFullParser)
+import EffectfulParserCombinators.ParserState (ParserState)
 
 import Control.Arrow ((<<<))
 import qualified Data.Bifunctor as Bifunctor
@@ -11,19 +20,6 @@ import Data.Text (Text)
 import Effectful (Eff, runPureEff)
 import Effectful.Error.Static (Error)
 import Effectful.State.Static.Local (State)
-import Octizys.Effects.Parser.Backend
-  ( ParserError
-  , ParserState
-  , makeParseErrorReport
-  )
-import Octizys.Effects.Parser.Combinators hiding (text)
-import qualified Octizys.Effects.Parser.Combinators as C
-import Octizys.Effects.Parser.Effect
-  ( Parser
-  )
-import Octizys.Effects.Parser.Interpreter (runFullParser)
-import Octizys.Pretty.FormatContext (defaultFormatContext)
-import Octizys.Pretty.Formatter (Formatter (format))
 import qualified Prettyprinter
 import qualified Prettyprinter.Render.Text
 import Test.Tasty
@@ -34,8 +30,7 @@ render :: Text -> ParserError Text -> Text
 render source =
   Prettyprinter.Render.Text.renderStrict
     <<< Prettyprinter.layoutPretty Prettyprinter.defaultLayoutOptions
-    <<< format @() defaultFormatContext
-    <<< makeParseErrorReport @() defaultFormatContext (Just ('t' :| "est")) source
+    <<< humanReadableError @() (Just ('t' :| "est")) source
 
 
 runParser

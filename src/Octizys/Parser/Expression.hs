@@ -7,6 +7,17 @@ import Control.Monad (forM)
 import Data.Char (isDigit)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
+import EffectfulParserCombinators.Combinators
+  ( many
+  , optional
+  , some
+  , takeWhile1P
+  , takeWhileP
+  , try
+  , (<?>)
+  , (<|>)
+  )
+import EffectfulParserCombinators.Effect (Parser)
 import Octizys.Cst.Expression
   ( Definition
       ( Definition'
@@ -66,17 +77,6 @@ import Octizys.Cst.Expression
   )
 import Octizys.Cst.SourceInfo (SourceInfo, SourceVariable)
 import Octizys.Cst.Type (Type)
-import Octizys.Effects.Parser.Combinators
-  ( many
-  , optional
-  , some
-  , takeWhile1P
-  , takeWhileP
-  , try
-  , (<?>)
-  , (<|>)
-  )
-import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Parser.Common
   ( OctizysParseError
   , between

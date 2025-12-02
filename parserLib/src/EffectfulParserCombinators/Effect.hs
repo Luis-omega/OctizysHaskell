@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies #-}
 
 -- | This module defines a `Parser` effect with basic parsing capabilities.
-module Octizys.Effects.Parser.Effect
+module EffectfulParserCombinators.Effect
   ( Parser (ThrowParseError, CatchParseError, GetParseState, PutParseState)
   , throwParseError
   , putParseState
@@ -14,7 +14,8 @@ module Octizys.Effects.Parser.Effect
 
 import Effectful (Effect)
 import Effectful.TH (makeEffect)
-import Octizys.Effects.Parser.Backend (ParserError, ParserState)
+import EffectfulParserCombinators.Error (ParserError)
+import EffectfulParserCombinators.ParserState (ParserState)
 
 
 -- | Effect for generating fresh integers with phantom types

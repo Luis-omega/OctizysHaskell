@@ -1,4 +1,4 @@
-module Octizys.Cst.Span
+module EffectfulParserCombinators.Span
   ( Position
       ( Position'
       , line

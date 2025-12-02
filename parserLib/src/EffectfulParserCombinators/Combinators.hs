@@ -3,12 +3,11 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module Octizys.Effects.Parser.Combinators
+module EffectfulParserCombinators.Combinators
   ( errorMessage
   , unexpectedEof
   , unexpectedRaw
   , errorCustom
-  , emptyExpectations
   , item
   , text
   , satisfy
@@ -40,32 +39,39 @@ module Octizys.Effects.Parser.Combinators
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Effectful (Eff, (:>))
-import Octizys.Effects.Parser.Backend
-  ( Expected (ExpectedEndOfInput, ExpectedName, ExpectedRaw)
-  , ParserError
-    ( GeneratedError
-    , UserMadeError
-    , errorPosition
-    , expected
-    , unexpected
-    , userErrors
-    )
-  , ParserState (expected, position, remainStream)
-  , Unexpected (UnexpectedEndOfInput, UnexpectedRaw)
-  , UserError (CustomError, SimpleError)
-  , addExpectation
-  , emptyExpectations
-  , singletonExpectations
-  )
-import Octizys.Effects.Parser.Effect
+import EffectfulParserCombinators.Effect
   ( Parser
   , catchParseError
   , getParseState
   , putParseState
   , throwParseError
   )
+import EffectfulParserCombinators.Error
+  ( ParserError
+      ( GeneratedError
+      , UserMadeError
+      , errorPosition
+      , expected
+      , unexpected
+      , userErrors
+      )
+  , UserError (CustomError, SimpleError)
+  )
+import EffectfulParserCombinators.Expectation
+  ( Expected (ExpectedEndOfInput, ExpectedName, ExpectedRaw)
+  )
+import qualified EffectfulParserCombinators.Expectation as Expectation
+import EffectfulParserCombinators.ParserState
+  ( ParserState (expected, position, remainStream)
+  , addExpectation
+  )
+import EffectfulParserCombinators.Unexpected
+  ( Unexpected (UnexpectedEndOfInput, UnexpectedRaw)
+  )
 
-import Octizys.Cst.Span (Position (Position', column, line, offset))
+import EffectfulParserCombinators.Span
+  ( Position (Position', column, line, offset)
+  )
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -178,7 +184,12 @@ charUpdatePosition :: Position -> Char -> Position
 charUpdatePosition s c =
   if c == '\n'
     then Position' {line = s.line + 1, column = 0, offset = s.offset + 1}
-    else Position' {line = s.line, column = s.column + 1, offset = s.offset + 1}
+    else
+      Position'
+        { line = s.line
+        , column = s.column + 1
+        , offset = s.offset + 1
+        }
 
 
 {- | Updates the `ParserState`, it:
@@ -594,7 +605,7 @@ label expectation p = do
           else case e of
             GeneratedError {} ->
               throwParseError $
-                e {expected = singletonExpectations (ExpectedName expectation)}
+                e {expected = Expectation.singleton (ExpectedName expectation)}
             _ ->
               throwParseError e
     )

@@ -1,11 +1,11 @@
 module Octizys.Scope where
 
 import Data.Map (Map)
+import EffectfulParserCombinators.Span (Span)
 import Octizys.Ast.Expression (Expression)
 import Octizys.Ast.Type (Type, TypeVariable)
 import Octizys.Common.Id (ExpressionVariableId)
 import Octizys.Cst.Comment (Comment)
-import Octizys.Cst.Span (Span)
 
 
 data ExpressionVariableInformation = ExpressionVariableInformation'

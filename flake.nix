@@ -14,6 +14,8 @@
             hfinal: hprev:
             prev.haskell.packageOverrides hfinal hprev
               // {
+              EffectfulParserCombinators =
+                hfinal.callCabal2nix "EffectfulParserCombinators" ./parserLib { };
               octizys = hfinal.callCabal2nix "octizys" ./. { };
             };
         };

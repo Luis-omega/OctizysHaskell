@@ -7,6 +7,14 @@ module Octizys.Parser.Type
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
+import EffectfulParserCombinators.Combinators
+  ( char
+  , errorCustom
+  , many
+  , (<?>)
+  , (<|>)
+  )
+import EffectfulParserCombinators.Effect (Parser)
 import Octizys.Common.Name (makeName)
 import Octizys.Cst.SourceInfo
   ( SourceInfo
@@ -25,14 +33,6 @@ import Octizys.Cst.Type
       )
   )
 import qualified Octizys.Cst.Type as Type
-import Octizys.Effects.Parser.Combinators
-  ( char
-  , errorCustom
-  , many
-  , (<?>)
-  , (<|>)
-  )
-import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Parser.Common
   ( OctizysParseError (CantParseName)
   , between

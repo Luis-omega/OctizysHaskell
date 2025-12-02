@@ -2,6 +2,15 @@ module Octizys.Parser.TopItem where
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
+import EffectfulParserCombinators.Combinators
+  ( errorCustom
+  , hidden
+  , many
+  , optional
+  , (<?>)
+  , (<|>)
+  )
+import EffectfulParserCombinators.Effect (Parser)
 import Octizys.Common.LogicPath (addAtEnd)
 import Octizys.Cst.Expression (Definition)
 import Octizys.Cst.SourceInfo
@@ -36,15 +45,6 @@ import Octizys.Cst.TopItem
     , semicolon
     )
   )
-import Octizys.Effects.Parser.Combinators
-  ( errorCustom
-  , hidden
-  , many
-  , optional
-  , (<?>)
-  , (<|>)
-  )
-import Octizys.Effects.Parser.Effect (Parser)
 import Octizys.Parser.Common
   ( OctizysParseError (EmptyImportList)
   , asKeyword

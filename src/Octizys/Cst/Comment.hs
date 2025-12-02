@@ -2,7 +2,7 @@
 module Octizys.Cst.Comment where
 
 import Data.Text (Text)
-import Octizys.Cst.Span (Span)
+import EffectfulParserCombinators.Span (Span)
 
 
 newtype LineComment = LineComment'
