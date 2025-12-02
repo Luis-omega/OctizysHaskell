@@ -1,11 +1,11 @@
-module Octizys.Cst.SourceInfo where
+module Octizys.FrontEnd.Cst.SourceInfo where
 
 import qualified Data.List.NonEmpty as NonEmpty
 import EffectfulParserCombinators.Span (Span)
 import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath)
 import Octizys.Common.Name (Name)
-import Octizys.Cst.Comment (Comment)
+import Octizys.FrontEnd.Cst.Comment (Comment)
 
 
 data SourceInfo = SourceInfo'

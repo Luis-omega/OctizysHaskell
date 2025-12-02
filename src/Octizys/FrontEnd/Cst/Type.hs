@@ -1,7 +1,7 @@
 {- | Description : This module defines the `Type` used in the CST.
 The `Type` is designed to be fault tolerant.
 -}
-module Octizys.Cst.Type
+module Octizys.FrontEnd.Cst.Type
   ( Type
       ( BoolType
       , IntType
@@ -22,7 +22,7 @@ module Octizys.Cst.Type
 
 import Data.List.NonEmpty (NonEmpty)
 import Octizys.Common.Id (InfoId, TypeVariableId)
-import Octizys.Cst.SourceInfo (SourceInfo)
+import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo)
 
 
 {- | Stores source information in a separate place, so

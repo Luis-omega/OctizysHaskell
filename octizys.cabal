@@ -116,12 +116,6 @@ library
     Octizys.Common.PackageName
     Octizys.Common.Qualifier
     Octizys.Common.Report
-    Octizys.Cst.Comment
-    Octizys.Cst.Expression
-    Octizys.Cst.Node
-    Octizys.Cst.SourceInfo
-    Octizys.Cst.TopItem
-    Octizys.Cst.Type
     Octizys.Effects.Accumulator.Effect
     Octizys.Effects.Accumulator.Interpreter
     Octizys.Effects.Console.Effect
@@ -130,13 +124,19 @@ library
     Octizys.Effects.IdGenerator.Interpreter
     Octizys.Effects.Logger.ConsoleInterpreter
     Octizys.Effects.Logger.Effect
+    Octizys.FrontEnd.Cst.Comment
+    Octizys.FrontEnd.Cst.Expression
+    Octizys.FrontEnd.Cst.Node
+    Octizys.FrontEnd.Cst.SourceInfo
+    Octizys.FrontEnd.Cst.TopItem
+    Octizys.FrontEnd.Cst.Type
+    Octizys.FrontEnd.Parser.Common
+    Octizys.FrontEnd.Parser.Expression
+    Octizys.FrontEnd.Parser.TopItem
+    Octizys.FrontEnd.Parser.Type
     Octizys.Inference.ConstraintsGeneration
     Octizys.Inference.ConstraintsSolver
     Octizys.Inference.Errors
-    Octizys.Parser.Common
-    Octizys.Parser.Expression
-    Octizys.Parser.TopItem
-    Octizys.Parser.Type
     Octizys.Pretty.Ast.Expression
     Octizys.Pretty.Ast.Type
     Octizys.Pretty.Cst.Comment

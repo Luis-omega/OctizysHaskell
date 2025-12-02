@@ -11,12 +11,6 @@ import qualified Data.Text as Text
 import Effectful (Eff, runPureEff)
 import Effectful.Error.Static (Error, runErrorNoCallStack)
 import Effectful.State.Static.Local (State)
-import Octizys.Cst.Expression
-  ( ExpressionVariableId
-  , Parameters (Parameters')
-  )
-import Octizys.Cst.InfoId (InfoId)
-import Octizys.Cst.Type (TypeVariableId)
 import Octizys.Effects.Generator.Effect (IntGenerator)
 import Octizys.Effects.Generator.Interpreter
   ( Generator
@@ -38,11 +32,17 @@ import Octizys.Effects.SymbolResolution.Interpreter
   , initialSymbolResolutionState
   , runSymbolResolutionFull
   )
-import Octizys.Parser.Common
+import Octizys.FrontEnd.Cst.Expression
+  ( ExpressionVariableId
+  , Parameters (Parameters')
+  )
+import Octizys.FrontEnd.Cst.InfoId (InfoId)
+import Octizys.FrontEnd.Cst.Type (TypeVariableId)
+import Octizys.FrontEnd.Parser.Common
   ( OctizysParseError
   , comment
   )
-import Octizys.Parser.Expression
+import Octizys.FrontEnd.Parser.Expression
   ( boolParser
   , functionParser
   , ifParser
@@ -51,7 +51,7 @@ import Octizys.Parser.Expression
   , parametersParser
   , variableParser
   )
-import Octizys.Parser.TopItem (parseModule)
+import Octizys.FrontEnd.Parser.TopItem (parseModule)
 import Octizys.Pretty.FormatContext (FormatContext, defaultFormatContext)
 import Octizys.Pretty.Formatter (Formatter (format))
 import Prettyprinter

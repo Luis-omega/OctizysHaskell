@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Octizys.Parser.Common where
+module Octizys.FrontEnd.Parser.Common where
 
 import Data.Text (Text)
 import Effectful (Eff, (:>))
@@ -25,7 +25,7 @@ import EffectfulParserCombinators.Effect
   ( Parser
   )
 import EffectfulParserCombinators.Span (Span (Span', end, start))
-import Octizys.Cst.Comment
+import Octizys.FrontEnd.Cst.Comment
   ( BlockComment (BlockComment')
   , Comment (Block, Line, blockComment, lineComment, span)
   , LineComment (LineComment')
@@ -38,7 +38,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Text as Text
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Name (Name, makeName)
-import Octizys.Cst.SourceInfo
+import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo
   , SourceVariable (SourceVariable', name, qualifier)
   , makeSourceInfo

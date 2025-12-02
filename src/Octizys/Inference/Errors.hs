@@ -1,6 +1,6 @@
 module Octizys.Inference.Errors where
 
-import qualified Octizys.Cst.Expression as CstE
+import qualified Octizys.FrontEnd.Cst.Expression as CstE
 
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -14,8 +14,8 @@ import Octizys.Common.Id (ExpressionVariableId)
 import Octizys.Common.Report
   ( LongDescription (LongDescription', afterDescription, preDescription, source)
   )
-import qualified Octizys.Cst.Node as Cst
-import Octizys.Cst.Type
+import qualified Octizys.FrontEnd.Cst.Node as Cst
+import Octizys.FrontEnd.Cst.Type
   ( TypeVariableId
   )
 import Octizys.Pretty.FormatContext

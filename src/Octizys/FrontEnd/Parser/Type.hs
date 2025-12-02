@@ -1,4 +1,4 @@
-module Octizys.Parser.Type
+module Octizys.FrontEnd.Parser.Type
   ( parseType
   , typeHole
   , typeAtom
@@ -16,12 +16,12 @@ import EffectfulParserCombinators.Combinators
   )
 import EffectfulParserCombinators.Effect (Parser)
 import Octizys.Common.Name (makeName)
-import Octizys.Cst.SourceInfo
+import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo
   , SourceVariable (SourceVariable', name, qualifier)
   , makeSourceInfo
   )
-import Octizys.Cst.Type
+import Octizys.FrontEnd.Cst.Type
   ( Type
       ( Arrow
       , BoolType
@@ -32,8 +32,8 @@ import Octizys.Cst.Type
       , variable
       )
   )
-import qualified Octizys.Cst.Type as Type
-import Octizys.Parser.Common
+import qualified Octizys.FrontEnd.Cst.Type as Type
+import Octizys.FrontEnd.Parser.Common
   ( OctizysParseError (CantParseName)
   , between
   , keyword

@@ -1,15 +1,15 @@
 {- | This module defines the items expected to be
 present at the top of a file
 -}
-module Octizys.Cst.TopItem where
+module Octizys.FrontEnd.Cst.TopItem where
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
 import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath)
 import Octizys.Common.Name (Name)
-import Octizys.Cst.Expression (Definition)
-import Octizys.Cst.SourceInfo (SourceInfo, SourceVariable)
+import Octizys.FrontEnd.Cst.Expression (Definition)
+import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo, SourceVariable)
 import Prettyprinter (Pretty (pretty))
 import qualified Prettyprinter as Pretty
 

@@ -1,4 +1,4 @@
-module Octizys.Parser.TopItem where
+module Octizys.FrontEnd.Parser.TopItem where
 
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
@@ -12,15 +12,15 @@ import EffectfulParserCombinators.Combinators
   )
 import EffectfulParserCombinators.Effect (Parser)
 import Octizys.Common.LogicPath (addAtEnd)
-import Octizys.Cst.Expression (Definition)
-import Octizys.Cst.SourceInfo
+import Octizys.FrontEnd.Cst.Expression (Definition)
+import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo
   , SourceVariable
   , makeSourceInfo
   , name
   , qualifier
   )
-import Octizys.Cst.TopItem
+import Octizys.FrontEnd.Cst.TopItem
   ( ImportAlias (ImportAlias', path, _as)
   , ImportItem (ImportVariable, info, name)
   , ImportItems (ImportItems', items, lastComma, lastItem)
@@ -45,7 +45,7 @@ import Octizys.Cst.TopItem
     , semicolon
     )
   )
-import Octizys.Parser.Common
+import Octizys.FrontEnd.Parser.Common
   ( OctizysParseError (EmptyImportList)
   , asKeyword
   , comments
@@ -57,8 +57,8 @@ import Octizys.Parser.Common
   , trailingList
   , unqualifiedKeyword
   )
-import qualified Octizys.Parser.Common as Common
-import Octizys.Parser.Expression (definitionParser)
+import qualified Octizys.FrontEnd.Parser.Common as Common
+import Octizys.FrontEnd.Parser.Expression (definitionParser)
 
 
 modulePathParser

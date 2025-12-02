@@ -2,7 +2,7 @@
 
 module Octizys.Inference.ConstraintsSolver where
 
-import qualified Octizys.Cst.Expression as CstE
+import qualified Octizys.FrontEnd.Cst.Expression as CstE
 
 import Control.Monad (foldM, forM, unless)
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -17,12 +17,12 @@ import qualified Octizys.Ast.Expression as AstE
 import qualified Octizys.Ast.Type as AstT
 import Octizys.Classes.FreeVariables (FreeTypeVariables (freeTyVars))
 import Octizys.Classes.From (From (from))
-import Octizys.Cst.Type
-  ( TypeVariableId
-  )
 import Octizys.Effects.Generator.Effect (Generator)
 import Octizys.Effects.Logger.Effect (Logger, debug)
 import Octizys.Effects.SymbolResolution.Interpreter (SymbolResolutionState)
+import Octizys.FrontEnd.Cst.Type
+  ( TypeVariableId
+  )
 import Octizys.Inference.ConstraintsGeneration
   ( InferenceState
   , Output (constraints, expression)

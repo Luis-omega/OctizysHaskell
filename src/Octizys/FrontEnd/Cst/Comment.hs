@@ -1,5 +1,5 @@
 -- | Description : This module defines the type for a `Comment`
-module Octizys.Cst.Comment where
+module Octizys.FrontEnd.Cst.Comment where
 
 import Data.Text (Text)
 import EffectfulParserCombinators.Span (Span)

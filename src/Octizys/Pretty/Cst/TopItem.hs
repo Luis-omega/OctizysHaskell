@@ -2,7 +2,7 @@ module Octizys.Pretty.Cst.TopItem where
 
 import Control.Arrow ((<<<))
 import Data.Text (Text)
-import Octizys.Cst.TopItem
+import Octizys.FrontEnd.Cst.TopItem
   ( ImportItems
       ( ImportItems'
       , items

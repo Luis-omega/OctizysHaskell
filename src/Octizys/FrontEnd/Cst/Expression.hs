@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module Octizys.Cst.Expression
+module Octizys.FrontEnd.Cst.Expression
   ( Parameter (ParameterAlone, ParameterWithType, name, _type, colon)
   , SchemeStart (SchemeStart', _forall, typeArguments, dot)
   , DefinitionTypeAnnotation
@@ -68,8 +68,8 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
-import Octizys.Cst.SourceInfo (SourceInfo)
-import Octizys.Cst.Type (Type)
+import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo)
+import Octizys.FrontEnd.Cst.Type (Type)
 
 
 -- | The set of parameters

@@ -2,7 +2,7 @@
 module Octizys.Pretty.Cst.Comment where
 
 import Control.Arrow ((<<<))
-import Octizys.Cst.Comment
+import Octizys.FrontEnd.Cst.Comment
   ( BlockComment (BlockComment', content)
   , Comment (Block, Line)
   , LineComment (LineComment', content)

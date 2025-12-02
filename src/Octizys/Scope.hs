@@ -5,7 +5,7 @@ import EffectfulParserCombinators.Span (Span)
 import Octizys.Ast.Expression (Expression)
 import Octizys.Ast.Type (Type, TypeVariable)
 import Octizys.Common.Id (ExpressionVariableId)
-import Octizys.Cst.Comment (Comment)
+import Octizys.FrontEnd.Cst.Comment (Comment)
 
 
 data ExpressionVariableInformation = ExpressionVariableInformation'

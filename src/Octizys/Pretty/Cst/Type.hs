@@ -3,7 +3,7 @@ module Octizys.Pretty.Cst.Type (needsParentsInArrow, format) where
 import Control.Arrow ((<<<))
 import Data.List.NonEmpty (cons)
 import Data.Text (Text)
-import Octizys.Cst.Type
+import Octizys.FrontEnd.Cst.Type
   ( Type
       ( Arrow
       , BoolType

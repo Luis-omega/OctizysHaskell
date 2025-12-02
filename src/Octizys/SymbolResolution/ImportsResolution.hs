@@ -25,12 +25,13 @@ import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 import Octizys.Common.LogicPath (LogicPath, addAtEnd)
 import Octizys.Common.Name (Name)
 import Octizys.Common.Qualifier (Qualifier)
-import Octizys.Cst.Expression (Definition (name))
-import Octizys.Cst.SourceInfo
+import Octizys.Effects.Accumulator.Interpreter (Accumulator)
+import Octizys.FrontEnd.Cst.Expression (Definition (name))
+import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo (span)
   , SourceVariable (name)
   )
-import Octizys.Cst.TopItem
+import Octizys.FrontEnd.Cst.TopItem
   ( ImportModule
       ( ImportModuleAs'
       , ImportModuleUnqualified'
@@ -40,7 +41,6 @@ import Octizys.Cst.TopItem
       )
   , Module (definitions, imports)
   )
-import Octizys.Effects.Accumulator.Interpreter (Accumulator)
 import Octizys.Scope (ExpressionVariableInformation, ImportsScope)
 
 

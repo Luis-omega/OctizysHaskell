@@ -3,8 +3,8 @@
 
 module Octizys.Inference.ConstraintsGeneration where
 
-import qualified Octizys.Cst.Expression as CstE
-import qualified Octizys.Cst.Type as CstT
+import qualified Octizys.FrontEnd.Cst.Expression as CstE
+import qualified Octizys.FrontEnd.Cst.Type as CstT
 
 import Control.Applicative ((<|>))
 import Control.Arrow ((<<<))
@@ -27,14 +27,14 @@ import Octizys.Ast.Type
 import qualified Octizys.Ast.Type as AstT
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Id (ExpressionVariableId, InfoId, TypeVariableId)
-import Octizys.Cst.Type
-  ( Type
-  , TypeVariableId
-  )
-import qualified Octizys.Cst.Type as Cst
 import Octizys.Effects.Accumulator.Interpreter (Accumulator, accumulate)
 import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
 import Octizys.Effects.Logger.Effect (Logger, debug)
+import Octizys.FrontEnd.Cst.Type
+  ( Type
+  , TypeVariableId
+  )
+import qualified Octizys.FrontEnd.Cst.Type as Cst
 import Octizys.Inference.Errors
   ( Constraint (Constraint', constraintInfo, constraintType1, constraintType2)
   , ConstraintInfo (ConstraintInfo', ast, cst, reason)

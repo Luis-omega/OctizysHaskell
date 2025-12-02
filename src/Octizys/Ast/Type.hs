@@ -11,7 +11,7 @@ import Data.Set (singleton)
 import qualified Data.Set as Set
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
-import Octizys.Cst.Type (TypeVariableId)
+import Octizys.FrontEnd.Cst.Type (TypeVariableId)
 
 
 data TypeValue = BoolType | IntType

@@ -1,15 +1,15 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Octizys.Cst.Node where
+module Octizys.FrontEnd.Cst.Node where
 
 import Octizys.Classes.From (From (from))
-import Octizys.Cst.Expression
+import Octizys.FrontEnd.Cst.Expression
   ( Definition
   , Expression
   , Parameter
   )
-import Octizys.Cst.Type (Type)
+import Octizys.FrontEnd.Cst.Type (Type)
 
 
 data Node evar tvar

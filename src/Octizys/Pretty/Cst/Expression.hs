@@ -4,7 +4,7 @@ import Control.Arrow ((<<<))
 import Data.List.NonEmpty (toList)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
-import Octizys.Cst.Expression
+import Octizys.FrontEnd.Cst.Expression
   ( Definition (Definition', definition, name, _type)
   , DefinitionTypeAnnotation
     ( DefinitionTypeAnnotation'

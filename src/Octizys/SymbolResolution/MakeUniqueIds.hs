@@ -29,7 +29,8 @@ import Octizys.Common.Id
   ( ExpressionVariableId
   , TypeVariableId
   )
-import Octizys.Cst.Expression
+import Octizys.Effects.IdGenerator.Interpreter (IdGenerator, generateId)
+import Octizys.FrontEnd.Cst.Expression
   ( Definition
       ( Definition'
       , definition
@@ -82,9 +83,9 @@ import Octizys.Cst.Expression
     )
   , SchemeStart (typeArguments)
   )
-import qualified Octizys.Cst.Expression as E
-import Octizys.Cst.SourceInfo (SourceInfo, SourceVariable)
-import Octizys.Cst.Type
+import qualified Octizys.FrontEnd.Cst.Expression as E
+import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo, SourceVariable)
+import Octizys.FrontEnd.Cst.Type
   ( Type
       ( Arrow
       , BoolType
@@ -100,7 +101,6 @@ import Octizys.Cst.Type
       , _type
       )
   )
-import Octizys.Effects.IdGenerator.Interpreter (IdGenerator, generateId)
 
 
 data Context = Context'

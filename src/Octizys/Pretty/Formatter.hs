@@ -8,11 +8,11 @@ import qualified Octizys.Ast.Expression as Ast
 import qualified Octizys.Ast.Node as Ast
 import Octizys.Ast.Type (InferenceVariable)
 import qualified Octizys.Ast.Type as Ast
-import qualified Octizys.Cst.Comment as Cst
-import qualified Octizys.Cst.Expression as Cst
-import qualified Octizys.Cst.Node as Cst
-import qualified Octizys.Cst.TopItem as Cst
-import qualified Octizys.Cst.Type as Cst
+import qualified Octizys.FrontEnd.Cst.Comment as Cst
+import qualified Octizys.FrontEnd.Cst.Expression as Cst
+import qualified Octizys.FrontEnd.Cst.Node as Cst
+import qualified Octizys.FrontEnd.Cst.TopItem as Cst
+import qualified Octizys.FrontEnd.Cst.Type as Cst
 import qualified Octizys.Pretty.Ast.Expression as Ast.Expression
 import qualified Octizys.Pretty.Ast.Type as Ast.Type
 import qualified Octizys.Pretty.Cst.Comment as Cst.Expression

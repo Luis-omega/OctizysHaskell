@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use tuple-section" #-}
-module Octizys.Parser.Expression where
+module Octizys.FrontEnd.Parser.Expression where
 
 import Control.Monad (forM)
 import Data.Char (isDigit)
@@ -18,7 +18,7 @@ import EffectfulParserCombinators.Combinators
   , (<|>)
   )
 import EffectfulParserCombinators.Effect (Parser)
-import Octizys.Cst.Expression
+import Octizys.FrontEnd.Cst.Expression
   ( Definition
       ( Definition'
       , definition
@@ -75,9 +75,9 @@ import Octizys.Cst.Expression
     , _forall
     )
   )
-import Octizys.Cst.SourceInfo (SourceInfo, SourceVariable)
-import Octizys.Cst.Type (Type)
-import Octizys.Parser.Common
+import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo, SourceVariable)
+import Octizys.FrontEnd.Cst.Type (Type)
+import Octizys.FrontEnd.Parser.Common
   ( OctizysParseError
   , between
   , comma
@@ -95,8 +95,8 @@ import Octizys.Parser.Common
   , thenKeyword
   , tokenAndregister
   )
-import qualified Octizys.Parser.Common as Common
-import Octizys.Parser.Type (parseType)
+import qualified Octizys.FrontEnd.Parser.Common as Common
+import Octizys.FrontEnd.Parser.Type (parseType)
 import Prelude hiding (span)
 
 
