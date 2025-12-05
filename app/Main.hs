@@ -8,7 +8,8 @@ import Cli
   , parseArguments
   )
 import Octizys.Compiler.Compiler (compile)
-import Octizys.Repl.Repl (runRepl)
+
+-- import Octizys.Repl.Repl (runRepl)
 import Options.Applicative (execParser, fullDesc, helper, info, (<**>))
 
 
@@ -18,5 +19,5 @@ main = do
     execParser
       (info (parseArguments <**> helper) fullDesc)
   case command of
-    ReplCmd opts -> runRepl opts
+    ReplCmd opts -> print "repl disabled" -- runRepl opts
     CompileCmd (CompileOptions {logLevel = _logLevel, files = _files}) -> compile _files _logLevel

@@ -20,50 +20,44 @@ import Effectful.Error.Static
 import Effectful.Internal.Effect ((:>))
 import Effectful.Reader.Static (Reader, runReader)
 import Effectful.State.Static.Local
-import Octizys.Ast.Evaluation (EvaluationError)
-import qualified Octizys.Ast.Expression as Ast
-import qualified Octizys.Ast.Type as Ast
-import Octizys.Compiler.Format
-  ( buildFormatContext
-  , buildInferenceErrorReport
-  , formatE
-  )
-import Octizys.Cst.Expression (ExpressionVariableId)
-import Octizys.Cst.Span (makeInitialPosition)
-import Octizys.Cst.TopItem (Module)
-import Octizys.Effects.Console.Interpreter (putLine, runConsole)
-import Octizys.Effects.Logger.ConsoleInterpreter (runLog)
-import Octizys.Effects.Logger.Effect (LogLevel, Logger)
-import Octizys.Effects.Parser.Backend
-  ( makeInitialState
-  , makeParseErrorReport
-  )
-import Octizys.Effects.Parser.Interpreter
+import EffectfulParserCombinators.Interpreter
   ( runFullParser
   , runParser
   , runParserWith
   )
-import Octizys.Effects.SymbolResolution.Effect
-  ( SymbolResolution
-  , SymbolResolutionState
-  , getSymbolResolutionState
-  )
-import Octizys.Effects.SymbolResolution.Interpreter
-  ( SymbolResolutionError
-  , initialSymbolResolutionState
-  , runSymbolResolution
-  )
-import Octizys.Inference.ConstraintsGeneration (InferenceState)
-import Octizys.Inference.ConstraintsSolver (solveDefinitionsType)
-import Octizys.Parser.TopItem (parseModule)
-import Octizys.Pretty.FormatContext (Configuration)
-import Octizys.Pretty.Formatter (format)
-import Octizys.Report (Report)
+import EffectfulParserCombinators.Span (makeInitialPosition)
+import Octizys.Ast.Evaluation (EvaluationError)
+import qualified Octizys.Ast.Expression as Ast
+import qualified Octizys.Ast.Type as Ast
+
+-- import Octizys.Compiler.Format
+--   ( buildFormatContext
+--   , buildInferenceErrorReport
+--   , formatE
+--   )
+import Octizys.Effects.Console.Interpreter (putLine, runConsole)
+import Octizys.Effects.Logger.ConsoleInterpreter (runLog)
+import Octizys.Effects.Logger.Effect (LogLevel, Logger)
+
+-- import Octizys.FrontEnd.Cst.Expression (ExpressionVariableId)
+import Octizys.FrontEnd.Cst.TopItem (Module)
+
+-- import Octizys.Inference.ConstraintsGeneration (InferenceState)
+-- import Octizys.Inference.ConstraintsSolver (solveDefinitionsType)
+
+import Octizys.Common.Report (Report)
+import Octizys.FrontEnd.Parser.TopItem (parseModule)
+
+-- import Octizys.Pretty.FormatContext (Configuration)
+-- import Octizys.Pretty.Formatter (format)
 import Prettyprinter (Doc, Pretty (pretty))
 import qualified Prettyprinter
 import qualified Prettyprinter.Render.Text
 import Text.Show.Pretty (ppShow)
 
+
+compile :: NonEmpty FilePath -> LogLevel -> IO ()
+compile paths logLevel = undefined
 
 -- render :: forall a ann. (a -> Doc ann) -> a -> Text
 -- render prettifier =
@@ -99,45 +93,44 @@ import Text.Show.Pretty (ppShow)
 --
 --
 
-readSymbolResolution
-  :: SymbolResolution :> es
-  => Eff (Reader SymbolResolutionState : es) a
-  -> Eff es a
-readSymbolResolution action = do
-  st <- getSymbolResolutionState
-  runReader st action
-
-
-loadFile :: FilePath -> IO Text
-loadFile = Text.readFile
-
-
-parseFile
-  :: SymbolResolution :> es
-  => Configuration
-  -> FilePath
-  -> Text
-  -> Eff es (Either (Doc ann) Module)
-parseFile config name content = do
-  maybeModule <- run parseModule
-  case maybeModule of
-    Left e -> do
-      ctx <- readSymbolResolution $ buildFormatContext config
-      pure $
-        Left $
-          format
-            ctx
-            ( makeParseErrorReport
-                ctx
-                (NonEmpty.nonEmpty name)
-                content
-                e
-            )
-    Right (m, _) -> pure $ Right m
-  where
-    startState = makeInitialState content
-    run = runErrorNoCallStack <<< runParserWith startState
-
+-- readSymbolResolution
+--  :: SymbolResolution :> es
+--  => Eff (Reader SymbolResolutionState : es) a
+--  -> Eff es a
+-- readSymbolResolution action = do
+--  st <- getSymbolResolutionState
+--  runReader st action
+--
+--
+-- loadFile :: FilePath -> IO Text
+-- loadFile = Text.readFile
+--
+--
+-- parseFile
+--  :: SymbolResolution :> es
+--  => Configuration
+--  -> FilePath
+--  -> Text
+--  -> Eff es (Either (Doc ann) Module)
+-- parseFile config name content = do
+--  maybeModule <- run parseModule
+--  case maybeModule of
+--    Left e -> do
+--      ctx <- readSymbolResolution $ buildFormatContext config
+--      pure $
+--        Left $
+--          format
+--            ctx
+--            ( makeParseErrorReport
+--                ctx
+--                (NonEmpty.nonEmpty name)
+--                content
+--                e
+--            )
+--    Right (m, _) -> pure $ Right m
+--  where
+--    startState = makeInitialState content
+--    run = runErrorNoCallStack <<< runParserWith startState
 
 -- compileFile
 --   :: (SymbolResolution :> es,
@@ -152,9 +145,6 @@ parseFile config name content = do
 --   maybeDefs <- runErrorNoCallStack (solveDefinitionsType mod.definitions)
 --   case maybeDefs of
 --     Left e -> formatE config buildInferenceErrorReport e
-
-compile :: NonEmpty FilePath -> LogLevel -> IO ()
-compile paths logLevel = undefined
 
 --  mapM_ (run <<< void <<< compileFile) paths
 --  where

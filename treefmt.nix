@@ -13,4 +13,14 @@
   programs.beautysh.enable = true;
   # Override the default package
   programs.fourmolu.package = pkgs.haskellPackages.fourmolu;
+  programs.fourmolu.ghcOpts = [
+    "BangPatterns"
+    "PatternSynonyms"
+    "TypeApplications"
+    "OverloadedRecordDot"
+    "LambdaCase"
+    "NamedFieldPuns"
+    "NumericUnderscores"
+    "RecordWildCards"
+  ];
 }
