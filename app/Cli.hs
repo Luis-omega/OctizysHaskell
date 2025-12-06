@@ -42,7 +42,7 @@ parseLogLevel =
     ( long "logLevel"
         <> metavar "LOG_LEVEL"
         <> value Info
-        <> help "Set log level: debug, info, error (default: info)"
+        <> help "Set log level: debug, info, error (default: info)."
     )
 
 
@@ -117,7 +117,7 @@ parseCompileOptions =
             <$> some
               ( argument
                   str
-                  (metavar "FILE" <> help "Source file.")
+                  (metavar "FILE+" <> help "Source file.")
               )
         )
     <*> parseLogLevel

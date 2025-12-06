@@ -120,6 +120,8 @@ library
     Octizys.Effects.Accumulator.Interpreter
     Octizys.Effects.Console.Effect
     Octizys.Effects.Console.Interpreter
+    Octizys.Effects.FileReader.Effect
+    Octizys.Effects.FileReader.Interpreter
     Octizys.Effects.IdGenerator.Effect
     Octizys.Effects.IdGenerator.Interpreter
     Octizys.Effects.Logger.ConsoleInterpreter
@@ -245,18 +247,17 @@ test-suite octizys-test
   main-is:          Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules:
-    Octizys.Test.Effects.Parser
-    Octizys.Test.Parser.PrettyParse
+  other-modules:    Octizys.Test.Parser.PrettyParse
 
   -- Octizys.Test.Parser.PrettyParse
   -- Test dependencies.
   build-depends:
-    , base              ^>=4.18.2.1
+    , base                        ^>=4.18.2.1
     , containers
     , effectful
     , effectful-core
     , effectful-plugin
+    , EffectfulParserCombinators
     , octizys
     , prettyprinter
     , QuickCheck

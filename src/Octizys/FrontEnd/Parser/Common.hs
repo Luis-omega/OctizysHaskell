@@ -295,10 +295,21 @@ sourceVariableParserRaw
   :: Parser OctizysParseError :> es
   => Eff es SourceVariable
 sourceVariableParserRaw = do
-  name <- identifierOrKeywordRaw >>= toName
+  nameRaw <-
+    try $
+      withPredicate1
+        isNotKeyword
+        "keyword found expected identifier"
+        identifierOrKeywordRaw
+  name <- toName nameRaw
   names <- many $ do
     _ <- moduleSeparator <?> ('m' :| "odule separator")
-    localName <- identifierOrKeywordRaw
+    localName <-
+      try $
+        withPredicate1
+          isNotKeyword
+          "keyword found expected identifier"
+          identifierOrKeywordRaw
     toName localName
   let
     variable = case reverse names of

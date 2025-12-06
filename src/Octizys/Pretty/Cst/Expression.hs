@@ -114,7 +114,6 @@ formatParameters
             )
       )
       <> Pretty.line
-      <> pText "|-"
     where
       prettyArg (_, p) =
         pText ","
@@ -192,7 +191,7 @@ formatDefinitionTypeAnnotation
               )
           Just _ ->
             Pretty.group
-              ( pretty ','
+              ( pretty @Text "|-"
                   <> Pretty.line
                   <> Type.format fmtTvar ctx outputType
               )
@@ -289,6 +288,7 @@ formatExpression fmtEvar fmtTvar ctx e =
               <<< nest ctx
           )
             ( Pretty.line
+                <> pretty @Text "|-"
                 <> formatExpression
                   fmtEvar
                   fmtTvar
