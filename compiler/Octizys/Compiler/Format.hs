@@ -127,13 +127,13 @@ buildInferenceErrorReport ctx cst err =
                 ]
               )
         Inference.UnboundExpressionVar vid ->
-          ( "Unknow variable found, this is a bug, please report it!"
+          ( "Unknown variable found, this is a bug, please report it!"
           ,
             [ LongDescription'
                 { preDescription =
                     Just
                       ( pack
-                          ("Unknow variable: " <> show vid)
+                          ("Unknown variable: " <> show vid)
                       )
                 , source =
                     Just $ format ctx cst

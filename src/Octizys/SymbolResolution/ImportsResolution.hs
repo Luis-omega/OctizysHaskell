@@ -72,7 +72,7 @@ data SourceQualifier = SourceQualifier' Qualifier Span
   deriving (Show, Eq, Ord)
 
 
-{- | The objetive of this type is to facilitate the lookup of
+{- | The objective of this type is to facilitate the lookup of
 symbols and paths.
 
 Example:
