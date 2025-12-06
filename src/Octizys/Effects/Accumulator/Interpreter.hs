@@ -41,7 +41,7 @@ runAccumulator = interpret $ \_ x -> case x of
 
 
 runAccumulatorFull
-  :: forall es a acc
+  :: forall acc a es
    . HasCallStack
   => [acc]
   -> Eff (Accumulator acc : State (AccumulatorState acc) : es) a
