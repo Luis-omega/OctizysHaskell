@@ -11,13 +11,15 @@ import Effectful.TH (makeEffect)
 import Prettyprinter (Doc, Pretty (pretty))
 
 
-data LogLevel = Error | Debug | Info | Trace
+data LogLevel = Error | Debug | Info | Trace | Warn
   deriving (Show, Eq)
 
 
 instance Ord LogLevel where
   _ <= Error = True
   Error <= _ = False
+  _ <= Warn = True
+  Warn <= _ = False
   _ <= Info = True
   Info <= _ = False
   _ <= Debug = True
@@ -41,6 +43,13 @@ errorLog
   => Doc ann
   -> Eff es ()
 errorLog = logMessage Error
+
+
+warn
+  :: Logger :> es
+  => Doc ann
+  -> Eff es ()
+warn = logMessage Warn
 
 
 debug
