@@ -124,6 +124,8 @@ library
     Octizys.Effects.FileReader.Interpreter
     Octizys.Effects.IdGenerator.Effect
     Octizys.Effects.IdGenerator.Interpreter
+    Octizys.Effects.ListDir.Effect
+    Octizys.Effects.ListDir.Interpreter
     Octizys.Effects.Logger.ConsoleInterpreter
     Octizys.Effects.Logger.Effect
     Octizys.FrontEnd.Cst.Comment
