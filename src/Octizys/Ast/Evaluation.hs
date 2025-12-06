@@ -30,7 +30,7 @@ import qualified Prettyprinter as Pretty
 
 
 data EvaluationError
-  = UnknowExpressionVar
+  = UnknownExpressionVar
       ExpressionVariableId
       (Map ExpressionVariableId (Expression TypeVariable))
   | InvalidArgumentApplication (Expression TypeVariable)
@@ -38,7 +38,7 @@ data EvaluationError
 
 
 instance Formatter ann (FormatContext ann) EvaluationError where
-  format ctx (UnknowExpressionVar e mp) =
+  format ctx (UnknownExpressionVar e mp) =
     pretty @Text "Unknown expression id : "
       <> formatExpressionVar ctx e
       <> ", this is a bug, please report it."
@@ -135,7 +135,7 @@ evaluateExpression context Variable {name} =
   case Map.lookup name context of
     Just value ->
       evaluateExpression context value
-    Nothing -> throwError $ UnknowExpressionVar name context
+    Nothing -> throwError $ UnknownExpressionVar name context
 evaluateExpression
   context
   e@Application
