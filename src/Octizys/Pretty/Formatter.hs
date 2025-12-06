@@ -11,6 +11,7 @@ import qualified Octizys.Ast.Type as Ast
 import qualified Octizys.FrontEnd.Cst.Comment as Cst
 import qualified Octizys.FrontEnd.Cst.Expression as Cst
 import qualified Octizys.FrontEnd.Cst.Node as Cst
+import Octizys.FrontEnd.Cst.SourceInfo (SourceVariable)
 import qualified Octizys.FrontEnd.Cst.TopItem as Cst
 import qualified Octizys.FrontEnd.Cst.Type as Cst
 import qualified Octizys.Pretty.Ast.Expression as Ast.Expression
@@ -29,6 +30,10 @@ class Formatter ann env t | env -> ann where
 
 
 instance Formatter ann (FormatContext ann) Text where
+  format _ = pretty
+
+
+instance Formatter ann (FormatContext ann) SourceVariable where
   format _ = pretty
 
 

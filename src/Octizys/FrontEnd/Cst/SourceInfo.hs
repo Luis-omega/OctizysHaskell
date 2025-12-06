@@ -6,6 +6,7 @@ import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath)
 import Octizys.Common.Name (Name)
 import Octizys.FrontEnd.Cst.Comment (Comment)
+import Prettyprinter (Pretty (pretty))
 
 
 data SourceInfo = SourceInfo'
@@ -37,3 +38,10 @@ instance From SourceVariable ([Name], Name) where
               Just (from (p NonEmpty.:| remain))
           , name
           }
+
+
+instance Pretty SourceVariable where
+  pretty sv =
+    case sv.qualifier of
+      Just qual -> pretty qual <> pretty '/' <> pretty sv.name
+      Nothing -> pretty sv.name
