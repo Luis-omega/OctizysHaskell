@@ -55,6 +55,7 @@ import Octizys.FrontEnd.Parser.TopItem (parseModule)
 
 import Control.Exception (IOException)
 import Data.Either (partitionEithers)
+import Data.Functor (($>))
 import EffectfulParserCombinators.Error (ParserError, humanReadableError)
 import GHC.Base (when)
 import Octizys.Ast.Type (TypeVariable)
@@ -117,7 +118,7 @@ parseAndMakeDependencyTree
   => FileReader :> e
   => Logger :> e
   => [FilePath]
-  -> Eff e ([Module SourceVariable SourceVariable], DependencyTree)
+  -> Eff e (DependencyTree, [Module SourceVariable SourceVariable])
 parseAndMakeDependencyTree paths = do
   info (pretty ("Compiling paths " <> show paths))
   maybeSourceCodes <-
@@ -153,7 +154,7 @@ parseAndMakeDependencyTree paths = do
     (accumulate @OctizysError)
   -- TODO: add the file path to the module data type and don't
   -- discard it here.
-  pure (snd <$> csts, DependencyTree)
+  pure (DependencyTree, snd <$> csts)
   where
     partition :: [(p, Either a b)] -> ([(p, a)], [(p, b)])
     partition v = partitionAux v [] []
@@ -174,10 +175,10 @@ solveSymbols
   -> [Module SourceVariable SourceVariable]
   -> Eff
       e
-      ([Module ExpressionVariableId TypeVariableId], SymbolResolutionEnvironment)
+      (SymbolResolutionEnvironment, [Module ExpressionVariableId TypeVariableId])
 solveSymbols _ _ = do
   info (pretty @Text "Solving symbols")
-  pure ([], SymbolResolutionEnvironment)
+  pure (SymbolResolutionEnvironment, [])
 
 
 typeCheckAndInference
@@ -189,10 +190,10 @@ typeCheckAndInference
   -> [Module ExpressionVariableId TypeVariableId]
   -> Eff
       e
-      ([AstModule TypeVariable], InferredTypesEnvironment)
+      (InferredTypesEnvironment, [AstModule TypeVariable])
 typeCheckAndInference _ _ = do
   info (pretty @Text "Inferring and checking types")
-  pure ([], InferredTypesEnvironment)
+  pure (InferredTypesEnvironment, [])
 
 
 generateCode
@@ -200,10 +201,10 @@ generateCode
   => Logger :> e
   => InferredTypesEnvironment
   -> [AstModule TypeVariable]
-  -> Eff e ()
+  -> Eff e ((), ())
 generateCode _ _ = do
   info (pretty @Text "Generating Code")
-  pure ()
+  pure ((), ())
 
 
 logErrors
@@ -231,18 +232,32 @@ compileEffectful
   -> Eff e ()
 compileEffectful paths =
   throwOrAdvance
-    generateCode
-    ( throwOrAdvance
-        typeCheckAndInference
-        (throwOrAdvance solveSymbols $ parseAndMakeDependencyTree (toList paths))
-    )
+    (parseAndMakeDependencyTree (toList paths))
+    (merge solveSymbols (merge typeCheckAndInference generateCode))
+    $> ()
   where
-    throwOrAdvance nextStep currentStep = do
-      ((modules, environment), errors) <-
+    -- merge :: Accumulator OctizysError :>e => (a -> b -> Eff e (modul,env)) -> (env->modul-> Eff e (modul2,env2)) -> (a -> b -> Eff e (modul2,env2))
+    merge f1 f2 mod1 env1 = throwOrAdvance (f1 mod1 env1) f2
+
+    throwOrAdvance currentStep nextStep = do
+      ((environment, modules), errors) <-
         runAccumulatorFull @OctizysError [] currentStep
       unless (null errors) (throwError errors)
       nextStep environment modules
 
+
+--  throwOrAdvance
+--    generateCode
+--    ( throwOrAdvance
+--        typeCheckAndInference
+--        (throwOrAdvance solveSymbols $ parseAndMakeDependencyTree (toList paths))
+--    )
+--  where
+--    throwOrAdvance nextStep currentStep = do
+--      ((modules, environment), errors) <-
+--        runAccumulatorFull @OctizysError [] currentStep
+--      unless (null errors) (throwError errors)
+--      nextStep environment modules
 
 compile :: NonEmpty FilePath -> LogLevel -> IO ()
 compile paths level =
@@ -367,8 +382,7 @@ compile paths level =
 --          <<< runSymbolResolution
 
 -- newtype DefinedSymbols = DefinedSymbols'
---  { definedSymbols :: Map ExpressionVariableId Ast.Expression
---  }
+--
 --  deriving
 --    ( Show
 --    , Eq
