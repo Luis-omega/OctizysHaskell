@@ -64,7 +64,7 @@ common warnings
   else
     ghc-options: -Wall -Werror -Wno-prepositive-qualified-module
 
-common common_plugings
+common common_plugins
   ghc-options: -fplugin=Effectful.Plugin
 
 common common_extensions
@@ -96,7 +96,7 @@ library
   import:
     warnings,
     common_extensions,
-    common_plugings
+    common_plugins
 
   -- ghc-options: -fplugin=Effectful.Plugin
 
@@ -139,7 +139,7 @@ test-suite EffectfulParserCombinators-test
   import:
     warnings,
     common_extensions,
-    common_plugings
+    common_plugins
 
   -- Base language which the package is written in.
   default-language: Haskell2010
