@@ -19,5 +19,6 @@ main = do
     execParser
       (info (parseArguments <**> helper) fullDesc)
   case command of
-    ReplCmd opts -> print "repl disabled" -- runRepl opts
-    CompileCmd (CompileOptions {logLevel = _logLevel, files = _files}) -> compile _files _logLevel
+    ReplCmd _opts -> print @String "repl disabled" -- runRepl opts
+    CompileCmd (CompileOptions {logLevel = _logLevel, files = _files}) ->
+      compile _files _logLevel
