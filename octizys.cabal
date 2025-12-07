@@ -103,7 +103,6 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
-    Octizys.Ast.Evaluation
     Octizys.Ast.Expression
     Octizys.Ast.Node
     Octizys.Ast.Type
@@ -148,9 +147,11 @@ library
     Octizys.Pretty.Formatter
     Octizys.Pretty.Markup
     Octizys.Scope
+    Octizys.StaticLog
     Octizys.SymbolResolution.ImportsResolution
     Octizys.SymbolResolution.MakeUniqueIds
 
+  -- Octizys.Ast.Evaluation
   --Octizys.Inference.ConstraintsGeneration
   --Octizys.Inference.ConstraintsSolver
   --Octizys.Inference.Errors

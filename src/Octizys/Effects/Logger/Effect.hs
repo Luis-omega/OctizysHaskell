@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -6,13 +7,15 @@
 module Octizys.Effects.Logger.Effect where
 
 import Control.Arrow ((<<<))
+import Data.Text (Text)
 import Effectful (Eff, Effect, (:>))
 import Effectful.TH (makeEffect)
+import Language.Haskell.TH.Syntax (Lift)
 import Prettyprinter (Doc, Pretty (pretty))
 
 
 data LogLevel = Error | Debug | Info | Trace | Warn
-  deriving (Show, Eq)
+  deriving (Show, Eq, Lift)
 
 
 instance Ord LogLevel where
@@ -31,43 +34,17 @@ instance Pretty LogLevel where
   pretty = pretty <<< show
 
 
+data LogEntry = LogEntry'
+  { logLevel :: LogLevel
+  , fileName :: Text
+  , line :: Int
+  , message :: Text
+  }
+  deriving (Eq, Ord, Show, Lift)
+
+
 data Logger :: Effect where
-  LogMessage :: LogLevel -> Doc ann -> Logger m ()
+  LogMessage :: LogEntry -> Logger m ()
 
 
 $(makeEffect ''Logger)
-
-
-errorLog
-  :: Logger :> es
-  => Doc ann
-  -> Eff es ()
-errorLog = logMessage Error
-
-
-warn
-  :: Logger :> es
-  => Doc ann
-  -> Eff es ()
-warn = logMessage Warn
-
-
-debug
-  :: Logger :> es
-  => Doc ann
-  -> Eff es ()
-debug = logMessage Debug
-
-
-info
-  :: Logger :> es
-  => Doc ann
-  -> Eff es ()
-info = logMessage Info
-
-
-traceLog
-  :: Logger :> es
-  => Doc ann
-  -> Eff es ()
-traceLog = logMessage Trace

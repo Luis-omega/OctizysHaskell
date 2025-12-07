@@ -18,7 +18,6 @@ import EffectfulParserCombinators.Error (ParserError)
 import EffectfulParserCombinators.ParserState (ParserState)
 
 
--- | Effect for generating fresh integers with phantom types
 data Parser e :: Effect where
   ThrowParseError :: ParserError e -> Parser e m a
   CatchParseError

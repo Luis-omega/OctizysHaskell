@@ -102,7 +102,9 @@ data TopItem
 
 
 data Module evar tvar = Module'
-  { imports :: [(ImportModule, SourceInfo)]
+  { systemPath :: FilePath
+  , logicPath :: LogicPath
+  , imports :: [(ImportModule, SourceInfo)]
   , definitions :: [(Definition evar tvar, SourceInfo)]
   -- ^ The @SourceInfo@ is for the colon
   , lastComments :: Maybe SourceInfo

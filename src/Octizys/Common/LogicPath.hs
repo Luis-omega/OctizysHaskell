@@ -2,11 +2,13 @@ module Octizys.Common.LogicPath
   ( LogicPath
   , makeLogicPath
   , addAtEnd
+  , singleton
   ) where
 
 import Data.List.NonEmpty (NonEmpty, toList)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
+import GHC.Base (NonEmpty ((:|)))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Name (Name)
 import Prettyprinter (Pretty (pretty))
@@ -32,10 +34,13 @@ instance From (NonEmpty Name) LogicPath where
 
 
 instance Pretty LogicPath where
-  pretty lp =
-    let withSeparator =
-          ((\x -> pretty x <> pretty '/') <$> toList lp.logicPathRaw)
-     in pretty '/' <> foldl (<>) mempty withSeparator
+  pretty (LogicPath' names) =
+    case names of
+      onlyName :| [] -> pretty onlyName
+      other ->
+        let withSeparator =
+              ((\x -> pretty x <> pretty '/') <$> other)
+         in foldl (<>) mempty withSeparator
 
 
 -- | Adds the given name at the end of a logic path.
@@ -46,3 +51,7 @@ addAtEnd name p =
         p.logicPathRaw
         [name]
     )
+
+
+singleton :: Name -> LogicPath
+singleton name = LogicPath' (name NonEmpty.:| [])

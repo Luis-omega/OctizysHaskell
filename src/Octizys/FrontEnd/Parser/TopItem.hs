@@ -11,7 +11,7 @@ import EffectfulParserCombinators.Combinators
   , (<|>)
   )
 import EffectfulParserCombinators.Effect (Parser)
-import Octizys.Common.LogicPath (addAtEnd)
+import Octizys.Common.LogicPath (LogicPath, addAtEnd)
 import Octizys.FrontEnd.Cst.Expression (Definition)
 import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo
@@ -35,7 +35,14 @@ import Octizys.FrontEnd.Cst.TopItem
     , unqualified
     , _import
     )
-  , Module (Module', definitions, imports, lastComments)
+  , Module
+    ( Module'
+    , definitions
+    , imports
+    , lastComments
+    , logicPath
+    , systemPath
+    )
   , ModulePath (ModuleLogicPath, ModuleVarPath)
   , TopItem
     ( TopDefinition
@@ -143,8 +150,12 @@ parseTopItem = do
 
 parseModule
   :: Parser OctizysParseError :> es
-  => Eff es (Module SourceVariable SourceVariable)
-parseModule = do
+  => FilePath
+  -> LogicPath
+  -- ^ The file system path of the file, this won't load the file, is just for information.
+  -> Eff es (Module SourceVariable SourceVariable)
+  -- ^ The logic path of the file, is determined previous to this step.
+parseModule systemPath logicPath = do
   items <- many parseTopItem
   let (definitions, imports) = splitItems items ([], [])
   lastCommentsRaw <- hidden comments
@@ -152,7 +163,9 @@ parseModule = do
     [] ->
       pure
         Module'
-          { lastComments = Nothing
+          { systemPath
+          , logicPath
+          , lastComments = Nothing
           , definitions
           , imports
           }
@@ -164,7 +177,9 @@ parseModule = do
               Nothing
        in pure
             Module'
-              { lastComments = Just lastCommentsJust
+              { systemPath
+              , logicPath
+              , lastComments = Just lastCommentsJust
               , definitions
               , imports
               }
