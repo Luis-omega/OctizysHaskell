@@ -5,7 +5,7 @@ module Octizys.Test.Parser.PrettyParse (tests) where
 
 import Control.Arrow ((<<<))
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Effectful (Eff, runPureEff)
@@ -16,6 +16,8 @@ import EffectfulParserCombinators.Effect (Parser)
 import EffectfulParserCombinators.Error (ParserError, humanReadableError)
 import EffectfulParserCombinators.Interpreter (runFullParser)
 import EffectfulParserCombinators.ParserState (ParserState)
+import qualified Octizys.Common.LogicPath as LogicPath
+import Octizys.Common.Name (makeName)
 import Octizys.FrontEnd.Parser.Common
   ( OctizysParseError
   , comment
@@ -226,7 +228,10 @@ tests =
             "single definition"
             "add_one: n:Int, m:Int, j:Int |- Int = addition n 1;"
             Nothing
-            parseModule
+            ( parseModule
+                "src/ModuleTest.oct"
+                (LogicPath.singleton $ fromJust $ makeName "ModuleTest")
+            )
         ]
     ]
 
