@@ -8,7 +8,7 @@ module Cli
 import qualified Data.Char as Char
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
-import Octizys.Effects.Logger.Effect (LogLevel (Debug, Error, Info, Trace))
+import Octizys.Logging.Levels (Level (Debug, Error, Info, Trace))
 import Octizys.Pretty.FormatContext (Configuration, makeConfiguration)
 import Options.Applicative
 
@@ -20,7 +20,7 @@ data Command
 
 
 data ReplOptions = ReplOptions
-  { logLevel :: LogLevel
+  { logLevel :: Level
   , showCst :: Bool
   , showInference :: Bool
   , formatterConfig :: Configuration
@@ -30,15 +30,15 @@ data ReplOptions = ReplOptions
 
 data CompileOptions = CompileOptions
   { files :: NonEmpty FilePath
-  , logLevel :: LogLevel
+  , logLevel :: Level
   }
   deriving (Show)
 
 
-parseLogLevel :: Parser LogLevel
-parseLogLevel =
+parseLevel :: Parser Level
+parseLevel =
   option
-    (eitherReader readLogLevel)
+    (eitherReader readLevel)
     ( long "logLevel"
         <> metavar "LOG_LEVEL"
         <> value Info
@@ -46,8 +46,8 @@ parseLogLevel =
     )
 
 
-readLogLevel :: String -> Either String LogLevel
-readLogLevel s = case map toLower s of
+readLevel :: String -> Either String Level
+readLevel s = case map toLower s of
   "trace" -> Right Trace
   "debug" -> Right Debug
   "info" -> Right Info
@@ -101,7 +101,7 @@ parseFormatterConfiguration =
 parseReplOptions :: Parser ReplOptions
 parseReplOptions =
   ReplOptions
-    <$> parseLogLevel
+    <$> parseLevel
     <*> switch (long "showCst" <> help "Displays the Cst after parsing.")
     <*> switch
       ( long "showAst"
@@ -121,4 +121,4 @@ parseCompileOptions =
                   (metavar "FILE+" <> help "Source file.")
               )
         )
-    <*> parseLogLevel
+    <*> parseLevel

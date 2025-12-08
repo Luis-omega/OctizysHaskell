@@ -36,11 +36,12 @@ import Prettyprinter.Render.Text (renderStrict)
 --   , formatE
 --   )
 import Octizys.Effects.Console.Interpreter (runConsole)
-import Octizys.Effects.Logger.ConsoleInterpreter (runLog)
-import Octizys.Effects.Logger.Effect (LogLevel, Logger)
+import Octizys.Logging.Effect (Log)
+import Octizys.Logging.Interpreters.Console (runLog)
+import Octizys.Logging.Levels (Level)
 
 -- import Octizys.FrontEnd.Cst.Expression (ExpressionVariableId)
-import Octizys.FrontEnd.Cst.TopItem (Module)
+import Octizys.FrontEnd.Cst.TopItem (Module (logicPath, systemPath))
 
 -- import Octizys.Inference.ConstraintsGeneration (InferenceState)
 -- import Octizys.Inference.ConstraintsSolver (solveDefinitionsType)
@@ -67,14 +68,22 @@ import qualified Octizys.Effects.FileReader.Effect as FileReader
 import Octizys.Effects.FileReader.Interpreter (runFileReader)
 import Octizys.FrontEnd.Cst.SourceInfo (SourceVariable)
 import Octizys.FrontEnd.Parser.Common (OctizysParseError)
-import Octizys.StaticLog (logError, logInfo, logTrace, logWarn)
 import Prettyprinter (Pretty (pretty), defaultLayoutOptions, layoutPretty)
 import qualified Prettyprinter as Pretty
+
+import Octizys.Logging.Entry (field, fieldWithPretty)
+import qualified Octizys.Logging.Loggers as Log
+import Octizys.Pretty.FormatContext (defaultFormatContext)
+import Octizys.Pretty.Formatter (Formatter (format))
 
 
 -- TODO:STUB
 data PathIndexError = PathIndexError'
   deriving (Show, Eq, Ord)
+
+
+instance Pretty PathIndexError where
+  pretty x = pretty $ show x
 
 
 -- TODO:STUB
@@ -84,6 +93,10 @@ logic paths and system paths
 -}
 data PathIndex = PathIndex'
   deriving (Show, Eq, Ord)
+
+
+instance Pretty PathIndex where
+  pretty x = pretty $ show x
 
 
 -- TODO:STUB
@@ -104,33 +117,28 @@ render =
 -- TODO:STUB
 lookupSystemPath
   :: Error PathIndexError :> e
-  => Logger :> e
+  => Log :> e
   => PathIndex
   -> FilePath
   -> Eff e LogicPath
 lookupSystemPath _ systemPath = do
-  $(logTrace) (Text.pack ("Search of logic path for: " <> systemPath))
+  Log.trace "Search of logic path" [field "system path" systemPath]
   let maybeLogicPath = LogicPath.singleton <$> makeName "StubName"
   case maybeLogicPath of
     Just logicPath -> do
-      $(logTrace)
-        ( render
-            ( pretty ("Found logic path for: " <> systemPath <> ", is ")
-                <> pretty logicPath
-            )
-        )
-      $(logTrace)
-        (render (pretty ("Search of logic path for:" <> systemPath <> ", ends")))
+      Log.trace
+        "Search of logic path ended"
+        [ field "system path" systemPath
+        , field "logic path" logicPath
+        ]
       pure logicPath
     Nothing -> do
-      $(logError)
-        ( render
-            (pretty ("No logic path found for : " <> systemPath))
-        )
-      $(logTrace)
-        ( render
-            (pretty ("Search of logic path for:" <> systemPath <> ", ends"))
-        )
+      Log.error
+        "No logic path found"
+        [field "systemPath path" systemPath]
+      Log.trace
+        "Search of logic path ended"
+        [field "system path" systemPath]
       throwError
         PathIndexError'
 
@@ -175,11 +183,16 @@ instance Pretty OctizysError where
     humanReadableError Nothing src parseError
   pretty (OctizysFileReadError e) = pretty e
   pretty (OctizysLogicPathError e) = pretty e
+  pretty (OctizysPathIndexError e) = pretty e
 
 
 -- TODO:STUB
 data OctizysWarn = OctizysWarn
   deriving (Show, Eq, Ord)
+
+
+instance Pretty OctizysWarn where
+  pretty x = pretty $ show x
 
 
 -- TODO:STUB
@@ -195,9 +208,14 @@ data DependencyTree = DependencyTree
   deriving (Show, Eq, Ord)
 
 
+-- TODO: find a better instance!
+instance Pretty DependencyTree where
+  pretty (DependencyTree _ _) = ""
+
+
 -- TODO:STUB
 makeEmptyDependencyTree :: RootPaths -> PathIndex -> DependencyTree
-makeEmptyDependencyTree = undefined
+makeEmptyDependencyTree rp pi = DependencyTree rp pi
 
 
 -- TODO:STUB
@@ -238,41 +256,61 @@ parseFile
   => Accumulator OctizysWarn :> e
   => Error OctizysError :> e
   => FileReader :> e
-  => Logger :> e
+  => Log :> e
   => FilePath
   -> LogicPath
   -> Eff e (Module SourceVariable SourceVariable)
 parseFile spath lpath = do
-  $(logTrace) (render (pretty ("Starting file parser IO: " <> spath)))
-  $(logTrace) (render (pretty ("Obtaining file: " <> spath)))
+  Log.trace
+    "Starting file parser IO"
+    [ field "logic path" lpath
+    , field "system path" spath
+    ]
+  Log.trace
+    "Obtaining file"
+    [ field "logic path" lpath
+    , field "system path" spath
+    ]
   sourceCode <-
     fromRightOrThrow (first (from @OctizysError) <$> FileReader.readFile spath)
-  $(logTrace) (render (pretty ("File obtained: " <> spath)))
-  $(logTrace) (render (pretty ("Parsing file: " <> spath)))
+  Log.trace
+    "File obtained"
+    [ field "logic path" lpath
+    , field "system path" spath
+    ]
+  Log.trace
+    "Parsing file"
+    [ field "logic path" lpath
+    , field "system path" spath
+    ]
   out <-
     fromRightOrThrow
       ( first (OctizysParserError spath sourceCode)
           <$> runFullParser sourceCode (parseModule spath lpath)
       )
-  $(logTrace) (render (pretty ("File parsed: " <> spath)))
-  $(logTrace) (render (pretty ("Finish file parser IO: " <> spath)))
+  Log.trace
+    "File parsed"
+    [ field "logic path" lpath
+    , field "system path" spath
+    ]
+  Log.trace
+    "Finish file parser IO"
+    [ field "logic path" lpath
+    , field "system path" spath
+    ]
   pure out
 
 
 -- TODO:STUB
 buildPathIndex
   :: Accumulator OctizysWarn :> e
-  => Logger :> e
+  => Log :> e
   => RootPaths
   -> Eff e PathIndex
 buildPathIndex rootPaths = do
-  $(logInfo) (render (pretty @Text "Build of dependency tree start"))
-  $(logTrace)
-    ( render
-        (pretty @Text "RootPaths to build dependency tree:" <> pretty rootPaths)
-    )
+  Log.info "Build of dependency tree start" [field "root paths" rootPaths]
   let tree = PathIndex'
-  $(logInfo) (render (pretty @Text "Build of dependency tree ends"))
+  Log.info "Build of dependency tree end" [field "root paths" rootPaths]
   pure tree
 
 
@@ -289,21 +327,32 @@ parseAndMakeDependencyTree
   => Accumulator OctizysWarn :> e
   => Accumulator OctizysError :> e
   => FileReader :> e
-  => Logger :> e
+  => Log :> e
   => [FilePath]
   -> RootPaths
   -> PathIndex
   -> Eff e (DependencyTree, [Module SourceVariable SourceVariable])
 parseAndMakeDependencyTree pathsToFilesToCompile rootPaths pathIndex = do
-  $(logInfo)
-    ( render
-        (pretty @Text "Start parsing an making dependency tree based on index")
-    )
+  Log.info
+    "Start parsing an making dependency tree based on index"
+    [ field "initial paths to compile" pathsToFilesToCompile
+    , field "root paths" rootPaths
+    , field "path index" pathIndex
+    ]
   result <-
     loop pathsToFilesToCompile [] (makeEmptyDependencyTree rootPaths pathIndex)
 
-  $(logTrace)
-    (render (pretty @Text "Finished parsing and making dependency tree"))
+  Log.info
+    "Finished parsing and making dependency tree"
+    [ field "initial paths to compile" pathsToFilesToCompile
+    , field "root paths" rootPaths
+    , field "path index" pathIndex
+    , field "dependency tree" (fst result)
+    , fieldWithPretty
+        (\x -> Pretty.list (format defaultFormatContext <$> x))
+        "modules"
+        (snd result)
+    ]
   pure result
   where
     loop [] modules tree = pure (tree, modules)
@@ -356,14 +405,15 @@ solveSymbols
   :: Reader CompilerConfig :> e
   => Accumulator OctizysWarn :> e
   => Accumulator OctizysError :> e
-  => Logger :> e
+  => Log :> e
   => DependencyTree
   -> [Module SourceVariable SourceVariable]
   -> Eff
       e
       (SymbolResolutionEnvironment, [Module ExpressionVariableId TypeVariableId])
 solveSymbols _ _ = do
-  $(logInfo) (render (pretty @Text "Solving symbols"))
+  Log.info "Symbol solver starts" []
+  Log.info "Symbol solver ends" []
   pure (SymbolResolutionEnvironment, [])
 
 
@@ -371,41 +421,45 @@ typeCheckAndInference
   :: Reader CompilerConfig :> e
   => Accumulator OctizysWarn :> e
   => Accumulator OctizysError :> e
-  => Logger :> e
+  => Log :> e
   => SymbolResolutionEnvironment
   -> [Module ExpressionVariableId TypeVariableId]
   -> Eff
       e
       (InferredTypesEnvironment, [AstModule TypeVariable])
 typeCheckAndInference _ _ = do
-  $(logInfo) (render (pretty @Text "Inferring and checking types"))
+  Log.info "Type check and type inference starts" []
+  Log.info "Type check and type inference ends" []
   pure (InferredTypesEnvironment, [])
 
 
 generateCode
   :: Reader CompilerConfig :> e
-  => Logger :> e
+  => Log :> e
   => InferredTypesEnvironment
   -> [AstModule TypeVariable]
   -> Eff e ((), ())
 generateCode _ _ = do
-  $(logInfo) (render (pretty @Text "Generating Code"))
+  Log.info "Code generation ends" []
+  Log.info "Code generation ends" []
   pure ((), ())
 
 
+-- TODO: add structure to errors so we can log them better
 logErrors
-  :: Logger :> e
+  :: Log :> e
   => [OctizysError]
   -> Eff e ()
-logErrors errors =
-  $(logError) (render (pretty errors))
+logErrors = mapM_ (\x -> Log.error "Error" [field "error message" x])
 
 
+-- TODO: add structure to warns so we can log them better
 logWarns
-  :: Logger :> e
+  :: Log :> e
   => [OctizysWarn]
   -> Eff e ()
-logWarns _ = $(logWarn) (render (pretty @Text "Logging Warns!"))
+logWarns =
+  mapM_ (\x -> Log.warn "Warn" [field "warn message" x])
 
 
 compileEffectful
@@ -413,7 +467,7 @@ compileEffectful
   => Accumulator OctizysWarn :> e
   => Error [OctizysError] :> e
   => FileReader :> e
-  => Logger :> e
+  => Log :> e
   => NonEmpty FilePath
   -> RootPaths
   -> Eff e ()
@@ -446,7 +500,7 @@ compileEffectful paths rootPaths = do
 --      unless (null errors) (throwError errors)
 --      nextStep environment modules
 
-compile :: NonEmpty FilePath -> LogLevel -> RootPaths -> IO ()
+compile :: NonEmpty FilePath -> Level -> RootPaths -> IO ()
 compile paths level rootPaths =
   runEff
     ( runFileReader
@@ -590,7 +644,7 @@ compile paths level rootPaths =
 --     , State Inference.InferenceState :> es
 --     , Error EvaluationError :> es
 --     , State DefinedSymbols :> es
---     , Logger :> es
+--     , Log :> es
 --     )
 --  => FilePath
 --  -> Eff es Ast.Type

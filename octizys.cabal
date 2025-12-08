@@ -125,8 +125,6 @@ library
     Octizys.Effects.IdGenerator.Interpreter
     Octizys.Effects.ListDir.Effect
     Octizys.Effects.ListDir.Interpreter
-    Octizys.Effects.Logger.ConsoleInterpreter
-    Octizys.Effects.Logger.Effect
     Octizys.FrontEnd.Cst.Comment
     Octizys.FrontEnd.Cst.Expression
     Octizys.FrontEnd.Cst.Node
@@ -137,6 +135,11 @@ library
     Octizys.FrontEnd.Parser.Expression
     Octizys.FrontEnd.Parser.TopItem
     Octizys.FrontEnd.Parser.Type
+    Octizys.Logging.Effect
+    Octizys.Logging.Entry
+    Octizys.Logging.Interpreters.Console
+    Octizys.Logging.Levels
+    Octizys.Logging.Loggers
     Octizys.Pretty.Ast.Expression
     Octizys.Pretty.Ast.Type
     Octizys.Pretty.Cst.Comment
@@ -147,7 +150,6 @@ library
     Octizys.Pretty.Formatter
     Octizys.Pretty.Markup
     Octizys.Scope
-    Octizys.StaticLog
     Octizys.SymbolResolution.ImportsResolution
     Octizys.SymbolResolution.MakeUniqueIds
 
