@@ -7,7 +7,6 @@
 module Octizys.Compiler.Compiler
   ( compile
   , CompilerConfig (CompilerConfig')
-  , RootPaths (RootPaths')
   ) where
 
 import Control.Arrow ((<<<))
@@ -73,39 +72,19 @@ import qualified Prettyprinter as Pretty
 
 import Octizys.Logging.Entry (field, fieldWithPretty)
 import qualified Octizys.Logging.Loggers as Log
+import Octizys.PathResolution.DependencyTree
+  ( DependencyTree
+  , makeEmptyDependencyTree
+  )
+import Octizys.PathResolution.PathIndex
+  ( PathIndex
+  , PathIndexError
+  , RootPaths
+  , lookupSystemPath
+  , makePathIndex
+  )
 import Octizys.Pretty.FormatContext (defaultFormatContext)
 import Octizys.Pretty.Formatter (Formatter (format))
-
-
--- TODO:STUB
-data PathIndexError = PathIndexError'
-  deriving (Show, Eq, Ord)
-
-
-instance Pretty PathIndexError where
-  pretty x = pretty $ show x
-
-
--- TODO:STUB
-
-{- | This storages the needed information to exchange between
-logic paths and system paths
--}
-data PathIndex = PathIndex'
-  deriving (Show, Eq, Ord)
-
-
-instance Pretty PathIndex where
-  pretty x = pretty $ show x
-
-
--- TODO:STUB
-lookupLogicPath
-  :: Error PathIndexError :> e
-  => PathIndex
-  -> LogicPath
-  -> Eff e FilePath
-lookupLogicPath = undefined
 
 
 render :: Doc ann -> Text
@@ -114,57 +93,9 @@ render =
     <<< layoutPretty defaultLayoutOptions
 
 
--- TODO:STUB
-lookupSystemPath
-  :: Error PathIndexError :> e
-  => Log :> e
-  => PathIndex
-  -> FilePath
-  -> Eff e LogicPath
-lookupSystemPath _ systemPath = do
-  Log.trace "Search of logic path" [field "system path" systemPath]
-  let maybeLogicPath = LogicPath.singleton <$> makeName "StubName"
-  case maybeLogicPath of
-    Just logicPath -> do
-      Log.trace
-        "Search of logic path ended"
-        [ field "system path" systemPath
-        , field "logic path" logicPath
-        ]
-      pure logicPath
-    Nothing -> do
-      Log.error
-        "No logic path found"
-        [field "systemPath path" systemPath]
-      Log.trace
-        "Search of logic path ended"
-        [field "system path" systemPath]
-      throwError
-        PathIndexError'
-
-
--- TODO:STUB
-data LogicPathError
-  = LogicPathNotFound FilePath
-  deriving (Show, Eq)
-
-
-instance Pretty LogicPathError where
-  pretty (LogicPathNotFound path) =
-    pretty @Text
-      "Error, file is not part of the project or it's dependences, file:"
-      <> Pretty.hardline
-      <> Pretty.nest 4 (pretty path)
-      <> Pretty.hardline
-
-
--- <> Pretty.nest 4 "lookup done on files:"
--- <> Pretty.nest 4 (pretty roots)
-
 data OctizysError
   = OctizysParserError FilePath Text (ParserError OctizysParseError)
   | OctizysFileReadError FileReadError
-  | OctizysLogicPathError LogicPathError
   | OctizysPathIndexError PathIndexError
   deriving (Show, Eq)
 
@@ -173,16 +104,11 @@ instance From OctizysError FileReadError where
   from = OctizysFileReadError
 
 
-instance From OctizysError LogicPathError where
-  from = OctizysLogicPathError
-
-
 -- TODO:STUB
 instance Pretty OctizysError where
   pretty (OctizysParserError _ src parseError) =
     humanReadableError Nothing src parseError
   pretty (OctizysFileReadError e) = pretty e
-  pretty (OctizysLogicPathError e) = pretty e
   pretty (OctizysPathIndexError e) = pretty e
 
 
@@ -201,24 +127,6 @@ data CompilerConfig = CompilerConfig'
 
 
 -- TODO:STUB
-data DependencyTree = DependencyTree
-  { rootPaths :: RootPaths
-  , pathIndex :: PathIndex
-  }
-  deriving (Show, Eq, Ord)
-
-
--- TODO: find a better instance!
-instance Pretty DependencyTree where
-  pretty (DependencyTree _ _) = ""
-
-
--- TODO:STUB
-makeEmptyDependencyTree :: RootPaths -> PathIndex -> DependencyTree
-makeEmptyDependencyTree rp pi = DependencyTree rp pi
-
-
--- TODO:STUB
 data AstModule a = AstModule
 
 
@@ -228,16 +136,6 @@ data SymbolResolutionEnvironment = SymbolResolutionEnvironment
 
 -- TODO:STUB
 data InferredTypesEnvironment = InferredTypesEnvironment
-
-
--- TODO:STUB
-newtype RootPaths = RootPaths' {unRootPaths :: [FilePath]}
-  deriving (Show, Eq, Ord)
-
-
--- TODO:STUB
-instance Pretty RootPaths where
-  pretty (RootPaths' rs) = pretty rs
 
 
 fromRightOrThrow
@@ -309,7 +207,7 @@ buildPathIndex
   -> Eff e PathIndex
 buildPathIndex rootPaths = do
   Log.info "Build of dependency tree start" [field "root paths" rootPaths]
-  let tree = PathIndex'
+  let tree = makePathIndex rootPaths
   Log.info "Build of dependency tree end" [field "root paths" rootPaths]
   pure tree
 

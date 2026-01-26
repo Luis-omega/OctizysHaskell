@@ -140,6 +140,8 @@ library
     Octizys.Logging.Interpreters.Console
     Octizys.Logging.Levels
     Octizys.Logging.Loggers
+    Octizys.PathResolution.DependencyTree
+    Octizys.PathResolution.PathIndex
     Octizys.Pretty.Ast.Expression
     Octizys.Pretty.Ast.Type
     Octizys.Pretty.Cst.Comment
