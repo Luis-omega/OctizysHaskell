@@ -15,11 +15,15 @@ import Effectful.TH (makeEffect)
 import Prettyprinter (Pretty, pretty)
 import Prelude hiding (readFile)
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 data FileReadError
   = FileNotFound FilePath
   | FileOtherReadError FilePath Text
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically FileReadError
 
 
 instance Pretty FileReadError where

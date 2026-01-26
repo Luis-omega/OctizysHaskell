@@ -9,6 +9,9 @@ module EffectfulParserCombinators.Span
   , Span (Span', start, end)
   ) where
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 data Position = Position'
   { line :: Int
@@ -20,7 +23,8 @@ data Position = Position'
   }
   -- TODO: Use bytes
 
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically Position
 
 
 makeInitialPosition :: Position
@@ -34,4 +38,5 @@ data Span = Span'
   { start :: Position
   , end :: Position
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically Span

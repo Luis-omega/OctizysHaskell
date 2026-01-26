@@ -13,7 +13,6 @@ import Control.Arrow ((<<<))
 import Control.Monad (forM_, unless)
 import Data.List.NonEmpty (NonEmpty, toList)
 import Data.Text (Text)
-import qualified Data.Text as Text
 import Effectful (Eff, runEff)
 import Effectful.Error.Static
   ( Error
@@ -40,7 +39,7 @@ import Octizys.Logging.Interpreters.Console (runLog)
 import Octizys.Logging.Levels (Level)
 
 -- import Octizys.FrontEnd.Cst.Expression (ExpressionVariableId)
-import Octizys.FrontEnd.Cst.TopItem (Module (logicPath, systemPath))
+import Octizys.FrontEnd.Cst.TopItem (Module (systemPath))
 
 -- import Octizys.Inference.ConstraintsGeneration (InferenceState)
 -- import Octizys.Inference.ConstraintsSolver (solveDefinitionsType)
@@ -58,8 +57,6 @@ import Octizys.Ast.Type (TypeVariable)
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 import Octizys.Common.LogicPath (LogicPath)
-import qualified Octizys.Common.LogicPath as LogicPath
-import Octizys.Common.Name (makeName)
 import Octizys.Effects.Accumulator.Effect (Accumulator, accumulate)
 import Octizys.Effects.Accumulator.Interpreter (runAccumulatorFull)
 import Octizys.Effects.FileReader.Effect (FileReadError, FileReader)
@@ -70,7 +67,7 @@ import Octizys.FrontEnd.Parser.Common (OctizysParseError)
 import Prettyprinter (Pretty (pretty), defaultLayoutOptions, layoutPretty)
 import qualified Prettyprinter as Pretty
 
-import Octizys.Logging.Entry (field, fieldWithPretty)
+import Octizys.Logging.Entry (field, fieldWith)
 import qualified Octizys.Logging.Loggers as Log
 import Octizys.PathResolution.DependencyTree
   ( DependencyTree
@@ -86,6 +83,11 @@ import Octizys.PathResolution.PathIndex
 import Octizys.Pretty.FormatContext (defaultFormatContext)
 import Octizys.Pretty.Formatter (Formatter (format))
 
+import Data.Aeson (ToJSON (toJSON))
+import qualified Data.Aeson as Aeson
+import qualified Data.Text as Text
+import GHC.Generics (Generic, Generically (..))
+
 
 render :: Doc ann -> Text
 render =
@@ -97,7 +99,8 @@ data OctizysError
   = OctizysParserError FilePath Text (ParserError OctizysParseError)
   | OctizysFileReadError FileReadError
   | OctizysPathIndexError PathIndexError
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON) via Generically OctizysError
 
 
 instance From OctizysError FileReadError where
@@ -114,7 +117,8 @@ instance Pretty OctizysError where
 
 -- TODO:STUB
 data OctizysWarn = OctizysWarn
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically OctizysWarn
 
 
 instance Pretty OctizysWarn where
@@ -123,19 +127,26 @@ instance Pretty OctizysWarn where
 
 -- TODO:STUB
 data CompilerConfig = CompilerConfig'
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically CompilerConfig
 
 
 -- TODO:STUB
 data AstModule a = AstModule
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (AstModule a)
 
 
 -- TODO:STUB
 data SymbolResolutionEnvironment = SymbolResolutionEnvironment
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically SymbolResolutionEnvironment
 
 
 -- TODO:STUB
 data InferredTypesEnvironment = InferredTypesEnvironment
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically InferredTypesEnvironment
 
 
 fromRightOrThrow
@@ -246,7 +257,8 @@ parseAndMakeDependencyTree pathsToFilesToCompile rootPaths pathIndex = do
     , field "root paths" rootPaths
     , field "path index" pathIndex
     , field "dependency tree" (fst result)
-    , fieldWithPretty
+    , fieldWith
+        (toJSON)
         (\x -> Pretty.list (format defaultFormatContext <$> x))
         "modules"
         (snd result)

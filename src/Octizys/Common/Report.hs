@@ -6,12 +6,16 @@ import Octizys.Pretty.Formatter (Formatter (format))
 import Prettyprinter (Doc, Pretty (pretty))
 import qualified Prettyprinter as Pretty
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 data ReportKind
   = ReportError
   | ReportWarn
   | ReportInfo
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ReportKind
 
 
 instance Formatter ann (FormatContext ann) ReportKind where
@@ -25,6 +29,7 @@ data LongDescription ann = LongDescription'
   , source :: Maybe (Doc ann)
   , afterDescription :: Maybe Text
   }
+  deriving (Show, Generic)
 
 
 instance Formatter ann (FormatContext ann) (LongDescription ann) where
@@ -55,6 +60,7 @@ data Report ann = Report'
   , shortDescription :: Text
   , descriptions :: [LongDescription ann]
   }
+  deriving (Show, Generic)
 
 
 instance Formatter ann (FormatContext ann) (Report ann) where

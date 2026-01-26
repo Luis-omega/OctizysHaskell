@@ -8,6 +8,9 @@ import Octizys.Ast.Type (Type)
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Id (ExpressionVariableId)
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 data Node var
   = NType (Type var)
@@ -15,7 +18,8 @@ data Node var
   | NDef (Definition var)
   | NParameter (ExpressionVariableId, Type var)
   | NValue (Value var)
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Node var)
 
 
 instance From (Node var) (Type var) where

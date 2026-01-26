@@ -7,8 +7,11 @@ module Octizys.Logging.Interpreters.Console
 
 import Control.Arrow ((<<<))
 import Control.Monad (when)
+import Data.Aeson (encode)
+import qualified Data.ByteString.Lazy as BL
 import Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TE
 import Effectful (Eff, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
 import Octizys.Effects.Console.Effect (Console)
@@ -55,17 +58,19 @@ runLog minLevel = interpret $ \_ action ->
     LogEntry entry ->
       let
         level = getLevel entry
-        msg = getMessage entry
-        fields = getFields entry
        in
         when (minLevel <= level) $
           putLine $
-            render
-              ( pretty '{'
-                  <> prettyJSONField "level" (Text.pack $ show level)
-                  <> pretty ','
-                  <> prettyJSONField "message" msg
-                  <> pretty ','
-                  <> prettyJSONField "fields" (render $ pretty fields)
-                  <> pretty '}'
-              )
+            TE.decodeUtf8 $
+              BL.toStrict $
+                encode entry
+
+-- render
+--   ( pretty '{'
+--       <> prettyJSONField "level" (Text.pack $ show level)
+--       <> pretty ','
+--       <> prettyJSONField "message" msg
+--       <> pretty ','
+--       <> prettyJSONField "fields" (render $ pretty fields)
+--       <> pretty '}'
+--   )

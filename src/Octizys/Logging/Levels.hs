@@ -7,11 +7,19 @@ module Octizys.Logging.Levels
 import Language.Haskell.TH.Syntax (Lift)
 
 import Control.Arrow ((<<<))
+import Data.Aeson (ToJSON, defaultOptions, genericToEncoding)
+import Data.Aeson.Types (toEncoding)
+import GHC.Generics (Generic)
 import Prettyprinter (Pretty (pretty))
 
 
 data Level = Error | Debug | Info | Trace | Warn
   deriving (Show, Eq, Lift)
+  deriving (Generic)
+
+
+instance ToJSON Level where
+  toEncoding = genericToEncoding defaultOptions
 
 
 instance Ord Level where

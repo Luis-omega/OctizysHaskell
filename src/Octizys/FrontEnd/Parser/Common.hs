@@ -48,6 +48,10 @@ import Octizys.Pretty.Formatter (Formatter (format))
 import Prettyprinter (Pretty (pretty))
 import Prelude hiding (span)
 
+import Data.Aeson (ToJSON)
+import EffectfulParserCombinators.Error (ParserError)
+import GHC.Generics (Generic, Generically (..))
+
 
 -- * ==================== Auxiliary Functions =================
 
@@ -62,7 +66,8 @@ uninplemented s = errorMessage ("Uninplemented " <> s <> " parser")
 data OctizysParseError
   = CantParseName Text
   | EmptyImportList
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically OctizysParseError
 
 
 instance Pretty OctizysParseError where

@@ -3,6 +3,9 @@ module Octizys.Common.PackageName (PackageName, makePackageName) where
 import Data.Text (Text)
 import Prettyprinter (Pretty (pretty))
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 {- | The name of a package.
 As packages maybe (still under development) have non valid
@@ -11,7 +14,8 @@ identifier characters, we must have a separate type for them.
 newtype PackageName = PackageName'
   { packageNameRaw :: Text
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically PackageName
 
 
 makePackageName :: Text -> PackageName

@@ -1,7 +1,9 @@
 module Octizys.FrontEnd.Cst.SourceInfo where
 
+import Data.Aeson (ToJSON)
 import qualified Data.List.NonEmpty as NonEmpty
 import EffectfulParserCombinators.Span (Span)
+import GHC.Generics (Generic, Generically (..))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath)
 import Octizys.Common.Name (Name)
@@ -14,7 +16,8 @@ data SourceInfo = SourceInfo'
   , preComments :: [Comment]
   , afterComment :: Maybe Comment
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically SourceInfo
 
 
 makeSourceInfo :: Span -> [Comment] -> Maybe Comment -> SourceInfo
@@ -25,7 +28,8 @@ data SourceVariable = SourceVariable'
   { qualifier :: Maybe LogicPath
   , name :: Name
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically SourceVariable
 
 
 instance From SourceVariable ([Name], Name) where

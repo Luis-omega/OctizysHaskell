@@ -43,18 +43,23 @@ import Octizys.FrontEnd.Cst.TopItem
   )
 import Octizys.Scope (ExpressionVariableInformation, ImportsScope)
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 data ImportError
   = MultipleDeclarationOf
       Name
       (Set (Definition SourceVariable SourceVariable))
       (Set SourceQualifier)
-  deriving (Show)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ImportError
 
 
 newtype ImportErrors = ImportErrors' {unImportErrors :: [ImportError]}
-  deriving (Show)
+  deriving (Show, Eq, Ord, Generic)
   deriving (Semigroup) via [ImportError]
+  deriving (ToJSON) via Generically ImportErrors
 
 
 data ImportWarning
@@ -65,11 +70,13 @@ data ImportWarning
   | -- | Multiple imports of the same symbol (based on their full qualifier).
     MultipleImports Name [SourceQualifier]
   | OverlappingQualifiers [SourceQualifier]
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ImportWarning
 
 
 data SourceQualifier = SourceQualifier' Qualifier Span
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically SourceQualifier
 
 
 {- | The objective of this type is to facilitate the lookup of
@@ -109,13 +116,16 @@ data ResolutionContext = ResolutionContext'
   -- ^ Map qualifier aliases to their full qualifiers.
   -- It utilizes a set since we allow overlapping qualifiers.
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ResolutionContext
 
 
 data ImportsContext e t = ImportsContext'
   { unqualifiedSymbols :: Map Name (Either (Definition e t) Qualifier)
   , qualifiedSymbols :: Map LogicPath (Set SourceQualifier)
   }
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (ImportsContext e t)
 
 
 emptyResolutionContext :: ResolutionContext

@@ -11,6 +11,9 @@ module Octizys.Common.Id
 
 import Octizys.Common.Qualifier (Qualifier)
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 newtype Id = Id' {idRaw :: Int}
   deriving
@@ -18,7 +21,8 @@ newtype Id = Id' {idRaw :: Int}
     , Ord
     )
     via Int
-  deriving (Show)
+  deriving (Show, Generic)
+  deriving (ToJSON) via Generically Id
 
 
 class GenerateIdFromInt a where
@@ -29,7 +33,8 @@ data InfoId = InfoId'
   { qualifier :: Qualifier
   , uniqueId :: Id
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
+  deriving (ToJSON) via Generically InfoId
 
 
 instance GenerateIdFromInt InfoId where
@@ -40,7 +45,8 @@ data TypeVariableId = TypeVariableId'
   { qualifier :: Qualifier
   , uniqueId :: Id
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
+  deriving (ToJSON) via Generically TypeVariableId
 
 
 instance GenerateIdFromInt TypeVariableId where
@@ -51,7 +57,8 @@ data ExpressionVariableId = ExpressionVariableId'
   { qualifier :: Qualifier
   , uniqueId :: Id
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
+  deriving (ToJSON) via Generically ExpressionVariableId
 
 
 instance GenerateIdFromInt ExpressionVariableId where

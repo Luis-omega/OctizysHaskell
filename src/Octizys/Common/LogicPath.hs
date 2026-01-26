@@ -5,7 +5,7 @@ module Octizys.Common.LogicPath
   , singleton
   ) where
 
-import Data.List.NonEmpty (NonEmpty, toList)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
 import GHC.Base (NonEmpty ((:|)))
@@ -13,12 +13,20 @@ import Octizys.Classes.From (From (from))
 import Octizys.Common.Name (Name)
 import Prettyprinter (Pretty (pretty))
 
+import Data.Aeson (ToJSON)
+import Data.Aeson.Types (ToJSONKey)
+import GHC.Generics (Generic, Generically (..))
+
 
 -- | Represents a module direction.
 newtype LogicPath = LogicPath'
   { logicPathRaw :: NonEmpty Name
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically LogicPath
+
+
+instance ToJSONKey LogicPath
 
 
 makeLogicPath :: Text -> LogicPath

@@ -19,6 +19,9 @@ import Octizys.Logging.Entry (field)
 import qualified Octizys.Logging.Loggers as Log
 import Prettyprinter (Pretty (pretty))
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 -- TODO:STUB
 
@@ -26,7 +29,8 @@ import Prettyprinter (Pretty (pretty))
 | the compiler to lookup for code
 -}
 newtype RootPaths = RootPaths' {unRootPaths :: [FilePath]}
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically RootPaths
 
 
 -- TODO:STUB
@@ -40,7 +44,8 @@ makeRootPaths = RootPaths'
 
 -- TODO:STUB
 data PathIndexError = PathIndexError'
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically PathIndexError
 
 
 instance Pretty PathIndexError where
@@ -53,7 +58,8 @@ instance Pretty PathIndexError where
 logic paths and system paths
 -}
 data PathIndex = PathIndex'
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically PathIndex
 
 
 instance Pretty PathIndex where

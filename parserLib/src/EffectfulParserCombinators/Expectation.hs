@@ -7,6 +7,9 @@ import qualified Data.Set as Set
 import Prettyprinter (Pretty (pretty))
 import qualified Prettyprinter as Pretty
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 {- | Inspired by megaparsec, it represents expectation
 of some input.
@@ -18,7 +21,8 @@ data Expected
     ExpectedName (NonEmpty Char)
   | -- | Expected end of input.
     ExpectedEndOfInput
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically Expected
 
 
 instance Pretty Expected where
@@ -31,7 +35,8 @@ instance Pretty Expected where
 
 -- | A newtype over a set of expectation for type safe security.
 newtype Expectations = Expectations' {unExpectations :: Set Expected}
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically Expectations
 
 
 instance Pretty Expectations where

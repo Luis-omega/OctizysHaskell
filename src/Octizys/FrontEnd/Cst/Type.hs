@@ -24,6 +24,9 @@ import Data.List.NonEmpty (NonEmpty)
 import Octizys.Common.Id (InfoId, TypeVariableId)
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo)
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 {- | Stores source information in a separate place, so
     we can mutate or do other things on it without
@@ -50,4 +53,5 @@ data Type tvar
   | -- | All variables are translated at parsing time to a internal
     -- identifier. You can think of it as a pointer in symbol table.
     TVariable {info :: SourceInfo, variable :: tvar}
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Type tvar)
