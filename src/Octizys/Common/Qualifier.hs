@@ -2,7 +2,7 @@ module Octizys.Common.Qualifier (Qualifier) where
 
 import Data.Text (Text)
 import Octizys.Classes.From (From (from))
-import Octizys.Common.LogicPath (LogicPath)
+import Octizys.Common.LogicPath (LogicPath, logicPathSeparator)
 import Octizys.Common.Name (Name)
 import Prettyprinter (Pretty (pretty))
 
@@ -28,4 +28,4 @@ instance From Qualifier LogicPath where
 
 instance Pretty Qualifier where
   pretty (ModuleQualifier lp) = pretty lp
-  pretty (Repl nm) = pretty @Text "!Repl/" <> pretty nm
+  pretty (Repl nm) = pretty @Text "!Repl" <> pretty logicPathSeparator <> pretty nm

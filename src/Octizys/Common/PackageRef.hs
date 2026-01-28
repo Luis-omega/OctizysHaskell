@@ -55,9 +55,14 @@ data PackageIdentity = PackageIdentity'
   deriving (ToJSON) via Generically PackageIdentity
 
 
+instance Pretty PackageIdentity where
+  pretty p =
+    pretty p.name
+
+
 {- | Same purpose as the PackageIdentity but this one corresponds to the
 current package being compiled. As user can optionally provide those fields,
-instead of adding default values we pefered a value that can be null to
+instead of adding default values we preferred a value that can be null to
 represent it.
 -}
 data OptionalPackageIdentity = OptionalPackageIdentity'
@@ -69,6 +74,13 @@ data OptionalPackageIdentity = OptionalPackageIdentity'
   deriving (ToJSON) via Generically OptionalPackageIdentity
 
 
+instance Pretty OptionalPackageIdentity where
+  pretty p =
+    case p.name of
+      Just n -> pretty n
+      Nothing -> pretty @Text "!DefaultPackage"
+
+
 -- | Used to disambiguate between multiple versions of the same package
 data PackageRef
   = -- | The current package being compiled.
@@ -77,6 +89,11 @@ data PackageRef
     NamedPackage PackageIdentity
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically PackageRef
+
+
+instance Pretty PackageRef where
+  pretty (TargetPackage p) = pretty p
+  pretty (NamedPackage p) = pretty p
 
 
 -- TODO:STUB

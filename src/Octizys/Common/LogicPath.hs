@@ -3,6 +3,7 @@ module Octizys.Common.LogicPath
   , makeLogicPath
   , addAtEnd
   , singleton
+  , logicPathSeparator
   ) where
 
 import Data.List.NonEmpty (NonEmpty)
@@ -41,13 +42,17 @@ instance From (NonEmpty Name) LogicPath where
   from = logicPathRaw
 
 
+logicPathSeparator :: Text
+logicPathSeparator = "/"
+
+
 instance Pretty LogicPath where
   pretty (LogicPath' names) =
     case names of
       onlyName :| [] -> pretty onlyName
       other ->
         let withSeparator =
-              ((\x -> pretty x <> pretty '/') <$> other)
+              ((\x -> pretty x <> pretty logicPathSeparator) <$> other)
          in foldl (<>) mempty withSeparator
 
 

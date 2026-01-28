@@ -11,14 +11,14 @@ import EffectfulParserCombinators.Combinators
   , (<|>)
   )
 import EffectfulParserCombinators.Effect (Parser)
+import Octizys.Classes.From (From (from))
+import Octizys.Common.Id (SymbolOriginInfo (name, qualifier))
 import Octizys.Common.LogicPath (LogicPath, addAtEnd)
 import Octizys.FrontEnd.Cst.Expression (Definition)
 import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo
   , SourceVariable
   , makeSourceInfo
-  , name
-  , qualifier
   )
 import Octizys.FrontEnd.Cst.TopItem
   ( ImportAlias (ImportAlias', path, _as)
@@ -73,10 +73,12 @@ modulePathParser
   => Eff es (SourceInfo, ModulePath)
 modulePathParser = do
   (var, varInfo) <- sourceVariableParser
-  let path =
-        case var.qualifier of
-          Just p -> ModuleLogicPath (addAtEnd var.name p)
-          Nothing -> ModuleVarPath var.name
+  let
+    varAsOriginInfo :: SymbolOriginInfo = from var
+    path =
+      case varAsOriginInfo.qualifier of
+        Just p -> ModuleLogicPath (addAtEnd varAsOriginInfo.name p)
+        Nothing -> ModuleVarPath varAsOriginInfo.name
   pure (varInfo, path)
 
 
@@ -85,7 +87,9 @@ importItemParser
   => Eff es ImportItem
 importItemParser = do
   (var, info) <- localVariable
-  pure ImportVariable {info, name = var.name}
+  let
+    varAsOriginInfo :: SymbolOriginInfo = from var
+  pure ImportVariable {info, name = varAsOriginInfo.name}
 
 
 -- | This can raise an error

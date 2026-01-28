@@ -14,7 +14,9 @@ import Octizys.Classes.From (From (from))
 import Octizys.FrontEnd.Cst.Type (TypeVariableId)
 
 import Data.Aeson (ToJSON)
+import Data.Text (Text)
 import GHC.Generics (Generic, Generically (..))
+import Prettyprinter (Pretty, pretty)
 
 
 data TypeValue = BoolType | IntType
@@ -38,6 +40,12 @@ instance FreeVariables TypeVariableId InferenceVariable where
   freeVariables (MetaVariable tid) = singleton tid
   freeVariables (UserVariable tid) = singleton tid
   freeVariables ErrorVariable = mempty
+
+
+instance Pretty InferenceVariable where
+  pretty ErrorVariable = pretty @Text "ErrorVariable"
+  pretty (MetaVariable vid) = pretty vid
+  pretty (UserVariable vid) = pretty vid
 
 
 newtype TypeVariable = TypeVariable {unTypeVariable :: TypeVariableId}

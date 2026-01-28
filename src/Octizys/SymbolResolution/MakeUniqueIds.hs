@@ -23,6 +23,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.State.Static.Local (State, get, modify)
+import Octizys.Classes.From (From (from))
 import Octizys.Common.HistoryMap (HistoryMap)
 import qualified Octizys.Common.HistoryMap as HistoryMap
 import Octizys.Common.Id
@@ -162,7 +163,7 @@ registerNewEvar var = do
     Nothing -> pure ()
     Just knowId ->
       tellWarn (EVarShadowing var knowId)
-  varId <- generateId @ExpressionVariableId
+  varId <- generateId @ExpressionVariableId (Just $ from var)
   modify
     ( \s ->
         let
@@ -226,7 +227,7 @@ findEvar var inf = do
   case maybeKnow of
     Nothing -> do
       tellError (UnboundExpVariable var inf)
-      varId <- generateId @ExpressionVariableId
+      varId <- generateId @ExpressionVariableId (pure $ from var)
       modify
         ( \s ->
             let
@@ -265,7 +266,7 @@ registerNewTvar var = do
     Nothing -> pure ()
     Just knowId ->
       tellWarn (TVarShadowing var knowId)
-  varId <- generateId @TypeVariableId
+  varId <- generateId @TypeVariableId (pure $ from var)
   modify
     ( \s ->
         let
@@ -329,7 +330,7 @@ findTvar var inf = do
   case maybeKnow of
     Nothing -> do
       tellError (UnboundTypeVariable var inf)
-      varId <- generateId @TypeVariableId
+      varId <- generateId @TypeVariableId (pure $ from var)
       modify
         ( \s ->
             let

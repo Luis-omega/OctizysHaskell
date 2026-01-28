@@ -6,7 +6,6 @@ module Octizys.FrontEnd.Parser.Expression where
 import Control.Monad (forM)
 import Data.Char (isDigit)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Debug.Trace (trace)
 import Effectful (Eff, (:>))
 import EffectfulParserCombinators.Combinators
   ( many

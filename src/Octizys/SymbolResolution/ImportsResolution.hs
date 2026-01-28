@@ -21,7 +21,11 @@ import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, runErrorNoCallStack, throwError)
 import EffectfulParserCombinators.Span (Span)
 import Octizys.Classes.From (From (from))
-import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
+import Octizys.Common.Id
+  ( ExpressionVariableId
+  , SymbolOriginInfo (name)
+  , TypeVariableId
+  )
 import Octizys.Common.LogicPath (LogicPath, addAtEnd)
 import Octizys.Common.Name (Name)
 import Octizys.Common.Qualifier (Qualifier)
@@ -29,7 +33,7 @@ import Octizys.Effects.Accumulator.Interpreter (Accumulator)
 import Octizys.FrontEnd.Cst.Expression (Definition (name))
 import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo (span)
-  , SourceVariable (name)
+  , SourceVariable
   )
 import Octizys.FrontEnd.Cst.TopItem
   ( ImportModule
@@ -213,7 +217,7 @@ addDefinition
 addDefinition rc def =
   -- Note: we ignore the case where there is a qualifier inside
   -- for the name as this is should be the identifier of a definition.
-  let sv = snd def.name
+  let sv :: SymbolOriginInfo = from $ snd def.name
    in rc
         { localSymbols =
             Map.insertWith

@@ -1,13 +1,13 @@
 -- | Description : Pretty printer definition for comments.
-module Octizys.Pretty.Cst.Comment where
+module Octizys.FrontEnd.Format.Comment where
 
 import Control.Arrow ((<<<))
+import Octizys.Common.Format.Config (formatText)
 import Octizys.FrontEnd.Cst.Comment
   ( BlockComment (BlockComment', content)
   , Comment (Block, Line)
   , LineComment (LineComment', content)
   )
-import Octizys.Pretty.FormatContext (formatText)
 import Prettyprinter (Doc, vsep)
 
 

@@ -40,17 +40,15 @@ import Octizys.Classes.From (From (from))
 import Octizys.Common.Name (Name, makeName)
 import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo
-  , SourceVariable (SourceVariable', name, qualifier)
+  , SourceVariable
   , makeSourceInfo
   )
-import Octizys.Pretty.FormatContext (FormatContext)
-import Octizys.Pretty.Formatter (Formatter (format))
 import Prettyprinter (Pretty (pretty))
 import Prelude hiding (span)
 
 import Data.Aeson (ToJSON)
-import EffectfulParserCombinators.Error (ParserError)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Common.Id (SymbolOriginInfo)
 
 
 -- * ==================== Auxiliary Functions =================
@@ -76,10 +74,6 @@ instance Pretty OctizysParseError where
       "A bug, we parsed a identifier but is not a valid identifier: "
       <> pretty str
   pretty EmptyImportList = pretty @Text "All unqualified imports must provide a list of imports."
-
-
-instance Formatter ann (FormatContext ann) OctizysParseError where
-  format _ = pretty
 
 
 skipSimpleSpaces
@@ -293,7 +287,7 @@ localVariable
   => Eff es (SourceVariable, SourceInfo)
 localVariable = do
   (name, nameInfo) <- nameParser
-  pure (SourceVariable' {qualifier = Nothing, name}, nameInfo)
+  pure (from $ from @SymbolOriginInfo ([] @Name, name), nameInfo)
 
 
 sourceVariableParserRaw
