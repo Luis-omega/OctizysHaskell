@@ -5,42 +5,36 @@ import Prettyprinter (Pretty (pretty))
 
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Common.Name (Name, makeName)
+import Octizys.Common.Version (Version)
 
 
-{- | The name of a package.
-As packages maybe (still under development) have non valid
-identifier characters, we must have a separate type for them.
--}
+-- | The name of a package.
 newtype PackageName = PackageName'
-  { packageNameRaw :: Text
+  { packageNameRaw :: Name
   }
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically PackageName
 
 
--- TODO:FIXME
-makePackageName :: Text -> PackageName
-makePackageName = undefined
+makePackageName :: Text -> Maybe PackageName
+makePackageName t = PackageName' <$> makeName t
 
 
 instance Pretty PackageName where
   pretty p = pretty p.packageNameRaw
 
 
--- TODO:STUB
-
 -- | A newtype around the Version type.
-data PackageVersion = PackageVersion'
+newtype PackageVersion = PackageVersion'
+  { unPackageVersion :: Version
+  }
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically PackageVersion
 
 
--- TODO:STUB
-
-{- | A new type over the source of a package, normally this is a url or
-an absolute path to a file.
--}
-data PackageSource = PackageSource'
+-- | The source of a package can be an url or if locally created a path
+newtype PackageSource = PackageSource' Text
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically PackageSource
 
@@ -61,14 +55,15 @@ instance Pretty PackageIdentity where
 
 
 {- | Same purpose as the PackageIdentity but this one corresponds to the
-current package being compiled. As user can optionally provide those fields,
-instead of adding default values we preferred a value that can be null to
-represent it.
+current package being compiled.
+We allow user to omit the name and the version, instead of
+forcing a default value, we omit them also.
+Note that theres alwasy a source for this package
 -}
 data OptionalPackageIdentity = OptionalPackageIdentity'
   { name :: Maybe PackageName
   , version :: Maybe PackageVersion
-  , source :: Maybe PackageSource
+  , source :: PackageSource
   }
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically OptionalPackageIdentity
@@ -107,7 +102,7 @@ data Hash = Hash'
 calculateIdentityHash
   :: Maybe PackageName
   -> Maybe PackageVersion
-  -> Maybe PackageSource
+  -> PackageSource
   -> Maybe Hash
 calculateIdentityHash _ _ _ = Nothing
 
@@ -126,4 +121,4 @@ calculateHash (NamedPackage np) =
   calculateIdentityHash
     (pure np.name)
     (pure np.version)
-    (pure np.source)
+    np.source

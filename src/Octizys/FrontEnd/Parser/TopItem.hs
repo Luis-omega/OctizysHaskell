@@ -53,8 +53,7 @@ import Octizys.FrontEnd.Cst.TopItem
     )
   )
 import Octizys.FrontEnd.Parser.Common
-  ( OctizysParseError (EmptyImportList)
-  , asKeyword
+  ( asKeyword
   , comments
   , importKeyword
   , leftParen
@@ -65,6 +64,9 @@ import Octizys.FrontEnd.Parser.Common
   , unqualifiedKeyword
   )
 import qualified Octizys.FrontEnd.Parser.Common as Common
+import Octizys.FrontEnd.Parser.Error
+  ( OctizysParseError (EmptyImportList)
+  )
 import Octizys.FrontEnd.Parser.Expression (definitionParser)
 
 

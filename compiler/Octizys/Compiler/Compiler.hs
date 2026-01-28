@@ -67,7 +67,7 @@ import Octizys.Effects.FileReader.Effect (FileReadError, FileReader)
 import qualified Octizys.Effects.FileReader.Effect as FileReader
 import Octizys.Effects.FileReader.Interpreter (runFileReader)
 import Octizys.FrontEnd.Cst.SourceInfo (SourceVariable)
-import Octizys.FrontEnd.Parser.Common (OctizysParseError)
+import Octizys.FrontEnd.Parser.Error (OctizysParseError)
 import qualified Prettyprinter as Pretty
 
 import Octizys.Logging.Entry (field, fieldWith)

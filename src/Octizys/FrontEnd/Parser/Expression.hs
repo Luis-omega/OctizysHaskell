@@ -78,8 +78,7 @@ import Octizys.FrontEnd.Cst.Expression
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo, SourceVariable)
 import Octizys.FrontEnd.Cst.Type (Type)
 import Octizys.FrontEnd.Parser.Common
-  ( OctizysParseError
-  , between
+  ( between
   , comma
   , elseKeyword
   , ifKeyword
@@ -96,6 +95,9 @@ import Octizys.FrontEnd.Parser.Common
   , tokenAndregister
   )
 import qualified Octizys.FrontEnd.Parser.Common as Common
+import Octizys.FrontEnd.Parser.Error
+  ( OctizysParseError
+  )
 import Octizys.FrontEnd.Parser.Type (parseType)
 import Prelude hiding (span)
 

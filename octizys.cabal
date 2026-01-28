@@ -119,6 +119,7 @@ library
     Octizys.Common.PackageRef
     Octizys.Common.Qualifier
     Octizys.Common.Report
+    Octizys.Common.Version
     Octizys.Effects.Accumulator.Effect
     Octizys.Effects.Accumulator.Interpreter
     Octizys.Effects.Console.Effect
@@ -140,6 +141,7 @@ library
     Octizys.FrontEnd.Format.TopItem
     Octizys.FrontEnd.Format.Type
     Octizys.FrontEnd.Parser.Common
+    Octizys.FrontEnd.Parser.Error
     Octizys.FrontEnd.Parser.Expression
     Octizys.FrontEnd.Parser.TopItem
     Octizys.FrontEnd.Parser.Type

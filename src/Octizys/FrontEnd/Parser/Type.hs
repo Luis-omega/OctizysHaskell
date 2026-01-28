@@ -36,14 +36,16 @@ import Octizys.FrontEnd.Cst.Type
   )
 import qualified Octizys.FrontEnd.Cst.Type as Type
 import Octizys.FrontEnd.Parser.Common
-  ( OctizysParseError (CantParseName)
-  , between
+  ( between
   , keyword
   , leftParen
   , rightArrow
   , rightParen
   , sourceVariableParser
   , token
+  )
+import Octizys.FrontEnd.Parser.Error
+  ( OctizysParseError (CantParseName)
   )
 import Prelude hiding (span)
 

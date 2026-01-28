@@ -7,14 +7,12 @@ import Data.Text (Text)
 import Effectful (Eff, (:>))
 import EffectfulParserCombinators.Combinators
   ( char
-  , errorCustom
   , errorMessage
   , getPosition
   , hidden
   , item
   , many
   , optional
-  , takeWhile1P
   , takeWhileP
   , text
   , try
@@ -32,23 +30,21 @@ import Octizys.FrontEnd.Cst.Comment
   )
 
 import Control.Arrow ((<<<))
-import Data.Char (isAlpha, isAlphaNum)
 import Data.Functor (void)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Text as Text
 import Octizys.Classes.From (From (from))
-import Octizys.Common.Name (Name, makeName)
+import Octizys.Common.Name (Name, parseName)
 import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo
   , SourceVariable
   , makeSourceInfo
   )
-import Prettyprinter (Pretty (pretty))
 import Prelude hiding (span)
 
-import Data.Aeson (ToJSON)
-import GHC.Generics (Generic, Generically (..))
+import Data.Aeson.Types (parse)
 import Octizys.Common.Id (SymbolOriginInfo)
+import Octizys.FrontEnd.Parser.Error (OctizysParseError)
 
 
 -- * ==================== Auxiliary Functions =================
@@ -59,21 +55,6 @@ newtype Symbol = Symbol' {unSymbol :: Text}
 
 uninplemented :: forall a e es. Parser e :> es => Text -> Eff es a
 uninplemented s = errorMessage ("Uninplemented " <> s <> " parser")
-
-
-data OctizysParseError
-  = CantParseName Text
-  | EmptyImportList
-  deriving (Show, Eq, Ord, Generic)
-  deriving (ToJSON) via Generically OctizysParseError
-
-
-instance Pretty OctizysParseError where
-  pretty (CantParseName str) =
-    pretty @Text
-      "A bug, we parsed a identifier but is not a valid identifier: "
-      <> pretty str
-  pretty EmptyImportList = pretty @Text "All unqualified imports must provide a list of imports."
 
 
 skipSimpleSpaces
@@ -217,27 +198,15 @@ withPredicate1 predicate errorMsg p = do
     else errorMessage errorMsg
 
 
-identifierOrKeywordRaw
-  :: Parser OctizysParseError :> es
-  => Eff es Text
-identifierOrKeywordRaw = do
-  _head <- takeWhile1P (Just "identifier start character") isAlpha
-  remain <-
-    takeWhileP
-      (\c -> isAlphaNum c || c == '_')
-  let full_string = _head <> remain
-  pure full_string
-
-
 identifierOrKeyword
   :: Parser OctizysParseError :> es
-  => Eff es (Text, (Span, [Comment], Maybe Comment))
-identifierOrKeyword = token identifierOrKeywordRaw
+  => Eff es (Name, (Span, [Comment], Maybe Comment))
+identifierOrKeyword = token parseName
 
 
-isNotKeyword :: Text -> Bool
-isNotKeyword s =
-  s
+isNotKeyword :: Name -> Bool
+isNotKeyword n =
+  from @Text n
     `notElem` [ "if"
               , "then"
               , "else"
@@ -256,7 +225,7 @@ isNotKeyword s =
 
 identifierParser
   :: Parser OctizysParseError :> es
-  => Eff es (Text, SourceInfo, Span)
+  => Eff es (Name, SourceInfo, Span)
 identifierParser = do
   (iden, (span, pre, after)) <-
     try $
@@ -273,12 +242,7 @@ nameParser
   :: Parser OctizysParseError :> es
   => Eff es (Name, SourceInfo)
 nameParser = do
-  (iden, info, _) <- identifierParser
-  name <-
-    maybe
-      (errorCustom $ CantParseName iden)
-      pure
-      (makeName iden)
+  (name, info, _) <- identifierParser
   pure (name, info)
 
 
@@ -294,22 +258,19 @@ sourceVariableParserRaw
   :: Parser OctizysParseError :> es
   => Eff es SourceVariable
 sourceVariableParserRaw = do
-  nameRaw <-
+  name <-
     try $
       withPredicate1
         isNotKeyword
         "keyword found expected identifier"
-        identifierOrKeywordRaw
-  name <- toName nameRaw
+        parseName
   names <- many $ do
     _ <- moduleSeparator <?> ('m' :| "odule separator")
-    localName <-
-      try $
-        withPredicate1
-          isNotKeyword
-          "keyword found expected identifier"
-          identifierOrKeywordRaw
-    toName localName
+    try $
+      withPredicate1
+        isNotKeyword
+        "keyword found expected identifier"
+        parseName
   let
     variable = case reverse names of
       [] -> from ([] @Name, name)
@@ -317,8 +278,6 @@ sourceVariableParserRaw = do
         from (name : reverse others, realName)
   pure
     variable
-  where
-    toName x = maybe (errorCustom $ CantParseName x) pure (makeName x)
 
 
 sourceVariableParser
