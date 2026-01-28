@@ -8,8 +8,8 @@ module Cli
 import qualified Data.Char as Char
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
+import Octizys.Common.Format.Config (Configuration, makeConfiguration)
 import Octizys.Logging.Levels (Level (Debug, Error, Info, Trace))
-import Octizys.Pretty.FormatContext (Configuration, makeConfiguration)
 import Options.Applicative
 
 

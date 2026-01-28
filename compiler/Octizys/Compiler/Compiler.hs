@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use tuple-section" #-}
@@ -25,7 +24,12 @@ import Effectful.Reader.Static (Reader, runReader)
 import EffectfulParserCombinators.Interpreter
   ( runFullParser
   )
-import Prettyprinter (Doc)
+import Prettyprinter
+  ( Doc
+  , Pretty (pretty)
+  , defaultLayoutOptions
+  , layoutPretty
+  )
 import Prettyprinter.Render.Text (renderStrict)
 
 -- import Octizys.Compiler.Format
@@ -64,7 +68,6 @@ import qualified Octizys.Effects.FileReader.Effect as FileReader
 import Octizys.Effects.FileReader.Interpreter (runFileReader)
 import Octizys.FrontEnd.Cst.SourceInfo (SourceVariable)
 import Octizys.FrontEnd.Parser.Common (OctizysParseError)
-import Prettyprinter (Pretty (pretty), defaultLayoutOptions, layoutPretty)
 import qualified Prettyprinter as Pretty
 
 import Octizys.Logging.Entry (field, fieldWith)
@@ -80,19 +83,11 @@ import Octizys.PathResolution.PathIndex
   , lookupSystemPath
   , makePathIndex
   )
-import Octizys.Pretty.FormatContext (defaultFormatContext)
-import Octizys.Pretty.Formatter (Formatter (format))
 
 import Data.Aeson (ToJSON (toJSON))
-import qualified Data.Aeson as Aeson
-import qualified Data.Text as Text
 import GHC.Generics (Generic, Generically (..))
-
-
-render :: Doc ann -> Text
-render =
-  renderStrict
-    <<< layoutPretty defaultLayoutOptions
+import Octizys.Common.Format.Config (defaultConfiguration)
+import Octizys.FrontEnd.Format.TopItem (formatModule)
 
 
 data OctizysError
@@ -258,8 +253,8 @@ parseAndMakeDependencyTree pathsToFilesToCompile rootPaths pathIndex = do
     , field "path index" pathIndex
     , field "dependency tree" (fst result)
     , fieldWith
-        (toJSON)
-        (\x -> Pretty.list (format defaultFormatContext <$> x))
+        toJSON
+        (\x -> Pretty.list (formatModule defaultConfiguration <$> x))
         "modules"
         (snd result)
     ]

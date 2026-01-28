@@ -104,15 +104,19 @@ library
   -- Modules exported by the library.
   exposed-modules:
     Octizys.Ast.Expression
+    Octizys.Ast.Format.Expression
+    Octizys.Ast.Format.Type
     Octizys.Ast.Node
     Octizys.Ast.Type
     Octizys.Classes.FreeVariables
     Octizys.Classes.From
+    Octizys.Common.Format.Config
+    Octizys.Common.Format.Markup
     Octizys.Common.HistoryMap
     Octizys.Common.Id
     Octizys.Common.LogicPath
     Octizys.Common.Name
-    Octizys.Common.PackageName
+    Octizys.Common.PackageRef
     Octizys.Common.Qualifier
     Octizys.Common.Report
     Octizys.Effects.Accumulator.Effect
@@ -131,6 +135,10 @@ library
     Octizys.FrontEnd.Cst.SourceInfo
     Octizys.FrontEnd.Cst.TopItem
     Octizys.FrontEnd.Cst.Type
+    Octizys.FrontEnd.Format.Comment
+    Octizys.FrontEnd.Format.Expression
+    Octizys.FrontEnd.Format.TopItem
+    Octizys.FrontEnd.Format.Type
     Octizys.FrontEnd.Parser.Common
     Octizys.FrontEnd.Parser.Expression
     Octizys.FrontEnd.Parser.TopItem
@@ -142,15 +150,6 @@ library
     Octizys.Logging.Loggers
     Octizys.PathResolution.DependencyTree
     Octizys.PathResolution.PathIndex
-    Octizys.Pretty.Ast.Expression
-    Octizys.Pretty.Ast.Type
-    Octizys.Pretty.Cst.Comment
-    Octizys.Pretty.Cst.Expression
-    Octizys.Pretty.Cst.TopItem
-    Octizys.Pretty.Cst.Type
-    Octizys.Pretty.FormatContext
-    Octizys.Pretty.Formatter
-    Octizys.Pretty.Markup
     Octizys.Scope
     Octizys.SymbolResolution.ImportsResolution
     Octizys.SymbolResolution.MakeUniqueIds
