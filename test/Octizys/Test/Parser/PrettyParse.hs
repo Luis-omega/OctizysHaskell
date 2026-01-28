@@ -27,9 +27,9 @@ import Octizys.FrontEnd.Format.Expression
   )
 import Octizys.FrontEnd.Format.TopItem (formatModule)
 import Octizys.FrontEnd.Parser.Common
-  ( OctizysParseError
-  , comment
+  ( comment
   )
+import Octizys.FrontEnd.Parser.Error (OctizysParseError)
 import Octizys.FrontEnd.Parser.Expression
   ( boolParser
   , functionParser
