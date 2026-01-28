@@ -13,8 +13,7 @@ import GHC.Generics (Generic, Generically (..))
 
 -- | All process
 data Qualifier
-  = SingleFile Name
-  | ModuleQualifier LogicPath
+  = ModuleQualifier LogicPath
   | Repl Name
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically Qualifier
@@ -28,6 +27,5 @@ instance From Qualifier LogicPath where
 
 
 instance Pretty Qualifier where
-  pretty (SingleFile nm) = pretty nm
   pretty (ModuleQualifier lp) = pretty lp
   pretty (Repl nm) = pretty @Text "!Repl/" <> pretty nm

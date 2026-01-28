@@ -3,16 +3,28 @@ module Octizys.Common.Id
       ( Id'
       , idRaw
       )
-  , ExpressionVariableId (qualifier, uniqueId)
-  , TypeVariableId (qualifier, uniqueId)
-  , InfoId (qualifier, uniqueId)
-  , GenerateIdFromInt (generateIdFromInt)
+  , SymbolContext
+  , SymbolOriginInfo
+  , Symbol
+  , ExpressionVariableId
+  , TypeVariableId
+  , GenerateFromInt (generateFromInt)
+  , HasSymbolStructure
+    ( getPackageRef
+    , getQualifier
+    , getUniqueId
+    , getSymbol
+    )
   ) where
 
 import Octizys.Common.Qualifier (Qualifier)
 
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Classes.From (From (from))
+import Octizys.Common.LogicPath (LogicPath)
+import Octizys.Common.Name (Name)
+import Octizys.Common.PackageRef (PackageRef)
 
 
 newtype Id = Id' {idRaw :: Int}
@@ -25,41 +37,85 @@ newtype Id = Id' {idRaw :: Int}
   deriving (ToJSON) via Generically Id
 
 
-class GenerateIdFromInt a where
-  generateIdFromInt :: Qualifier -> Int -> a
+data SymbolContext = SymbolContext'
+  { packageRef :: PackageRef
+  , qualifier :: Qualifier
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (ToJSON) via Generically SymbolContext
 
 
-data InfoId = InfoId'
-  { qualifier :: Qualifier
+data SymbolOriginInfo = SymbolOriginInfo'
+  { name :: Name
+  , qualifier :: Maybe LogicPath
+  }
+  deriving (Eq, Ord, Show, Generic)
+  deriving (ToJSON) via Generically SymbolOriginInfo
+
+
+instance From (Maybe LogicPath, Name) SymbolOriginInfo where
+  from soi = (soi.qualifier, soi.name)
+
+
+class GenerateFromInt a where
+  generateFromInt
+    :: SymbolContext
+    -> Maybe
+        SymbolOriginInfo
+    -> Int
+    -> a
+
+
+data Symbol = Symbol'
+  { context :: SymbolContext
+  , originInfo :: Maybe SymbolOriginInfo
   , uniqueId :: Id
   }
   deriving (Eq, Ord, Show, Generic)
-  deriving (ToJSON) via Generically InfoId
+  deriving (ToJSON) via Generically Symbol
 
 
-instance GenerateIdFromInt InfoId where
-  generateIdFromInt q x = InfoId' q (Id' x)
+class HasSymbolStructure a where
+  getPackageRef :: a -> PackageRef
+  getQualifier :: a -> Qualifier
+  getUniqueId :: a -> Id
+  getOriginalName :: a -> Maybe (Maybe LogicPath, Name)
+  getSymbol :: a -> Symbol
 
 
-data TypeVariableId = TypeVariableId'
-  { qualifier :: Qualifier
-  , uniqueId :: Id
+instance GenerateFromInt Symbol where
+  generateFromInt ctx info x = Symbol' ctx info (Id' x)
+
+
+instance HasSymbolStructure Symbol where
+  getPackageRef s = s.context.packageRef
+  getQualifier s = s.context.qualifier
+  getUniqueId = uniqueId
+  getOriginalName s = from <$> s.originInfo
+  getSymbol x = x
+
+
+newtype TypeVariableId = TypeVariableId'
+  { getTypeVariableIdSymbol :: Symbol
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, HasSymbolStructure) via Symbol
+  deriving (Generic)
   deriving (ToJSON) via Generically TypeVariableId
 
 
-instance GenerateIdFromInt TypeVariableId where
-  generateIdFromInt q x = TypeVariableId' q (Id' x)
+instance GenerateFromInt TypeVariableId where
+  generateFromInt ctx oinfo x =
+    TypeVariableId' (generateFromInt ctx oinfo x)
 
 
-data ExpressionVariableId = ExpressionVariableId'
-  { qualifier :: Qualifier
-  , uniqueId :: Id
+newtype ExpressionVariableId = ExpressionVariableId'
+  { getExpressionVariableIdSymbol :: Symbol
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, HasSymbolStructure) via Symbol
+  deriving (Generic)
   deriving (ToJSON) via Generically ExpressionVariableId
 
 
-instance GenerateIdFromInt ExpressionVariableId where
-  generateIdFromInt q x = ExpressionVariableId' q (Id' x)
+instance GenerateFromInt ExpressionVariableId where
+  generateFromInt ctx oinfo x =
+    ExpressionVariableId' (generateFromInt ctx oinfo x)

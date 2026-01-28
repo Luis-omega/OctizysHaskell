@@ -17,11 +17,10 @@ module Octizys.FrontEnd.Cst.Type
   , _type
   , variable
   , TypeVariableId
-  , InfoId
   ) where
 
 import Data.List.NonEmpty (NonEmpty)
-import Octizys.Common.Id (InfoId, TypeVariableId)
+import Octizys.Common.Id (TypeVariableId)
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo)
 
 import Data.Aeson (ToJSON)
