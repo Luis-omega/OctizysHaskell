@@ -71,6 +71,9 @@ import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo)
 import Octizys.FrontEnd.Cst.Type (Type)
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 -- | The set of parameters
 data Parameter evar tvar
@@ -80,7 +83,8 @@ data Parameter evar tvar
       , colon :: SourceInfo
       , _type :: Type tvar
       }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Parameter evar tvar)
 
 
 instance Ord evar => FreeVariables evar (Parameter evar tvar) where
@@ -93,7 +97,8 @@ data Parameters evar tvar = Parameters'
   , otherParameters :: [(SourceInfo, Parameter evar tvar)]
   , bodySeparator :: SourceInfo
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Parameters evar tvar)
 
 
 instance Ord evar => FreeVariables evar (Parameters evar tvar) where
@@ -111,7 +116,8 @@ data SchemeStart tvar = SchemeStart'
   , typeArguments :: NonEmpty (SourceInfo, tvar)
   , dot :: SourceInfo
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (SchemeStart tvar)
 
 
 data DefinitionTypeAnnotation evar tvar = DefinitionTypeAnnotation'
@@ -120,7 +126,8 @@ data DefinitionTypeAnnotation evar tvar = DefinitionTypeAnnotation'
   , parameters :: Maybe (Parameters evar tvar)
   , outputType :: Type tvar
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (DefinitionTypeAnnotation evar tvar)
 
 
 -- | Either a Let definition or a Top level definition
@@ -130,7 +137,8 @@ data Definition evar tvar = Definition'
   , equal :: SourceInfo
   , definition :: Expression evar tvar
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Definition evar tvar)
 
 
 data Expression evar tvar
@@ -171,4 +179,5 @@ data Expression evar tvar
       , colon :: SourceInfo
       , _type :: Type tvar
       }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Expression evar tvar)

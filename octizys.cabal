@@ -103,19 +103,23 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
-    Octizys.Ast.Evaluation
     Octizys.Ast.Expression
+    Octizys.Ast.Format.Expression
+    Octizys.Ast.Format.Type
     Octizys.Ast.Node
     Octizys.Ast.Type
     Octizys.Classes.FreeVariables
     Octizys.Classes.From
+    Octizys.Common.Format.Config
+    Octizys.Common.Format.Markup
     Octizys.Common.HistoryMap
     Octizys.Common.Id
     Octizys.Common.LogicPath
     Octizys.Common.Name
-    Octizys.Common.PackageName
+    Octizys.Common.PackageRef
     Octizys.Common.Qualifier
     Octizys.Common.Report
+    Octizys.Common.Version
     Octizys.Effects.Accumulator.Effect
     Octizys.Effects.Accumulator.Interpreter
     Octizys.Effects.Console.Effect
@@ -124,31 +128,35 @@ library
     Octizys.Effects.FileReader.Interpreter
     Octizys.Effects.IdGenerator.Effect
     Octizys.Effects.IdGenerator.Interpreter
-    Octizys.Effects.Logger.ConsoleInterpreter
-    Octizys.Effects.Logger.Effect
+    Octizys.Effects.ListDir.Effect
+    Octizys.Effects.ListDir.Interpreter
     Octizys.FrontEnd.Cst.Comment
     Octizys.FrontEnd.Cst.Expression
     Octizys.FrontEnd.Cst.Node
     Octizys.FrontEnd.Cst.SourceInfo
     Octizys.FrontEnd.Cst.TopItem
     Octizys.FrontEnd.Cst.Type
+    Octizys.FrontEnd.Format.Comment
+    Octizys.FrontEnd.Format.Expression
+    Octizys.FrontEnd.Format.TopItem
+    Octizys.FrontEnd.Format.Type
     Octizys.FrontEnd.Parser.Common
+    Octizys.FrontEnd.Parser.Error
     Octizys.FrontEnd.Parser.Expression
     Octizys.FrontEnd.Parser.TopItem
     Octizys.FrontEnd.Parser.Type
-    Octizys.Pretty.Ast.Expression
-    Octizys.Pretty.Ast.Type
-    Octizys.Pretty.Cst.Comment
-    Octizys.Pretty.Cst.Expression
-    Octizys.Pretty.Cst.TopItem
-    Octizys.Pretty.Cst.Type
-    Octizys.Pretty.FormatContext
-    Octizys.Pretty.Formatter
-    Octizys.Pretty.Markup
+    Octizys.Logging.Effect
+    Octizys.Logging.Entry
+    Octizys.Logging.Interpreters.Console
+    Octizys.Logging.Levels
+    Octizys.Logging.Loggers
+    Octizys.PathResolution.DependencyTree
+    Octizys.PathResolution.PathIndex
     Octizys.Scope
     Octizys.SymbolResolution.ImportsResolution
     Octizys.SymbolResolution.MakeUniqueIds
 
+  -- Octizys.Ast.Evaluation
   --Octizys.Inference.ConstraintsGeneration
   --Octizys.Inference.ConstraintsSolver
   --Octizys.Inference.Errors
@@ -160,7 +168,9 @@ library
 
   -- Other library packages from which modules are imported.
   build-depends:
+    , aeson
     , base                        ^>=4.18.2.1
+    , bytestring
     , containers
     , effectful
     , effectful-core
@@ -205,6 +215,7 @@ executable octizys
 
   -- Other library packages from which modules are imported.
   build-depends:
+    , aeson
     , base                        ^>=4.18.2.1
     , containers
     , effectful

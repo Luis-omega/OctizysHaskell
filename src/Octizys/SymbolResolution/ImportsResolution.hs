@@ -21,7 +21,11 @@ import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, runErrorNoCallStack, throwError)
 import EffectfulParserCombinators.Span (Span)
 import Octizys.Classes.From (From (from))
-import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
+import Octizys.Common.Id
+  ( ExpressionVariableId
+  , SymbolOriginInfo (name)
+  , TypeVariableId
+  )
 import Octizys.Common.LogicPath (LogicPath, addAtEnd)
 import Octizys.Common.Name (Name)
 import Octizys.Common.Qualifier (Qualifier)
@@ -29,7 +33,7 @@ import Octizys.Effects.Accumulator.Interpreter (Accumulator)
 import Octizys.FrontEnd.Cst.Expression (Definition (name))
 import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo (span)
-  , SourceVariable (name)
+  , SourceVariable
   )
 import Octizys.FrontEnd.Cst.TopItem
   ( ImportModule
@@ -43,18 +47,23 @@ import Octizys.FrontEnd.Cst.TopItem
   )
 import Octizys.Scope (ExpressionVariableInformation, ImportsScope)
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 data ImportError
   = MultipleDeclarationOf
       Name
       (Set (Definition SourceVariable SourceVariable))
       (Set SourceQualifier)
-  deriving (Show)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ImportError
 
 
 newtype ImportErrors = ImportErrors' {unImportErrors :: [ImportError]}
-  deriving (Show)
+  deriving (Show, Eq, Ord, Generic)
   deriving (Semigroup) via [ImportError]
+  deriving (ToJSON) via Generically ImportErrors
 
 
 data ImportWarning
@@ -65,11 +74,13 @@ data ImportWarning
   | -- | Multiple imports of the same symbol (based on their full qualifier).
     MultipleImports Name [SourceQualifier]
   | OverlappingQualifiers [SourceQualifier]
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ImportWarning
 
 
 data SourceQualifier = SourceQualifier' Qualifier Span
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically SourceQualifier
 
 
 {- | The objective of this type is to facilitate the lookup of
@@ -109,13 +120,16 @@ data ResolutionContext = ResolutionContext'
   -- ^ Map qualifier aliases to their full qualifiers.
   -- It utilizes a set since we allow overlapping qualifiers.
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ResolutionContext
 
 
 data ImportsContext e t = ImportsContext'
   { unqualifiedSymbols :: Map Name (Either (Definition e t) Qualifier)
   , qualifiedSymbols :: Map LogicPath (Set SourceQualifier)
   }
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (ImportsContext e t)
 
 
 emptyResolutionContext :: ResolutionContext
@@ -203,7 +217,7 @@ addDefinition
 addDefinition rc def =
   -- Note: we ignore the case where there is a qualifier inside
   -- for the name as this is should be the identifier of a definition.
-  let sv = snd def.name
+  let sv :: SymbolOriginInfo = from $ snd def.name
    in rc
         { localSymbols =
             Map.insertWith

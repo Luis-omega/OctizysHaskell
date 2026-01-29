@@ -1,4 +1,4 @@
-module Octizys.Pretty.Markup where
+module Octizys.Common.Format.Markup where
 
 import Data.Set
 

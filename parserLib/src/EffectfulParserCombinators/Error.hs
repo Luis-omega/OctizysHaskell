@@ -17,18 +17,16 @@ import qualified EffectfulParserCombinators.Span as Span
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 data UserError e
   = SimpleError {message :: Text.Text}
   | CustomError {customError :: e}
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic, Functor)
+  deriving (ToJSON) via Generically (UserError e)
 
-
--- instance
---   Formatter ann (FormatContext ann) e
---   => Formatter ann (FormatContext ann) (UserError e)
---   where
---   format ctx usError = prettyUserError (format ctx) usError
 
 instance (Show e, Pretty e) => Pretty (UserError e) where
   pretty (SimpleError msg) = pretty msg
@@ -55,7 +53,15 @@ data ParserError e
       { errorPosition :: Position
       , userErrors :: Set (UserError e)
       }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (ParserError e)
+
+
+changeParserError
+  :: Ord e2 => (e1 -> e2) -> ParserError e1 -> ParserError e2
+changeParserError f (UserMadeError p e) =
+  UserMadeError p (Set.map (f <$>) e)
+changeParserError _ (GeneratedError e u ex) = GeneratedError e u ex
 
 
 humanReadableError
