@@ -87,6 +87,8 @@ import Octizys.PathResolution.PathIndex
 import Data.Aeson (ToJSON (toJSON))
 import GHC.Generics (Generic, Generically (..))
 import Octizys.Common.Format.Config (defaultConfiguration)
+import Octizys.Common.Name (Name)
+import Octizys.Common.Version (Version)
 import Octizys.FrontEnd.Format.TopItem (formatModule)
 
 
@@ -223,6 +225,115 @@ annotateInput
   => (x -> m a)
   -> (x -> m (x, a))
 annotateInput f x = (\w -> (x, w)) <$> f x
+
+
+data Ioct = Ioct'
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically Ioct
+
+
+instance Pretty Ioct where
+  pretty Ioct' = "StubIocFile"
+
+
+data Package = Package'
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically Package
+
+
+instance Pretty Package where
+  pretty Package' = "StubPackage"
+
+
+findIoctFiles
+  :: FileReader :> e
+  => Log :> e
+  => FilePath
+  -> Eff e [FilePath]
+findIoctFiles path = do
+  Log.info
+    "Find ioct files - start"
+    [ field "path" path
+    ]
+  let filesFound :: [FilePath] = []
+  Log.info
+    "Find ioct files - end"
+    [ field "path" path
+    , field "files found" filesFound
+    ]
+  pure filesFound
+
+
+loadIoctFile
+  :: FileReader :> e
+  => Log :> e
+  => FilePath
+  -> Eff e Ioct
+loadIoctFile path = do
+  let
+    content = Ioct'
+  pure content
+
+
+loadPackageManifiest
+  :: FileReader :> e
+  => Log :> e
+  => FilePath
+  -> Eff e (Name, Version)
+loadPackageManifiest packagePath = do
+  let (name, version) :: (Name, Version) = undefined
+  Log.info
+    "Package manifest info"
+    [ field
+        "package path"
+        packagePath
+    , field
+        "package name"
+        name
+    , field
+        "package version"
+        version
+    ]
+  pure (name, version)
+
+
+loadPackage
+  :: Reader CompilerConfig :> e
+  => Accumulator OctizysWarn :> e
+  => Accumulator OctizysError :> e
+  => FileReader :> e
+  => Log :> e
+  => FilePath
+  -> Eff e Package
+loadPackage pathToPackage = do
+  (name, version) <- loadPackageManifiest pathToPackage
+  ioctFilePaths <- findIoctFiles pathToPackage
+  iocts <- mapM loadIoctFile ioctFilePaths
+  let out = Package'
+  Log.info
+    "Package load"
+    [ field "package" out
+    ]
+  pure out
+
+
+loadPackages
+  :: Reader CompilerConfig :> e
+  => Accumulator OctizysWarn :> e
+  => Accumulator OctizysError :> e
+  => FileReader :> e
+  => Log :> e
+  => [FilePath]
+  -> Eff e [Package]
+loadPackages paths = do
+  Log.info
+    "Load packages - start"
+    []
+  packages <- mapM loadPackage paths
+  Log.info
+    "Load packages - end"
+    []
+  pure packages
 
 
 -- TODO:STUB
