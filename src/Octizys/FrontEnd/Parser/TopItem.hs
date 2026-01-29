@@ -11,14 +11,14 @@ import EffectfulParserCombinators.Combinators
   , (<|>)
   )
 import EffectfulParserCombinators.Effect (Parser)
-import Octizys.Common.LogicPath (addAtEnd)
+import Octizys.Classes.From (From (from))
+import Octizys.Common.Id (SymbolOriginInfo (name, qualifier))
+import Octizys.Common.LogicPath (LogicPath, addAtEnd)
 import Octizys.FrontEnd.Cst.Expression (Definition)
 import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo
   , SourceVariable
   , makeSourceInfo
-  , name
-  , qualifier
   )
 import Octizys.FrontEnd.Cst.TopItem
   ( ImportAlias (ImportAlias', path, _as)
@@ -35,7 +35,14 @@ import Octizys.FrontEnd.Cst.TopItem
     , unqualified
     , _import
     )
-  , Module (Module', definitions, imports, lastComments)
+  , Module
+    ( Module'
+    , definitions
+    , imports
+    , lastComments
+    , logicPath
+    , systemPath
+    )
   , ModulePath (ModuleLogicPath, ModuleVarPath)
   , TopItem
     ( TopDefinition
@@ -46,8 +53,7 @@ import Octizys.FrontEnd.Cst.TopItem
     )
   )
 import Octizys.FrontEnd.Parser.Common
-  ( OctizysParseError (EmptyImportList)
-  , asKeyword
+  ( asKeyword
   , comments
   , importKeyword
   , leftParen
@@ -58,6 +64,9 @@ import Octizys.FrontEnd.Parser.Common
   , unqualifiedKeyword
   )
 import qualified Octizys.FrontEnd.Parser.Common as Common
+import Octizys.FrontEnd.Parser.Error
+  ( OctizysParseError (EmptyImportList)
+  )
 import Octizys.FrontEnd.Parser.Expression (definitionParser)
 
 
@@ -66,10 +75,12 @@ modulePathParser
   => Eff es (SourceInfo, ModulePath)
 modulePathParser = do
   (var, varInfo) <- sourceVariableParser
-  let path =
-        case var.qualifier of
-          Just p -> ModuleLogicPath (addAtEnd var.name p)
-          Nothing -> ModuleVarPath var.name
+  let
+    varAsOriginInfo :: SymbolOriginInfo = from var
+    path =
+      case varAsOriginInfo.qualifier of
+        Just p -> ModuleLogicPath (addAtEnd varAsOriginInfo.name p)
+        Nothing -> ModuleVarPath varAsOriginInfo.name
   pure (varInfo, path)
 
 
@@ -78,7 +89,9 @@ importItemParser
   => Eff es ImportItem
 importItemParser = do
   (var, info) <- localVariable
-  pure ImportVariable {info, name = var.name}
+  let
+    varAsOriginInfo :: SymbolOriginInfo = from var
+  pure ImportVariable {info, name = varAsOriginInfo.name}
 
 
 -- | This can raise an error
@@ -143,8 +156,12 @@ parseTopItem = do
 
 parseModule
   :: Parser OctizysParseError :> es
-  => Eff es (Module SourceVariable SourceVariable)
-parseModule = do
+  => FilePath
+  -> LogicPath
+  -- ^ The file system path of the file, this won't load the file, is just for information.
+  -> Eff es (Module SourceVariable SourceVariable)
+  -- ^ The logic path of the file, is determined previous to this step.
+parseModule systemPath logicPath = do
   items <- many parseTopItem
   let (definitions, imports) = splitItems items ([], [])
   lastCommentsRaw <- hidden comments
@@ -152,7 +169,9 @@ parseModule = do
     [] ->
       pure
         Module'
-          { lastComments = Nothing
+          { systemPath
+          , logicPath
+          , lastComments = Nothing
           , definitions
           , imports
           }
@@ -164,7 +183,9 @@ parseModule = do
               Nothing
        in pure
             Module'
-              { lastComments = Just lastCommentsJust
+              { systemPath
+              , logicPath
+              , lastComments = Just lastCommentsJust
               , definitions
               , imports
               }

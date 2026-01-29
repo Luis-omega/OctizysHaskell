@@ -14,13 +14,17 @@ import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 data Definition var = Definition'
   { name :: ExpressionVariableId
   , definition :: Expression var
   , inferType :: Type var
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Definition var)
 
 
 instance
@@ -39,7 +43,8 @@ data Value var
       , body :: Expression var
       , inferType :: Type var
       }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Value var)
 
 
 getValueType :: Value var -> Type var
@@ -83,7 +88,8 @@ data Expression var
       , _type :: Type var
       , inferType :: Type var
       }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Expression var)
 
 
 instance From (Expression var) (Value var) where

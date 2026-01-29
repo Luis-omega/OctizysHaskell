@@ -3,6 +3,9 @@ module EffectfulParserCombinators.Unexpected where
 import Data.List.NonEmpty (NonEmpty)
 import Prettyprinter (Pretty (pretty))
 
+import Data.Aeson (ToJSON (toJSON))
+import GHC.Generics (Generic, Generically (..))
+
 
 -- | Represent a unexpected element in the stream.
 data Unexpected
@@ -10,7 +13,8 @@ data Unexpected
     UnexpectedRaw (NonEmpty Char)
   | -- | Reached end of input
     UnexpectedEndOfInput
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically Unexpected
 
 
 instance Pretty Unexpected where

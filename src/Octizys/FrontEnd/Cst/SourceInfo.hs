@@ -1,9 +1,14 @@
-module Octizys.FrontEnd.Cst.SourceInfo where
+module Octizys.FrontEnd.Cst.SourceInfo
+  ( SourceInfo (span, preComments, afterComment)
+  , makeSourceInfo
+  , SourceVariable
+  ) where
 
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.Aeson (ToJSON)
 import EffectfulParserCombinators.Span (Span)
+import GHC.Generics (Generic, Generically (..))
 import Octizys.Classes.From (From (from))
-import Octizys.Common.LogicPath (LogicPath)
+import Octizys.Common.Id (SymbolOriginInfo)
 import Octizys.Common.Name (Name)
 import Octizys.FrontEnd.Cst.Comment (Comment)
 import Prettyprinter (Pretty (pretty))
@@ -14,34 +19,30 @@ data SourceInfo = SourceInfo'
   , preComments :: [Comment]
   , afterComment :: Maybe Comment
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically SourceInfo
 
 
 makeSourceInfo :: Span -> [Comment] -> Maybe Comment -> SourceInfo
 makeSourceInfo = SourceInfo'
 
 
-data SourceVariable = SourceVariable'
-  { qualifier :: Maybe LogicPath
-  , name :: Name
-  }
-  deriving (Show, Eq, Ord)
+newtype SourceVariable = SourceVariable' SymbolOriginInfo
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically SourceVariable
 
 
 instance From SourceVariable ([Name], Name) where
-  from (ps, name) =
-    case ps of
-      [] -> SourceVariable' {qualifier = Nothing, name}
-      (p : remain) ->
-        SourceVariable'
-          { qualifier =
-              Just (from (p NonEmpty.:| remain))
-          , name
-          }
+  from x = SourceVariable' $ from x
+
+
+instance From SymbolOriginInfo SourceVariable where
+  from (SourceVariable' x) = x
+
+
+instance From SourceVariable SymbolOriginInfo where
+  from = SourceVariable'
 
 
 instance Pretty SourceVariable where
-  pretty sv =
-    case sv.qualifier of
-      Just qual -> pretty qual <> pretty '/' <> pretty sv.name
-      Nothing -> pretty sv.name
+  pretty (SourceVariable' sv) = pretty sv

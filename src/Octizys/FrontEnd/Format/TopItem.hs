@@ -1,7 +1,9 @@
-module Octizys.Pretty.Cst.TopItem where
+module Octizys.FrontEnd.Format.TopItem where
 
 import Control.Arrow ((<<<))
 import Data.Text (Text)
+import Octizys.Common.Format.Config (nest)
+import qualified Octizys.Common.Format.Config as Format
 import Octizys.FrontEnd.Cst.TopItem
   ( ImportItems
       ( ImportItems'
@@ -19,14 +21,13 @@ import Octizys.FrontEnd.Cst.TopItem
     )
   , Module (Module', definitions, imports, lastComments)
   )
-import Octizys.Pretty.Cst.Expression (formatDefinition)
-import Octizys.Pretty.FormatContext (FormatContext, nest)
+import Octizys.FrontEnd.Format.Expression (formatDefinition)
 import Prettyprinter (Doc, Pretty (pretty), vsep)
 import qualified Prettyprinter as Pretty
 
 
 formatImportItems
-  :: FormatContext ann
+  :: Format.Configuration
   -> ImportItems
   -> Doc ann
 formatImportItems
@@ -51,20 +52,20 @@ formatImportItems
 
 
 formatImportModule
-  :: FormatContext ann
+  :: Format.Configuration
   -> ImportModule
   -> Doc ann
 formatImportModule
-  ctx
+  configuration
   (ImportModuleAs' {_import, path, alias}) =
     pretty @Text "import"
-      <> (Pretty.group <<< nest ctx)
+      <> (Pretty.group <<< nest configuration)
         ( Pretty.line
             <> pretty (snd path)
             <> maybe mempty (\x -> Pretty.line <> pretty x) alias
         )
 formatImportModule
-  ctx
+  configuration
   ( ImportModuleUnqualified'
       { _import
       , path
@@ -72,33 +73,25 @@ formatImportModule
       }
     ) =
     pretty @Text "import"
-      <> (Pretty.group <<< nest ctx)
+      <> (Pretty.group <<< nest configuration)
         ( Pretty.line
             <> pretty (snd path)
             <> pretty '('
             <> Pretty.line
-            <> nest ctx (formatImportItems ctx items)
+            <> nest configuration (formatImportItems configuration items)
             <> Pretty.line
             <> pretty ')'
         )
 
 
 formatModule
-  :: ( FormatContext ann
-       -> evar
-       -> Doc ann
-     )
-  -> ( FormatContext ann
-       -> tvar
-       -> Doc ann
-     )
-  -> FormatContext ann
+  :: Pretty evar
+  => Pretty tvar
+  => Format.Configuration
   -> Module evar tvar
   -> Doc ann
 formatModule
-  fmtEvar
-  fmtTvar
-  ctx
+  configuration
   ( Module'
       { lastComments = _lastComment
       , definitions = _definitions
@@ -109,7 +102,7 @@ formatModule
     vsep
       ( ( \x ->
             formatImportModule
-              ctx
+              configuration
               (fst x)
               <> pretty ';'
               <> Pretty.hardline
@@ -120,9 +113,7 @@ formatModule
       <> vsep
         ( ( \x ->
               formatDefinition
-                fmtEvar
-                fmtTvar
-                ctx
+                configuration
                 (fst x)
                 <> pretty ';'
                 <> Pretty.hardline

@@ -13,9 +13,15 @@ import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
 import Octizys.FrontEnd.Cst.Type (TypeVariableId)
 
+import Data.Aeson (ToJSON)
+import Data.Text (Text)
+import GHC.Generics (Generic, Generically (..))
+import Prettyprinter (Pretty, pretty)
+
 
 data TypeValue = BoolType | IntType
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically TypeValue
 
 
 instance FreeVariables TypeVariableId TypeValue where
@@ -26,7 +32,8 @@ data InferenceVariable
   = ErrorVariable
   | MetaVariable TypeVariableId
   | UserVariable TypeVariableId
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically InferenceVariable
 
 
 instance FreeVariables TypeVariableId InferenceVariable where
@@ -35,8 +42,15 @@ instance FreeVariables TypeVariableId InferenceVariable where
   freeVariables ErrorVariable = mempty
 
 
+instance Pretty InferenceVariable where
+  pretty ErrorVariable = pretty @Text "ErrorVariable"
+  pretty (MetaVariable vid) = pretty vid
+  pretty (UserVariable vid) = pretty vid
+
+
 newtype TypeVariable = TypeVariable {unTypeVariable :: TypeVariableId}
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically TypeVariable
 
 
 instance FreeVariables TypeVariableId TypeVariable where
@@ -54,7 +68,8 @@ data MonoType var
   | -- | All variables are translated at parsing time to a internal
     -- identifier. You can think of it as a pointer in symbol table.
     Variable var
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (MonoType var)
 
 
 instance From (MonoType var) TypeValue where
@@ -84,7 +99,8 @@ data Scheme var = Scheme'
   { arguments :: NonEmpty TypeVariableId
   , body :: MonoType var
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Scheme var)
 
 
 instance
@@ -108,7 +124,8 @@ instance From outVar inVar => From (Scheme outVar) (Scheme inVar) where
 data Type var
   = TMono (MonoType var)
   | TPoly (Scheme var)
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Type var)
 
 
 instance From (Type var) TypeValue where

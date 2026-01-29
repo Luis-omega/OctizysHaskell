@@ -12,8 +12,10 @@ import Effectful (Eff, (:>))
 import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Local (State, gets, put, runState)
-import Octizys.Common.Id (GenerateIdFromInt (generateIdFromInt))
-import Octizys.Common.Qualifier (Qualifier)
+import Octizys.Common.Id
+  ( GenerateFromInt (generateFromInt)
+  , SymbolContext
+  )
 import Octizys.Effects.IdGenerator.Effect
   ( IdGenerator (GenerateId)
   , generateId
@@ -29,22 +31,22 @@ newtype IdGeneratorState a = IdGeneratorState'
 -- | Runner for the `IntGenerator` effect
 runIdGenerator
   :: State (IdGeneratorState a) :> es
-  => Reader Qualifier :> es
-  => GenerateIdFromInt a
+  => Reader SymbolContext :> es
+  => GenerateFromInt a
   => Eff (IdGenerator a : es) b
   -> Eff es b
 runIdGenerator = interpret $ \_ x ->
   case x of
-    GenerateId -> do
-      q <- ask
+    GenerateId msoi -> do
+      ctx <- ask
       s <- gets nextInt
       put (IdGeneratorState' (s + 1))
-      pure (generateIdFromInt q s)
+      pure (generateFromInt ctx msoi s)
 
 
 runIdGeneratorFull
-  :: GenerateIdFromInt a
-  => Reader Qualifier :> es
+  :: GenerateFromInt a
+  => Reader SymbolContext :> es
   => Int
   -> Eff
       ( IdGenerator a

@@ -15,10 +15,12 @@ import EffectfulParserCombinators.Combinators
   , (<|>)
   )
 import EffectfulParserCombinators.Effect (Parser)
-import Octizys.Common.Name (makeName)
+import Octizys.Classes.From (From (from))
+import Octizys.Common.Id (SymbolOriginInfo)
+import Octizys.Common.Name (Name, makeName)
 import Octizys.FrontEnd.Cst.SourceInfo
   ( SourceInfo
-  , SourceVariable (SourceVariable', name, qualifier)
+  , SourceVariable
   , makeSourceInfo
   )
 import Octizys.FrontEnd.Cst.Type
@@ -34,14 +36,16 @@ import Octizys.FrontEnd.Cst.Type
   )
 import qualified Octizys.FrontEnd.Cst.Type as Type
 import Octizys.FrontEnd.Parser.Common
-  ( OctizysParseError (CantParseName)
-  , between
+  ( between
   , keyword
   , leftParen
   , rightArrow
   , rightParen
   , sourceVariableParser
   , token
+  )
+import Octizys.FrontEnd.Parser.Error
+  ( OctizysParseError (CantParseName)
   )
 import Prelude hiding (span)
 
@@ -85,10 +89,7 @@ typeHole = do
     Type.TVariable
       { info = inf
       , variable =
-          SourceVariable'
-            { qualifier = Nothing
-            , name
-            }
+          from $ from @SymbolOriginInfo ([] @Name, name)
       }
 
 

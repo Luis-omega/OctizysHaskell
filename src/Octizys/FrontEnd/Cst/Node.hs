@@ -11,13 +11,17 @@ import Octizys.FrontEnd.Cst.Expression
   )
 import Octizys.FrontEnd.Cst.Type (Type)
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 data Node evar tvar
   = NType (Type tvar)
   | NParam (Parameter evar tvar)
   | NDef (Definition evar tvar)
   | NExp (Expression evar tvar)
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Node evar tvar)
 
 
 instance From (Node evar tvar) (Type tvar) where

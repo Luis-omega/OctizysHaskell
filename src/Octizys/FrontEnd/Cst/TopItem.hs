@@ -13,11 +13,15 @@ import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo, SourceVariable)
 import Prettyprinter (Pretty (pretty))
 import qualified Prettyprinter as Pretty
 
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generic, Generically (..))
+
 
 data ModulePath
   = ModuleLogicPath LogicPath
   | ModuleVarPath Name
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ModulePath
 
 
 instance Pretty ModulePath where
@@ -34,7 +38,8 @@ data ImportItem = ImportVariable
   { info :: SourceInfo
   , name :: Name
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ImportItem
 
 
 instance Pretty ImportItem where
@@ -46,7 +51,8 @@ data ImportItems = ImportItems'
   , lastItem :: ImportItem
   , lastComma :: Maybe SourceInfo
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ImportItems
 
 
 instance From (NonEmpty (SourceInfo, Name)) ImportItems where
@@ -58,7 +64,8 @@ data ImportAlias = ImportAlias'
   { _as :: SourceInfo
   , path :: (SourceInfo, ModulePath)
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ImportAlias
 
 
 instance Pretty ImportAlias where
@@ -86,7 +93,8 @@ data ImportModule
       , items :: ImportItems
       , rparen :: SourceInfo
       }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically ImportModule
 
 
 data TopItem
@@ -98,13 +106,17 @@ data TopItem
       { importModule :: ImportModule
       , semicolon :: SourceInfo
       }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically TopItem
 
 
 data Module evar tvar = Module'
-  { imports :: [(ImportModule, SourceInfo)]
+  { systemPath :: FilePath
+  , logicPath :: LogicPath
+  , imports :: [(ImportModule, SourceInfo)]
   , definitions :: [(Definition evar tvar, SourceInfo)]
   -- ^ The @SourceInfo@ is for the colon
   , lastComments :: Maybe SourceInfo
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Module evar tvar)
