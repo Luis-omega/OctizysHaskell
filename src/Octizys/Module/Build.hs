@@ -3,7 +3,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
-module Octizys.Compiler.Module.Build where
+module Octizys.Module.Build where
 
 import Data.Aeson (KeyValue ((.=)), ToJSON (toJSON), object)
 import Data.Text (Text)

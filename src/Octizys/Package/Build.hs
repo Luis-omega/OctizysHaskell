@@ -2,16 +2,16 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Octizys.Compiler.Package.Build where
+module Octizys.Package.Build where
 
 import Data.Aeson (ToJSON)
 import Data.Aeson.Types (Value)
 import GHC.Generics (Generic, Generically (..))
-import qualified Octizys.Compiler.Module.Build as Module
-import qualified Octizys.Compiler.Module.Index as Module
-import qualified Octizys.Compiler.Package.Index as Package
-import qualified Octizys.Compiler.Package.Reference as Package
 import qualified Octizys.Compiler.Stage as Compiler
+import qualified Octizys.Module.Build as Module
+import qualified Octizys.Module.Index as Module
+import qualified Octizys.Package.Index as Package
+import qualified Octizys.Package.Reference as Package
 import Prettyprinter (Pretty)
 import qualified Prettyprinter as Pretty
 

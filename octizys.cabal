@@ -120,13 +120,6 @@ library
     Octizys.Common.Report
     Octizys.Common.Version
     Octizys.Compiler.Error
-    Octizys.Compiler.Module.Build
-    Octizys.Compiler.Module.Dependencies
-    Octizys.Compiler.Module.Index
-    Octizys.Compiler.Package.Build
-    Octizys.Compiler.Package.Dependencies
-    Octizys.Compiler.Package.Index
-    Octizys.Compiler.Package.Reference
     Octizys.Compiler.Pipeline
     Octizys.Compiler.Stage
     Octizys.Compiler.Warn
@@ -161,6 +154,13 @@ library
     Octizys.Logging.Interpreters.Console
     Octizys.Logging.Levels
     Octizys.Logging.Loggers
+    Octizys.Module.Build
+    Octizys.Module.Dependencies
+    Octizys.Module.Index
+    Octizys.Package.Build
+    Octizys.Package.Dependencies
+    Octizys.Package.Index
+    Octizys.Package.Reference
     Octizys.PathResolution.DependencyTree
     Octizys.PathResolution.PathIndex
     Octizys.Scope

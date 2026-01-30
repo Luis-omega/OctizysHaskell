@@ -1,4 +1,4 @@
-module Octizys.Compiler.Package.Reference (PackageName, makePackageName, Reference, calculateHash) where
+module Octizys.Package.Reference (PackageName, makePackageName, Reference, calculateHash) where
 
 import Data.Text (Text)
 import Prettyprinter (Pretty (pretty))

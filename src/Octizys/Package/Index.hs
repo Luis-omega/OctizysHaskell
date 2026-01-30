@@ -1,4 +1,4 @@
-module Octizys.Compiler.Package.Index
+module Octizys.Package.Index
   ( Index
   , empty
   , build
@@ -8,8 +8,8 @@ module Octizys.Compiler.Package.Index
 import Data.Aeson (ToJSON)
 import Effectful (Eff, (:>))
 import GHC.Generics (Generic, Generically (..))
-import qualified Octizys.Compiler.Module.Index as Module
 import Octizys.Logging.Effect (Log)
+import qualified Octizys.Module.Index as Module
 
 
 -- TODO:STUB

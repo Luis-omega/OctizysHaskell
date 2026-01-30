@@ -10,14 +10,6 @@ import EffectfulParserCombinators.Interpreter (runFullParser)
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Format.Config (defaultConfiguration)
 import qualified Octizys.Compiler.Error as Compiler
-import qualified Octizys.Compiler.Module.Build as Module
-import qualified Octizys.Compiler.Module.Index as Module
-import qualified Octizys.Compiler.Module.Index as Module.Index
-import Octizys.Compiler.Package.Build (makeEmptyDependencyTree)
-import qualified Octizys.Compiler.Package.Build as Package
-import qualified Octizys.Compiler.Package.Index as Package
-import qualified Octizys.Compiler.Package.Index as Package.Index
-import Octizys.Compiler.Package.Reference (Reference)
 import qualified Octizys.Compiler.Stage as Compiler.Stage
 import qualified Octizys.Compiler.Warn as Compiler
 import Octizys.Effects.Accumulator.Effect (Accumulator)
@@ -32,6 +24,14 @@ import qualified Octizys.FrontEnd.Parser.TopItem as Parser
 import Octizys.Logging.Effect (Log)
 import Octizys.Logging.Entry (field, fieldWith)
 import qualified Octizys.Logging.Loggers as Log
+import qualified Octizys.Module.Build as Module
+import qualified Octizys.Module.Index as Module
+import qualified Octizys.Module.Index as Module.Index
+import Octizys.Package.Build (makeEmptyDependencyTree)
+import qualified Octizys.Package.Build as Package
+import qualified Octizys.Package.Index as Package
+import qualified Octizys.Package.Index as Package.Index
+import Octizys.Package.Reference (Reference)
 
 
 fromRightOrThrow

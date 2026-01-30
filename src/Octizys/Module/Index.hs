@@ -1,15 +1,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Octizys.Compiler.Module.Index where
+module Octizys.Module.Index where
 
 import Data.Aeson (ToJSON (toJSON), Value)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import GHC.Generics (Generic, Generically (..))
 import Octizys.Common.LogicPath (LogicPath)
-import Octizys.Compiler.Module.Build (BuildState)
 import qualified Octizys.Compiler.Stage as Compiler
+import Octizys.Module.Build (BuildState)
 import Prettyprinter (Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 
@@ -57,7 +57,8 @@ prettyIndex
   -> Pretty.Doc ann
 prettyIndex (Index' m) =
   Pretty.vsep
-    [ pretty path <+> "=>"
+    [ pretty path
+      <+> "=>"
       <> Pretty.line
       <> Pretty.indent 2 (pretty modl)
     | (path, modl) <- Map.toList m

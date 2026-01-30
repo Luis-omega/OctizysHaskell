@@ -27,7 +27,7 @@ import GHC.Generics (Generic, Generically (..))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath, logicPathSeparator)
 import Octizys.Common.Name (Name)
-import qualified Octizys.Compiler.Package.Reference as Package
+import qualified Octizys.Package.Reference as Package
 import Prettyprinter (Pretty, pretty)
 
 
