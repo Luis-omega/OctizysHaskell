@@ -116,12 +116,23 @@ library
     Octizys.Common.Id
     Octizys.Common.LogicPath
     Octizys.Common.Name
-    Octizys.Common.PackageRef
     Octizys.Common.Qualifier
     Octizys.Common.Report
     Octizys.Common.Version
+    Octizys.Compiler.Error
+    Octizys.Compiler.Module.Build
+    Octizys.Compiler.Module.Dependencies
+    Octizys.Compiler.Module.Index
+    Octizys.Compiler.Package.Build
+    Octizys.Compiler.Package.Dependencies
+    Octizys.Compiler.Package.Index
+    Octizys.Compiler.Package.Reference
+    Octizys.Compiler.Pipeline
+    Octizys.Compiler.Stage
+    Octizys.Compiler.Warn
     Octizys.Effects.Accumulator.Effect
     Octizys.Effects.Accumulator.Interpreter
+    Octizys.Effects.Accumulator.Utils
     Octizys.Effects.Console.Effect
     Octizys.Effects.Console.Interpreter
     Octizys.Effects.FileReader.Effect

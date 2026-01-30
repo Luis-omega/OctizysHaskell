@@ -27,7 +27,7 @@ import GHC.Generics (Generic, Generically (..))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath, logicPathSeparator)
 import Octizys.Common.Name (Name)
-import Octizys.Common.PackageRef (PackageRef)
+import qualified Octizys.Compiler.Package.Reference as Package
 import Prettyprinter (Pretty, pretty)
 
 
@@ -43,7 +43,7 @@ newtype Id = Id' {idRaw :: Int}
 
 
 data SymbolContext = SymbolContext'
-  { packageRef :: PackageRef
+  { packageRef :: Package.Reference
   , qualifier :: Qualifier
   }
   deriving (Eq, Ord, Show, Generic)
@@ -104,7 +104,7 @@ data Symbol = Symbol'
 
 
 class HasSymbolStructure a where
-  getPackageRef :: a -> PackageRef
+  getPackageRef :: a -> Package.Reference
   getQualifier :: a -> Qualifier
   getUniqueId :: a -> Id
   getOriginalName :: a -> Maybe (Maybe LogicPath, Name)

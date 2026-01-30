@@ -1,4 +1,4 @@
-module Octizys.Common.PackageRef (PackageName, makePackageName, PackageRef, calculateHash) where
+module Octizys.Compiler.Package.Reference (PackageName, makePackageName, Reference, calculateHash) where
 
 import Data.Text (Text)
 import Prettyprinter (Pretty (pretty))
@@ -58,7 +58,7 @@ instance Pretty PackageIdentity where
 current package being compiled.
 We allow user to omit the name and the version, instead of
 forcing a default value, we omit them also.
-Note that theres alwasy a source for this package
+Note that theres always a source for this package
 -}
 data OptionalPackageIdentity = OptionalPackageIdentity'
   { name :: Maybe PackageName
@@ -77,16 +77,16 @@ instance Pretty OptionalPackageIdentity where
 
 
 -- | Used to disambiguate between multiple versions of the same package
-data PackageRef
+data Reference
   = -- | The current package being compiled.
     TargetPackage OptionalPackageIdentity
   | -- | A dependency of our current package.
     NamedPackage PackageIdentity
   deriving (Show, Eq, Ord, Generic)
-  deriving (ToJSON) via Generically PackageRef
+  deriving (ToJSON) via Generically Reference
 
 
-instance Pretty PackageRef where
+instance Pretty Reference where
   pretty (TargetPackage p) = pretty p
   pretty (NamedPackage p) = pretty p
 
@@ -111,7 +111,7 @@ calculateIdentityHash _ _ _ = Nothing
 This only returns Nothing if we are at the current package and
 the user didn't provide any information about it.
 -}
-calculateHash :: PackageRef -> Maybe Hash
+calculateHash :: Reference -> Maybe Hash
 calculateHash (TargetPackage op) =
   calculateIdentityHash
     op.name
