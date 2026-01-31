@@ -43,6 +43,14 @@ newtype Index (cs :: Compiler.Stage) = Index'
   deriving (Show, Eq, Ord, Generic)
 
 
+listIndex :: Index cs -> [(LogicPath, BuildState cs)]
+listIndex i = Map.toList i.unIndex
+
+
+makeIndexFromList :: [(LogicPath, BuildState cs)] -> Index cs
+makeIndexFromList ls = Index' $ Map.fromList ls
+
+
 toJSONIndex :: ToJSON (BuildState cs) => Index cs -> Value
 toJSONIndex (Index' m) =
   toJSON $

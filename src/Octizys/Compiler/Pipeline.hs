@@ -1,4 +1,7 @@
 {-# LANGUAGE DataKinds #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use tuple-section" #-}
 
 module Octizys.Compiler.Pipeline where
 
@@ -121,7 +124,15 @@ resolveSymbols
   => Accumulator Compiler.Warn :> e
   => Package.BuildState Compiler.Stage.Parsed
   -> Eff e (Package.BuildState Compiler.Stage.SymbolsSolved)
-resolveSymbols = undefined
+resolveSymbols bs =
+  let
+    listedItems = Module.listIndex (Package.getModuleIndex bs)
+   in
+    do
+      results <-
+        mapM (\(p, m) -> (\x -> (p, x)) <$> resolveModuleSymbols m) listedItems
+      let newModuleIndex = Module.makeIndexFromList results
+      pure $ Package.transitionBuildState bs newModuleIndex
 
 
 inferModuleTypes

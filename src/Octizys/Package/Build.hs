@@ -34,6 +34,17 @@ data BuildState (cs :: Compiler.Stage) = BuildState'
   deriving (Show, Eq, Ord, Generic)
 
 
+getModuleIndex :: BuildState cs -> Module.Index cs
+getModuleIndex = modules
+
+
+transitionBuildState
+  :: BuildState cs1
+  -> Module.Index cs2
+  -> BuildState cs2
+transitionBuildState bs md = bs {modules = md}
+
+
 makeBuildState
   :: Module.Index cs
   -> DependencyTree
