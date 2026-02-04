@@ -5,7 +5,7 @@ import Data.List.NonEmpty (NonEmpty, toList)
 import Data.Text (Text)
 import Octizys.Ast.Expression
 import qualified Octizys.Ast.Format.Type as Type
-import Octizys.Ast.Type (Type)
+import Octizys.Ast.Type (MonoType, Type)
 import Octizys.Common.Format.Config
   ( formatText
   , nest
@@ -74,7 +74,7 @@ annotateType
   :: (Format.Configuration -> var -> Doc ann)
   -> Format.Configuration
   -> Doc ann
-  -> Type var
+  -> MonoType var
   -> Doc ann
 annotateType fmtVar configuration doc t =
   if shouldShowTypes configuration
@@ -86,7 +86,7 @@ annotateType fmtVar configuration doc t =
                   configuration
                   ( Pretty.line'
                       <> formatText ":"
-                      <> Type.format fmtVar configuration t
+                      <> Type.formatMono fmtVar configuration t
                   )
             )
         )
@@ -223,6 +223,6 @@ formatExpression fmtVar configuration Annotation {expression, inferType} =
           configuration
           ( formatText ":"
               <> Pretty.line
-              <> Type.format fmtVar configuration inferType
+              <> Type.formatMono fmtVar configuration inferType
           )
     )

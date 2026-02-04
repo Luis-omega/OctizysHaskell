@@ -9,7 +9,7 @@ import qualified Data.Map as Map
 import Data.Set (difference)
 import Data.Text (Text)
 import Effectful.Dispatch.Dynamic (HasCallStack)
-import Octizys.Ast.Type (Type)
+import Octizys.Ast.Type (MonoType, Type (TMono))
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
@@ -36,18 +36,18 @@ instance
 
 
 data Value var
-  = VInt {intValue :: Text, inferType :: Type var}
-  | VBool {boolValue :: Bool, inferType :: Type var}
+  = VInt {intValue :: Text, inferType :: MonoType var}
+  | VBool {boolValue :: Bool, inferType :: MonoType var}
   | Function
       { parameters :: NonEmpty (ExpressionVariableId, Type var)
       , body :: Expression var
-      , inferType :: Type var
+      , inferType :: MonoType var
       }
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically (Value var)
 
 
-getValueType :: Value var -> Type var
+getValueType :: Value var -> MonoType var
 getValueType v = v.inferType
 
 
@@ -64,29 +64,28 @@ instance
 
 
 data Expression var
-  = Variable {name :: ExpressionVariableId, inferType :: Type var}
-  | EValue {value :: Value var, inferType :: Type var}
+  = Variable {name :: ExpressionVariableId, inferType :: MonoType var}
+  | EValue {value :: Value var, inferType :: MonoType var}
   | Application
       { applicationFunction :: Expression var
       , applicationArgument :: Expression var
-      , inferType :: Type var
+      , inferType :: MonoType var
       }
   | If
       { condition :: Expression var
       , ifTrue :: Expression var
       , ifFalse :: Expression var
-      , inferType :: Type var
+      , inferType :: MonoType var
       }
   | Let
-      { -- The alone info is the semicolon finishing a definition
-        definitions :: NonEmpty (Definition var)
+      { definitions :: NonEmpty (Definition var)
       , expression :: Expression var
-      , inferType :: Type var
+      , inferType :: MonoType var
       }
   | Annotation
       { expression :: Expression var
-      , _type :: Type var
-      , inferType :: Type var
+      , _type :: MonoType var
+      , inferType :: MonoType var
       }
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically (Expression var)
@@ -155,4 +154,4 @@ instance
 
 
 getType :: HasCallStack => Expression var -> Type var
-getType e = e.inferType
+getType e = from e.inferType
