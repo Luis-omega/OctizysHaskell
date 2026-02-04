@@ -21,7 +21,7 @@ module Octizys.Common.Id
 import Octizys.Common.Qualifier (Qualifier)
 
 import Control.Arrow ((<<<))
-import Data.Aeson (ToJSON)
+import Data.Aeson (ToJSON, ToJSONKey)
 import qualified Data.List.NonEmpty as NonEmpty
 import GHC.Generics (Generic, Generically (..))
 import Octizys.Classes.From (From (from))
@@ -157,6 +157,9 @@ newtype ExpressionVariableId = ExpressionVariableId'
   deriving (Eq, Ord, Show, HasSymbolStructure) via Symbol
   deriving (Generic)
   deriving (ToJSON) via Generically ExpressionVariableId
+
+
+instance ToJSONKey ExpressionVariableId
 
 
 instance GenerateFromInt ExpressionVariableId where

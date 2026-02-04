@@ -13,10 +13,13 @@ import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
 import Octizys.FrontEnd.Cst.Type (TypeVariableId)
 
-import Data.Aeson (ToJSON)
+import Data.Aeson (ToJSON, ToJSONKey)
+import Data.List.NonEmpty (cons)
 import Data.Text (Text)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Common.Format (defaultIndentationSpaces)
 import Prettyprinter (Pretty, pretty, (<+>))
+import qualified Prettyprinter as Pretty
 
 
 data TypeValue = BoolType | IntType
@@ -28,11 +31,19 @@ instance FreeVariables TypeVariableId TypeValue where
   freeVariables _ = mempty
 
 
+instance Pretty TypeValue where
+  pretty BoolType = pretty @Text "Bool"
+  pretty IntType = pretty @Text "Int"
+
+
 data InferenceVariable
   = ErrorVariable String
   | RealTypeVariable TypeVariableId
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically InferenceVariable
+
+
+instance ToJSONKey InferenceVariable
 
 
 instance FreeVariables TypeVariableId InferenceVariable where
@@ -41,13 +52,17 @@ instance FreeVariables TypeVariableId InferenceVariable where
 
 
 instance Pretty InferenceVariable where
-  pretty (ErrorVariable msg) = pretty @Text "ErrorVariable" <+> pretty msg
+  pretty (ErrorVariable _) = pretty @Text "ErrorVariable"
   pretty (RealTypeVariable vid) = pretty vid
 
 
-newtype TypeVariable = TypeVariable {unTypeVariable :: TypeVariableId}
+newtype TypeVariable = TypeVariable' {unTypeVariable :: TypeVariableId}
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically TypeVariable
+
+
+instance Pretty TypeVariable where
+  pretty (TypeVariable' vid) = pretty vid
 
 
 instance FreeVariables TypeVariableId TypeVariable where
@@ -79,6 +94,33 @@ instance From outVar inVar => From (MonoType outVar) (MonoType inVar) where
   from (Variable var) = Variable (from var)
 
 
+needsParentsInArrow :: MonoType var -> Bool
+needsParentsInArrow t =
+  case t of
+    VType {} -> False
+    Arrow {} -> True
+    Variable {} -> False
+
+
+instance Pretty var => Pretty (MonoType var) where
+  pretty VType {value} = pretty value
+  pretty Arrow {start, remain} =
+    (Pretty.group <<< Pretty.indent defaultIndentationSpaces)
+      ( Pretty.line'
+          <> Pretty.concatWith
+            (\l r -> l <> Pretty.line <> pretty @Text "->" <> r)
+            ( prettyArg
+                <$> cons start remain
+            )
+      )
+    where
+      prettyArg ty =
+        if needsParentsInArrow ty
+          then Pretty.parens (pretty ty)
+          else pretty ty
+  pretty (Variable v) = pretty v
+
+
 instance
   FreeVariables TypeVariableId var
   => FreeVariables TypeVariableId (MonoType var)
@@ -98,6 +140,26 @@ data Scheme var = Scheme'
   }
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically (Scheme var)
+
+
+instance Pretty var => Pretty (Scheme var) where
+  pretty (Scheme' {arguments, body}) =
+    pretty @Text "forall"
+      <> Pretty.indent
+        defaultIndentationSpaces
+        ( Pretty.line
+            <> Pretty.fillSep
+              ( Pretty.punctuate
+                  (pretty ',')
+                  (pretty <$> NonEmpty.toList arguments)
+              )
+        )
+      <> Pretty.line
+      <> pretty '.'
+      <> Pretty.indent
+        defaultIndentationSpaces
+        ( pretty body
+        )
 
 
 instance
@@ -123,6 +185,11 @@ data Type var
   | TPoly (Scheme var)
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically (Type var)
+
+
+instance Pretty var => Pretty (Type var) where
+  pretty (TMono v) = pretty v
+  pretty (TPoly v) = pretty v
 
 
 instance From (Type var) TypeValue where

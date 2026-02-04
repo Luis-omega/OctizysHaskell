@@ -17,14 +17,6 @@ import Prettyprinter (Doc, Pretty (pretty))
 import qualified Prettyprinter as Pretty
 
 
-needsParentsInArrow :: MonoType var -> Bool
-needsParentsInArrow t =
-  case t of
-    VType {} -> False
-    Arrow {} -> True
-    Variable {} -> False
-
-
 formatValue :: Format.Configuration -> TypeValue -> Doc ann
 formatValue _ BoolType = pretty @Text "Bool"
 formatValue _ IntType = pretty @Text "Int"

@@ -110,6 +110,7 @@ library
     Octizys.Ast.Type
     Octizys.Classes.FreeVariables
     Octizys.Classes.From
+    Octizys.Common.Format
     Octizys.Common.Format.Config
     Octizys.Common.Format.Markup
     Octizys.Common.HistoryMap
@@ -149,6 +150,10 @@ library
     Octizys.FrontEnd.Parser.Expression
     Octizys.FrontEnd.Parser.TopItem
     Octizys.FrontEnd.Parser.Type
+    Octizys.Inference.BiDirectional
+    Octizys.Inference.Context
+    Octizys.Inference.Resolution.Substitution
+    Octizys.Inference.Resolution.Unification
     Octizys.Logging.Effect
     Octizys.Logging.Entry
     Octizys.Logging.Interpreters.Console
@@ -168,7 +173,6 @@ library
     Octizys.SymbolResolution.MakeUniqueIds
 
   -- Octizys.Ast.Evaluation
-  --Octizys.Inference.ConstraintsGeneration
   --Octizys.Inference.ConstraintsSolver
   --Octizys.Inference.Errors
   -- Modules included in this library but not exported.

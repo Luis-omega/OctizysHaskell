@@ -57,19 +57,6 @@ formatParametersFunction fmtVar configuration ps =
     )
 
 
-needsParentsInApplication :: Expression var -> Bool
-needsParentsInApplication e =
-  case e of
-    EValue {value = VInt {}} -> False
-    EValue {value = VBool {}} -> False
-    EValue {value = Function {}} -> True
-    Variable {} -> False
-    Application {} -> True
-    If {} -> True
-    Let {} -> True
-    Annotation {} -> True
-
-
 annotateType
   :: (Format.Configuration -> var -> Doc ann)
   -> Format.Configuration
