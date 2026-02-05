@@ -1,7 +1,14 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use (,)" #-}
-module Octizys.Inference.Context where
+module Octizys.Inference.Context
+  ( Context
+  , emptyContext
+  , contextFromList
+  , lookup
+  , addExpressionVars
+  , addTypeToExpression
+  ) where
 
 import Data.Aeson (ToJSON)
 import Data.Map (Map)
@@ -13,70 +20,79 @@ import Octizys.Ast.Type (InferenceVariable)
 import qualified Octizys.Ast.Type as Ast
 import Octizys.Common.Format
 import qualified Octizys.Common.Format as Common
-import Octizys.Common.Id (ExpressionVariableId)
+import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 import Prettyprinter (Pretty (pretty), concatWith, indent, line, (<+>))
 
+import Data.Set (Set)
+import qualified Data.Set as Set
+import Data.Text (Text)
+import Prelude hiding (lookup)
 
-newtype Context = Context'
+
+data Context = Context'
   { expressionsMap :: Map ExpressionVariableId (Ast.Type InferenceVariable)
+  , variablesInScope :: Set TypeVariableId
   }
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically Context
 
 
 instance Pretty Context where
-  pretty (Context' c) =
+  pretty (Context' c v) =
     let
       items = Map.toList c
       prettyItems =
         Common.prettyItemList items (pretty ',') (pretty ':')
      in
-      pretty @String "Context"
+      pText "Context"
         <+> pretty '['
         <> line
         <> prettyItems
         <> line
         <> pretty ']'
+        <+> pretty (Set.toList v)
 
 
 emptyContext :: Context
-emptyContext = Context' mempty
+emptyContext = Context' mempty mempty
 
 
 contextFromList
   :: [(ExpressionVariableId, Ast.Type InferenceVariable)]
+  -> [TypeVariableId]
   -> Context
-contextFromList ls =
+contextFromList ls v =
   Context'
     ( Map.fromList
         ls
     )
+    (Set.fromList v)
 
 
-findExpressionVariable
-  :: Error String :> es
-  => ExpressionVariableId
-  -> Context
+lookup
+  :: Error Text :> es
+  => Context
+  -> ExpressionVariableId
   -> Eff es (Ast.Type InferenceVariable)
-findExpressionVariable inferenceVar context@(Context' ctx) =
+lookup context@(Context' ctx _) inferenceVar =
   case Map.lookup inferenceVar ctx of
     Just st -> pure st
     Nothing ->
       throwDocError
-        ( pString "Can't find the required variable"
+        ( pText "Can't find the required variable"
             <> indentPretty inferenceVar
             <> line
-            <> pString "context"
+            <> pText "context"
             <> indentPretty context
         )
 
 
 addExpressionVars
-  :: Error String :> es
+  :: Error Text :> es
   => [(ExpressionVariableId, Ast.Type InferenceVariable)]
   -> Context
   -> Eff es Context
-addExpressionVars newVars (Context' ctx) =
+addExpressionVars newVars (Context' ctx varScope) =
   let
     countUniques =
       Map.fromListWith
@@ -97,21 +113,21 @@ addExpressionVars newVars (Context' ctx) =
       then
         let inter = Map.intersectionWith (\x y -> (x, y)) ctx regularItems
          in if Map.null inter
-              then pure $ Context' $ Map.union ctx regularItems
+              then pure $ Context' (Map.union ctx regularItems) varScope
               else
                 let
                   errorMsg (name, (oldValue, newValue)) =
-                    pString "The variable "
+                    pText "The variable "
                       <> indentPretty name
                       <> line
-                      <> pString "is already defined as"
+                      <> pText "is already defined as"
                       <> indentPretty oldValue
                       <> line
-                      <> pString "and is being redefined as "
+                      <> pText "and is being redefined as "
                       <> indentPretty newValue
                  in
                   throwDocError
-                    ( pString "Error"
+                    ( pText "Error"
                         <> indent
                           Common.defaultIndentationSpaces
                           ( concatWith
@@ -123,7 +139,7 @@ addExpressionVars newVars (Context' ctx) =
                     )
       else
         throwDocError
-          ( pString "Tried to add duplicate elements to context"
+          ( pText "Tried to add duplicate elements to context"
               <> indent
                 Common.defaultIndentationSpaces
                 ( line
@@ -133,9 +149,10 @@ addExpressionVars newVars (Context' ctx) =
 
 
 addTypeToExpression
-  :: Context
+  :: Error Text :> es
+  => Context
   -> ExpressionVariableId
   -> Ast.Type InferenceVariable
-  -> Context
-addTypeToExpression context inferenceVar ty =
-  Context' $ Map.insert inferenceVar ty context.expressionsMap
+  -> Eff es Context
+addTypeToExpression context expVar ty = do
+  addExpressionVars [(expVar, ty)] context

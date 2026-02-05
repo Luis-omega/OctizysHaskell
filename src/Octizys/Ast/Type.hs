@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Octizys.Ast.Type where
 
@@ -15,9 +16,12 @@ import Octizys.FrontEnd.Cst.Type (TypeVariableId)
 
 import Data.Aeson (ToJSON, ToJSONKey)
 import Data.List.NonEmpty (cons)
+import Data.Map (Map)
 import Data.Text (Text)
+import Effectful (Eff, (:>))
 import GHC.Generics (Generic, Generically (..))
 import Octizys.Common.Format (defaultIndentationSpaces)
+import Octizys.Effects.IdGenerator.Effect (IdGenerator)
 import Prettyprinter (Pretty, pretty, (<+>))
 import qualified Prettyprinter as Pretty
 
@@ -56,6 +60,10 @@ instance Pretty InferenceVariable where
   pretty (RealTypeVariable vid) = pretty vid
 
 
+instance From InferenceVariable TypeVariableId where
+  from = RealTypeVariable
+
+
 newtype TypeVariable = TypeVariable' {unTypeVariable :: TypeVariableId}
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically TypeVariable
@@ -69,17 +77,18 @@ instance FreeVariables TypeVariableId TypeVariable where
   freeVariables v = singleton v.unTypeVariable
 
 
+inferenceVarToId :: InferenceVariable -> Maybe TypeVariableId
+inferenceVarToId (RealTypeVariable i) = pure i
+inferenceVarToId (ErrorVariable _) = Nothing
+
+
 data MonoType var
   = VType {value :: TypeValue}
-  | -- | Represent a function type.
-    -- It can have multiple items, and it must have at least one.
-    Arrow
+  | Arrow
       { start :: MonoType var
       , remain :: NonEmpty (MonoType var)
       }
-  | -- | All variables are translated at parsing time to a internal
-    -- identifier. You can think of it as a pointer in symbol table.
-    Variable var
+  | Variable var
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically (MonoType var)
 
@@ -100,6 +109,17 @@ needsParentsInArrow t =
     VType {} -> False
     Arrow {} -> True
     Variable {} -> False
+
+
+hasTypeVarMono
+  :: Eq var
+  => var
+  -> MonoType var
+  -> Bool
+hasTypeVarMono _ (VType _) = False
+hasTypeVarMono v (Arrow t1 ts) =
+  hasTypeVarMono v t1 || any (hasTypeVarMono v) ts
+hasTypeVarMono v (Variable v2) = v == v2
 
 
 instance Pretty var => Pretty (MonoType var) where
@@ -172,6 +192,27 @@ instance
       (Set.fromList (NonEmpty.toList s.arguments))
 
 
+-- TODO:FIXME
+
+{- | Closes the variables of a scheme by generating new
+fresh type variables for it.
+-}
+instanceScheme
+  :: IdGenerator TypeVariableId :> es
+  => Scheme var
+  -> Eff es (MonoType var)
+instanceScheme _ = undefined
+
+
+hasTypeVarScheme
+  :: InferenceVariable
+  -> Scheme InferenceVariable
+  -> Bool
+hasTypeVarScheme (ErrorVariable _) _ = False
+hasTypeVarScheme v@(RealTypeVariable vid) (Scheme' args body) =
+  notElem vid args && hasTypeVarMono v body
+
+
 instance From outVar inVar => From (Scheme outVar) (Scheme inVar) where
   from Scheme' {arguments, body} =
     Scheme'
@@ -215,3 +256,22 @@ instance
   where
   freeVariables (TMono m) = freeVariables m
   freeVariables (TPoly s) = freeVariables s
+
+
+{- | Closes the variables of a type (if it has) by generating new
+fresh type variables for it.
+-}
+instanceType
+  :: IdGenerator TypeVariableId :> es
+  => Type var
+  -> Eff es (MonoType var)
+instanceType (TMono x) = pure x
+instanceType (TPoly s) = instanceScheme s
+
+
+hasTypeVar
+  :: InferenceVariable
+  -> Type InferenceVariable
+  -> Bool
+hasTypeVar v (TMono ty) = hasTypeVarMono v ty
+hasTypeVar v (TPoly ty) = hasTypeVarScheme v ty

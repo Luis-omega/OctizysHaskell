@@ -1,6 +1,7 @@
 module Octizys.Common.Format where
 
 import Control.Arrow ((<<<))
+import Data.Text (Text)
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
 import Prettyprinter
@@ -15,15 +16,15 @@ import Prettyprinter
   , pretty
   , (<+>)
   )
-import Prettyprinter.Render.String (renderString)
+import Prettyprinter.Render.Text (renderStrict)
 
 
 defaultIndentationSpaces :: Int
 defaultIndentationSpaces = 4
 
 
-pString :: String -> Doc ann
-pString = pretty
+pText :: Text -> Doc ann
+pText = pretty
 
 
 -- | Add 4 to document indentation and put a line before the document.
@@ -35,20 +36,20 @@ indentDoc :: Doc ann -> Doc ann
 indentDoc x = indent defaultIndentationSpaces (line <> x)
 
 
-prettyWithHeader :: Pretty a => String -> a -> Doc ann
+prettyWithHeader :: Pretty a => Text -> a -> Doc ann
 prettyWithHeader header value =
   pretty header
     <> indentPretty value
 
 
-render :: Pretty a => a -> String
+render :: Pretty a => a -> Text
 render x =
   renderDoc (pretty x)
 
 
-renderDoc :: Doc ann -> String
+renderDoc :: Doc ann -> Text
 renderDoc doc =
-  renderString $ layoutPretty defaultLayoutOptions doc
+  renderStrict $ layoutPretty defaultLayoutOptions doc
 
 
 prettyItemList
@@ -77,14 +78,14 @@ prettyItemList items sep binder =
 
 
 throwDocError
-  :: Error String :> es
+  :: Error Text :> es
   => Doc ann
   -> Eff es a
 throwDocError = throwError <<< renderDoc
 
 
 throwPrettyError
-  :: Error String :> es
+  :: Error Text :> es
   => Pretty a
   => a
   -> Eff es a

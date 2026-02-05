@@ -3,7 +3,7 @@ module Octizys.Common.Id
       ( Id'
       , idRaw
       )
-  , SymbolContext
+  , SymbolContext (SymbolContext')
   , SymbolOriginInfo (qualifier, name)
   , Symbol
   , ExpressionVariableId
@@ -140,6 +140,9 @@ newtype TypeVariableId = TypeVariableId'
   deriving (Eq, Ord, Show, HasSymbolStructure) via Symbol
   deriving (Generic)
   deriving (ToJSON) via Generically TypeVariableId
+
+
+instance ToJSONKey TypeVariableId
 
 
 instance GenerateFromInt TypeVariableId where

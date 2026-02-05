@@ -5,7 +5,8 @@ import Data.List.NonEmpty (NonEmpty, toList)
 import Data.Text (Text)
 import Octizys.Ast.Expression
 import qualified Octizys.Ast.Format.Type as Type
-import Octizys.Ast.Type (MonoType, Type)
+import Octizys.Ast.Type (MonoType)
+import Octizys.Classes.From (from)
 import Octizys.Common.Format.Config
   ( formatText
   , nest
@@ -33,20 +34,20 @@ formatDefinition fmtVar configuration Definition' {name, definition, inferType} 
 formatParameterFunction
   :: (Format.Configuration -> var -> Doc ann)
   -> Format.Configuration
-  -> (ExpressionVariableId, Type var)
+  -> (ExpressionVariableId, MonoType var)
   -> Doc ann
 formatParameterFunction fmtVar configuration (expr, t) =
   Pretty.parens
     ( pretty expr
         <+> ":"
-        <+> Type.format fmtVar configuration t
+        <+> Type.format fmtVar configuration (from t)
     )
 
 
 formatParametersFunction
   :: (Format.Configuration -> var -> Doc ann)
   -> Format.Configuration
-  -> NonEmpty (ExpressionVariableId, Type var)
+  -> NonEmpty (ExpressionVariableId, MonoType var)
   -> Doc ann
 formatParametersFunction fmtVar configuration ps =
   (Pretty.vsep <<< toList)

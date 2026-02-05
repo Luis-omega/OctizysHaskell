@@ -1,4 +1,11 @@
-module Octizys.Package.Reference (PackageName, makePackageName, Reference, calculateHash) where
+module Octizys.Package.Reference
+  ( PackageName
+  , makePackageName
+  , Reference (TargetPackage)
+  , calculateHash
+  , makeOptionalIdentity
+  , makeSource
+  ) where
 
 import Data.Text (Text)
 import Prettyprinter (Pretty (pretty))
@@ -39,6 +46,10 @@ newtype PackageSource = PackageSource' Text
   deriving (ToJSON) via Generically PackageSource
 
 
+makeSource :: Text -> PackageSource
+makeSource = PackageSource'
+
+
 -- | Information about a package that we can use to identify it.
 data PackageIdentity = PackageIdentity'
   { name :: PackageName
@@ -74,6 +85,14 @@ instance Pretty OptionalPackageIdentity where
     case p.name of
       Just n -> pretty n
       Nothing -> pretty @Text "!DefaultPackage"
+
+
+makeOptionalIdentity
+  :: Maybe PackageName
+  -> Maybe PackageVersion
+  -> PackageSource
+  -> OptionalPackageIdentity
+makeOptionalIdentity = OptionalPackageIdentity'
 
 
 -- | Used to disambiguate between multiple versions of the same package

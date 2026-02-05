@@ -150,10 +150,11 @@ library
     Octizys.FrontEnd.Parser.Expression
     Octizys.FrontEnd.Parser.TopItem
     Octizys.FrontEnd.Parser.Type
-    Octizys.Inference.BiDirectional
+    Octizys.Inference.Constraint
     Octizys.Inference.Context
     Octizys.Inference.Resolution.Substitution
     Octizys.Inference.Resolution.Unification
+    Octizys.Inference.Substitution
     Octizys.Logging.Effect
     Octizys.Logging.Entry
     Octizys.Logging.Interpreters.Console
@@ -172,6 +173,7 @@ library
     Octizys.SymbolResolution.ImportsResolution
     Octizys.SymbolResolution.MakeUniqueIds
 
+  --Octizys.Inference.BiDirectional
   -- Octizys.Ast.Evaluation
   --Octizys.Inference.ConstraintsSolver
   --Octizys.Inference.Errors
@@ -273,7 +275,9 @@ test-suite octizys-test
   main-is:          Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules:    Octizys.Test.Parser.PrettyParse
+  other-modules:
+    Octizys.Test.Inference.Substitution
+    Octizys.Test.Parser.PrettyParse
 
   -- Octizys.Test.Parser.PrettyParse
   -- Test dependencies.

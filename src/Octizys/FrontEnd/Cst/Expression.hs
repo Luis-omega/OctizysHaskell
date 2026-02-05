@@ -4,6 +4,8 @@
 
 module Octizys.FrontEnd.Cst.Expression
   ( Parameter (ParameterAlone, ParameterWithType, name, _type, colon)
+  , getParameterType
+  , getAnnotatedParameters
   , SchemeStart (SchemeStart', _forall, typeArguments, dot)
   , DefinitionTypeAnnotation
     ( DefinitionTypeAnnotation'
@@ -64,7 +66,7 @@ where
 
 import Control.Arrow ((<<<))
 import Data.Foldable (Foldable (foldl'))
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Set as Set
 import Data.Text (Text)
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
@@ -92,6 +94,11 @@ instance Ord evar => FreeVariables evar (Parameter evar tvar) where
   freeVariables ParameterWithType {name} = Set.singleton (snd name)
 
 
+getParameterType :: Parameter evar tvar -> Maybe (Type tvar)
+getParameterType (ParameterAlone _) = Nothing
+getParameterType (ParameterWithType _ _ c) = Just c
+
+
 data Parameters evar tvar = Parameters'
   { initParameter :: Parameter evar tvar
   , otherParameters :: [(SourceInfo, Parameter evar tvar)]
@@ -99,6 +106,13 @@ data Parameters evar tvar = Parameters'
   }
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically (Parameters evar tvar)
+
+
+getAnnotatedParameters
+  :: Parameters evar tvar -> NonEmpty (evar, Maybe (Type tvar))
+getAnnotatedParameters ps =
+  (\x -> (snd x.name, getParameterType x))
+    <$> (ps.initParameter :| (snd <$> ps.otherParameters))
 
 
 instance Ord evar => FreeVariables evar (Parameters evar tvar) where

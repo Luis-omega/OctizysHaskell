@@ -53,7 +53,7 @@ data Value var
   = VInt {intValue :: Text, inferType :: MonoType var}
   | VBool {boolValue :: Bool, inferType :: MonoType var}
   | Function
-      { parameters :: NonEmpty (ExpressionVariableId, Type var)
+      { parameters :: NonEmpty (ExpressionVariableId, MonoType var)
       , body :: Expression var
       , inferType :: MonoType var
       }
@@ -67,7 +67,7 @@ getValueType v = v.inferType
 
 prettyParameterFunction
   :: Pretty var
-  => (ExpressionVariableId, Type var)
+  => (ExpressionVariableId, MonoType var)
   -> Doc ann
 prettyParameterFunction (expr, t) =
   Pretty.parens
@@ -79,7 +79,7 @@ prettyParameterFunction (expr, t) =
 
 prettyParametersFunction
   :: Pretty var
-  => NonEmpty (ExpressionVariableId, Type var)
+  => NonEmpty (ExpressionVariableId, MonoType var)
   -> Doc ann
 prettyParametersFunction ps =
   (Pretty.vsep <<< toList)
@@ -298,6 +298,10 @@ instance
       <> foldMap freeVariables definitions
   freeVariables Annotation {expression, _type, inferType} =
     freeVariables expression <> freeVariables _type <> freeVariables inferType
+
+
+getMonoType :: HasCallStack => Expression var -> MonoType var
+getMonoType e = e.inferType
 
 
 getType :: HasCallStack => Expression var -> Type var
