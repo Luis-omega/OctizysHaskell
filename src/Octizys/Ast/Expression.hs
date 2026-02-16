@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Octizys.Ast.Expression where
 
@@ -42,7 +43,10 @@ instance Pretty var => Pretty (Definition var) where
 
 
 instance
-  FreeVariables TypeVariableId var
+  ( FreeVariables TypeVariableId (Type var)
+  , FreeVariables TypeVariableId (MonoType var)
+  , FreeVariables TypeVariableId var
+  )
   => FreeVariables TypeVariableId (Definition var)
   where
   freeVariables d =
@@ -113,7 +117,10 @@ instance Pretty var => Pretty (Value var) where
 
 
 instance
-  FreeVariables TypeVariableId var
+  ( FreeVariables TypeVariableId (MonoType var)
+  , FreeVariables TypeVariableId (Type var)
+  , FreeVariables TypeVariableId var
+  )
   => FreeVariables TypeVariableId (Value var)
   where
   freeVariables (VInt {inferType}) = freeVariables inferType
@@ -172,7 +179,7 @@ needsParentsInApplication e =
 instance Pretty var => Pretty (Expression var) where
   pretty EValue {value} = pretty value
   pretty Variable {name} = pretty name
-  pretty Application {applicationFunction, applicationArgument, inferType} =
+  pretty Application {applicationFunction, applicationArgument} =
     (Pretty.group <<< Pretty.indent defaultIndentationSpaces)
       ( Pretty.line'
           <> prettyArg applicationFunction
@@ -278,7 +285,10 @@ buildDefinitionsMap Annotation {expression} =
 
 
 instance
-  FreeVariables TypeVariableId var
+  ( FreeVariables TypeVariableId (MonoType var)
+  , FreeVariables TypeVariableId (Type var)
+  , FreeVariables TypeVariableId var
+  )
   => FreeVariables TypeVariableId (Expression var)
   where
   freeVariables (EValue {inferType}) = freeVariables inferType
@@ -304,5 +314,5 @@ getMonoType :: HasCallStack => Expression var -> MonoType var
 getMonoType e = e.inferType
 
 
-getType :: HasCallStack => Expression var -> Type var
-getType e = from e.inferType
+getType :: HasCallStack => Expression var -> MonoType var
+getType e = e.inferType

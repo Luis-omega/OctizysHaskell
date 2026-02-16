@@ -13,6 +13,11 @@ import Octizys.FrontEnd.Cst.Type (Type)
 
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
+import Prettyprinter (Pretty (pretty))
+
+import Octizys.Common.Format.Config (defaultConfiguration)
+import qualified Octizys.FrontEnd.Format.Expression as FormatE
+import qualified Octizys.FrontEnd.Format.Type as FormatT
 
 
 data Node evar tvar
@@ -38,3 +43,10 @@ instance From (Node evar tvar) (Definition evar tvar) where
 
 instance From (Node evar tvar) (Expression evar tvar) where
   from = NExp
+
+
+instance (Pretty evar, Pretty tvar) => Pretty (Node evar tvar) where
+  pretty (NType t) = FormatT.format defaultConfiguration t
+  pretty (NParam p) = FormatE.formatParameter defaultConfiguration p
+  pretty (NDef t) = FormatE.formatDefinition defaultConfiguration t
+  pretty (NExp t) = FormatE.formatExpression defaultConfiguration t

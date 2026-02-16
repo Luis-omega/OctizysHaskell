@@ -6,6 +6,7 @@ module Octizys.Inference.Constraint
   , ConstraintInfo
   , makeConstraintInfo
   , ConstraintReason (..)
+  , makeConstraintFromParent
   , getAst
   , getCst
   , getReason
@@ -20,6 +21,7 @@ module Octizys.Inference.Constraint
 
 import Control.Arrow ((<<<))
 import Data.Aeson (ToJSON)
+import Data.Text (Text)
 import Effectful (Eff, (:>))
 import Effectful.State.Static.Local (State, get, put)
 import GHC.Generics (Generic, Generically (..))
@@ -110,6 +112,10 @@ data ConstraintInfo = ConstraintInfo'
   deriving (Show, Ord, Eq)
 
 
+instance Pretty ConstraintInfo where
+  pretty c = pretty (c.reason, c.constraintId, c.ast)
+
+
 makeConstraintInfo
   :: State ConstraintId :> es
   => ConstraintReason
@@ -134,12 +140,36 @@ data Constraint = Constraint'
   deriving (Show, Ord, Eq)
 
 
+instance Pretty Constraint where
+  pretty c =
+    pretty @Text "Constraint["
+      <> pretty (c.constraintType1, c.constraintType2, c.constraintInfo)
+      <> pretty @Text "]"
+
+
 makeConstraint
   :: AstT.MonoType InferenceVariable
   -> AstT.MonoType InferenceVariable
   -> ConstraintInfo
   -> Constraint
 makeConstraint = Constraint'
+
+
+makeConstraintFromParent
+  :: State ConstraintId :> es
+  => AstT.MonoType InferenceVariable
+  -> AstT.MonoType InferenceVariable
+  -> Constraint
+  -> Eff es Constraint
+makeConstraintFromParent ast1 ast2 parent = do
+  newInfo <-
+    makeConstraintInfo
+      parent.constraintInfo.reason
+      parent.constraintInfo.cst
+      parent.constraintInfo.ast
+      (Just parent)
+      []
+  pure $ makeConstraint ast1 ast2 newInfo
 
 
 getCst

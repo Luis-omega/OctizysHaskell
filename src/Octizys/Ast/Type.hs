@@ -6,7 +6,7 @@ module Octizys.Ast.Type where
 
 import Control.Arrow ((<<<))
 import Data.Foldable (foldl')
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty, cons)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Set (singleton)
 import qualified Data.Set as Set
@@ -15,14 +15,15 @@ import Octizys.Classes.From (From (from))
 import Octizys.FrontEnd.Cst.Type (TypeVariableId)
 
 import Data.Aeson (ToJSON, ToJSONKey)
-import Data.List.NonEmpty (cons)
 import Data.Map (Map)
+import qualified Data.Map as Map
+import qualified Data.Maybe
 import Data.Text (Text)
 import Effectful (Eff, (:>))
 import GHC.Generics (Generic, Generically (..))
 import Octizys.Common.Format (defaultIndentationSpaces)
-import Octizys.Effects.IdGenerator.Effect (IdGenerator)
-import Prettyprinter (Pretty, pretty, (<+>))
+import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
+import Prettyprinter (Pretty, pretty)
 import qualified Prettyprinter as Pretty
 
 
@@ -122,6 +123,26 @@ hasTypeVarMono v (Arrow t1 ts) =
 hasTypeVarMono v (Variable v2) = v == v2
 
 
+arrowFromArgsAndOutput
+  :: NonEmpty (MonoType var)
+  -> MonoType var
+  -> MonoType var
+arrowFromArgsAndOutput = undefined
+
+
+replaceMonoVars
+  :: Map InferenceVariable (MonoType InferenceVariable)
+  -> MonoType InferenceVariable
+  -> MonoType InferenceVariable
+replaceMonoVars _ t@(VType _) = t
+replaceMonoVars s (Arrow t1 t2) =
+  Arrow
+    (replaceMonoVars s t1)
+    (replaceMonoVars s <$> t2)
+replaceMonoVars s t@(Variable v) =
+  Data.Maybe.fromMaybe t (Map.lookup v s)
+
+
 instance Pretty var => Pretty (MonoType var) where
   pretty VType {value} = pretty value
   pretty Arrow {start, remain} =
@@ -142,16 +163,16 @@ instance Pretty var => Pretty (MonoType var) where
 
 
 instance
-  FreeVariables TypeVariableId var
-  => FreeVariables TypeVariableId (MonoType var)
+  (Eq var, Ord var)
+  => FreeVariables var (MonoType var)
   where
-  freeVariables VType {value} = freeVariables value
+  freeVariables VType {} = mempty
   freeVariables Arrow {start, remain} =
     foldl'
       (<>)
       (freeVariables start)
       (freeVariables <$> remain)
-  freeVariables (Variable v) = freeVariables v
+  freeVariables (Variable v) = Set.singleton v
 
 
 data Scheme var = Scheme'
@@ -183,25 +204,33 @@ instance Pretty var => Pretty (Scheme var) where
 
 
 instance
-  FreeVariables TypeVariableId var
-  => FreeVariables TypeVariableId (Scheme var)
+  (Eq var, Ord var, From var TypeVariableId)
+  => FreeVariables var (Scheme var)
   where
   freeVariables s =
     Set.difference
       (freeVariables s.body)
-      (Set.fromList (NonEmpty.toList s.arguments))
+      (Set.fromList (NonEmpty.toList (from <$> s.arguments)))
 
-
--- TODO:FIXME
 
 {- | Closes the variables of a scheme by generating new
 fresh type variables for it.
 -}
 instanceScheme
   :: IdGenerator TypeVariableId :> es
-  => Scheme var
-  -> Eff es (MonoType var)
-instanceScheme _ = undefined
+  => Scheme InferenceVariable
+  -> Eff es (MonoType InferenceVariable)
+instanceScheme s = do
+  newIdsMap <-
+    mapM
+      ( \arg -> do
+          newId <- generateId Nothing
+          pure (from arg, Variable $ RealTypeVariable newId)
+      )
+      (NonEmpty.toList s.arguments)
+  let
+    context = Map.fromList newIdsMap
+  pure $ replaceMonoVars context s.body
 
 
 hasTypeVarScheme
@@ -251,8 +280,8 @@ instance From outVar inVar => From (Type outVar) (Type inVar) where
 
 
 instance
-  FreeVariables TypeVariableId var
-  => FreeVariables TypeVariableId (Type var)
+  (Eq var, Ord var, From var TypeVariableId)
+  => FreeVariables var (Type var)
   where
   freeVariables (TMono m) = freeVariables m
   freeVariables (TPoly s) = freeVariables s
@@ -263,8 +292,8 @@ fresh type variables for it.
 -}
 instanceType
   :: IdGenerator TypeVariableId :> es
-  => Type var
-  -> Eff es (MonoType var)
+  => Type InferenceVariable
+  -> Eff es (MonoType InferenceVariable)
 instanceType (TMono x) = pure x
 instanceType (TPoly s) = instanceScheme s
 

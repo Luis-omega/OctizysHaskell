@@ -150,10 +150,9 @@ library
     Octizys.FrontEnd.Parser.Expression
     Octizys.FrontEnd.Parser.TopItem
     Octizys.FrontEnd.Parser.Type
+    Octizys.Inference.BiDirectional
     Octizys.Inference.Constraint
     Octizys.Inference.Context
-    Octizys.Inference.Resolution.Substitution
-    Octizys.Inference.Resolution.Unification
     Octizys.Inference.Substitution
     Octizys.Logging.Effect
     Octizys.Logging.Entry
@@ -173,7 +172,8 @@ library
     Octizys.SymbolResolution.ImportsResolution
     Octizys.SymbolResolution.MakeUniqueIds
 
-  --Octizys.Inference.BiDirectional
+  -- Octizys.Inference.Resolution.Substitution
+  -- Octizys.Inference.Resolution.Unification
   -- Octizys.Ast.Evaluation
   --Octizys.Inference.ConstraintsSolver
   --Octizys.Inference.Errors

@@ -8,6 +8,7 @@ module Octizys.Inference.Context
   , lookup
   , addExpressionVars
   , addTypeToExpression
+  , generalize
   ) where
 
 import Data.Aeson (ToJSON)
@@ -21,11 +22,15 @@ import qualified Octizys.Ast.Type as Ast
 import Octizys.Common.Format
 import qualified Octizys.Common.Format as Common
 import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
+import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
 import Prettyprinter (Pretty (pretty), concatWith, indent, line, (<+>))
 
+import Control.Arrow ((<<<))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
+import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
+import Octizys.Classes.From (From (from))
 import Prelude hiding (lookup)
 
 
@@ -51,6 +56,11 @@ instance Pretty Context where
         <> line
         <> pretty ']'
         <+> pretty (Set.toList v)
+
+
+instance FreeVariables InferenceVariable Context where
+  freeVariables (Context' m _) =
+    Set.unions ((freeVariables <<< snd) <$> Map.toList m)
 
 
 emptyContext :: Context
@@ -156,3 +166,32 @@ addTypeToExpression
   -> Eff es Context
 addTypeToExpression context expVar ty = do
   addExpressionVars [(expVar, ty)] context
+
+
+generalize
+  :: IdGenerator TypeVariableId :> es
+  => Context
+  -> Ast.Type InferenceVariable
+  -> Eff es (Ast.Type InferenceVariable)
+generalize _ t@(Ast.TPoly _) = pure t
+generalize c (Ast.TMono t) =
+  let
+    tFree :: Set InferenceVariable = freeVariables t
+    contextFree :: Set InferenceVariable = freeVariables c
+    binded :: Set InferenceVariable =
+      Set.map
+        Ast.RealTypeVariable
+        c.variablesInScope
+    toReplace = Set.difference (Set.union tFree contextFree) binded
+   in
+    do
+      mapOfNewVars <-
+        mapM
+          ( \x -> do
+              tyId <- generateId Nothing
+              pure (x, Ast.Variable $ Ast.RealTypeVariable tyId)
+          )
+          (Set.toList toReplace)
+      let
+        replacementMap = Map.fromList mapOfNewVars
+      pure (from $ Ast.replaceMonoVars replacementMap t)

@@ -10,6 +10,7 @@ import Octizys.Common.Id (ExpressionVariableId)
 
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
+import Prettyprinter (Pretty (pretty))
 
 
 data Node var
@@ -40,3 +41,11 @@ instance From (Node var) (ExpressionVariableId, Type var) where
 
 instance From (Node var) (Value var) where
   from = NValue
+
+
+instance Pretty var => Pretty (Node var) where
+  pretty (NType t) = pretty t
+  pretty (NExp t) = pretty t
+  pretty (NDef t) = pretty t
+  pretty (NParameter t) = pretty t
+  pretty (NValue t) = pretty t
