@@ -172,11 +172,7 @@ library
     Octizys.SymbolResolution.ImportsResolution
     Octizys.SymbolResolution.MakeUniqueIds
 
-  -- Octizys.Inference.Resolution.Substitution
-  -- Octizys.Inference.Resolution.Unification
   -- Octizys.Ast.Evaluation
-  --Octizys.Inference.ConstraintsSolver
-  --Octizys.Inference.Errors
   -- Modules included in this library but not exported.
   -- other-modules:
 
