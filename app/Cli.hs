@@ -6,8 +6,6 @@ module Cli
   ) where
 
 import qualified Data.Char as Char
-import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
 import Octizys.Common.Format.Config (Configuration, makeConfiguration)
 import Octizys.Logging.Levels (Level (Debug, Error, Info, Trace))
 import Options.Applicative
@@ -29,7 +27,7 @@ data ReplOptions = ReplOptions
 
 
 data CompileOptions = CompileOptions
-  { files :: NonEmpty FilePath
+  { files :: FilePath
   , logLevel :: Level
   }
   deriving (Show)
@@ -114,11 +112,7 @@ parseReplOptions =
 parseCompileOptions :: Parser CompileOptions
 parseCompileOptions =
   CompileOptions
-    <$> ( NonEmpty.fromList
-            <$> some
-              ( argument
-                  str
-                  (metavar "FILE+" <> help "Source file.")
-              )
-        )
+    <$> argument
+      str
+      (metavar "FILE+" <> help "Source file.")
     <*> parseLevel

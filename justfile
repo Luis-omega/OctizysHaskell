@@ -5,7 +5,7 @@ repl:
   rlwrap cabal run octizys -- repl --logLevel=info --showCst --showAst --showAstTypeVars
 
 compile *paths:
-  cabal run octizys -- compile --logLevel=debug {{paths}}
+  cabal run octizys -- compile --logLevel=trace {{paths}}
 
 
 test:
