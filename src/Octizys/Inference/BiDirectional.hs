@@ -8,11 +8,14 @@ import Control.Monad (foldM, when)
 import qualified Data.Bifunctor as Bifunctor
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Map (Map)
+import qualified Data.Map as Map
+import qualified Data.Maybe
 import Data.Text (Text)
 import Effectful (Eff, (:>))
-import Effectful.Error.Static (Error)
+import Effectful.Error.Static (Error, HasCallStack, throwError)
 import Effectful.Reader.Static (Reader, ask, local)
-import Effectful.State.Static.Local (State, get, put)
+import Effectful.State.Static.Local (State, get, put, runState)
 import qualified Octizys.Ast.Expression as AstE
 import Octizys.Ast.Type
   ( InferenceVariable
@@ -37,6 +40,7 @@ import Octizys.Inference.Constraint
     ( ApplicationShouldBeOnArrows
     , ArgumentShouldBeOfDomainType
     , IfCasesShouldMatch
+    , IfConditionShouldBeBool
     , TypeAnnotation
     )
   , makeConstraint
@@ -55,6 +59,7 @@ import Prelude hiding (lookup)
 
 addConstraint
   :: Accumulator Constraint :> es
+  => HasCallStack
   => Constraint
   -> Eff es ()
 addConstraint = accumulate
@@ -62,6 +67,7 @@ addConstraint = accumulate
 
 lookup
   :: Error Text :> es
+  => HasCallStack
   => Reader Context :> es
   => ExpressionVariableId
   -> Eff es (AstT.Type InferenceVariable)
@@ -72,12 +78,14 @@ lookup ev = do
 
 freshTypeVar
   :: IdGenerator TypeVariableId :> es
+  => HasCallStack
   => Eff es TypeVariableId
 freshTypeVar = generateId Nothing
 
 
 freshMonoVar
   :: IdGenerator TypeVariableId :> es
+  => HasCallStack
   => Eff es (AstT.MonoType AstT.InferenceVariable)
 freshMonoVar =
   (AstT.Variable <<< AstT.RealTypeVariable) <$> freshTypeVar
@@ -85,6 +93,7 @@ freshMonoVar =
 
 freshInferenceVar
   :: IdGenerator TypeVariableId :> es
+  => HasCallStack
   => Eff es (AstT.Type AstT.InferenceVariable)
 freshInferenceVar =
   AstT.TMono <$> freshMonoVar
@@ -112,6 +121,7 @@ cstToAstMonoType t =
 cstParametersToAstParameters
   :: forall es
    . IdGenerator TypeVariableId :> es
+  => HasCallStack
   => CstE.Parameters ExpressionVariableId TypeVariableId
   -> Eff
       es
@@ -137,6 +147,7 @@ cstParametersToAstParameters params =
 definitionAnnotationToAst
   :: forall es
    . IdGenerator TypeVariableId :> es
+  => HasCallStack
   => CstE.DefinitionTypeAnnotation ExpressionVariableId TypeVariableId
   -> Eff es (AstT.Type InferenceVariable)
 definitionAnnotationToAst ann =
@@ -173,6 +184,7 @@ mono variables.
 genTypesForDefinitions
   :: forall es
    . IdGenerator TypeVariableId :> es
+  => HasCallStack
   => NonEmpty (CstE.Definition ExpressionVariableId TypeVariableId)
   -> Eff
       es
@@ -203,6 +215,7 @@ genTypesForDefinitions ds = go (NonEmpty.toList ds) [] []
 
 generalize
   :: Reader Context :> es
+  => HasCallStack
   => AstT.Type InferenceVariable
   -> Eff es (AstT.Type InferenceVariable)
 generalize = undefined
@@ -210,6 +223,7 @@ generalize = undefined
 
 inferDefinitions
   :: Error Text :> es
+  => HasCallStack
   => Reader Context :> es
   => Accumulator Constraint :> es
   => IdGenerator TypeVariableId :> es
@@ -262,6 +276,7 @@ inferDefinitions definitions = do
 infer
   :: forall es
    . Error Text :> es
+  => HasCallStack
   => Reader Context :> es
   => Accumulator Constraint :> es
   => IdGenerator TypeVariableId :> es
@@ -388,7 +403,7 @@ infer expr =
             }
       conditionIsBoolInfo <-
         makeConstraintInfo
-          IfCasesShouldMatch
+          IfConditionShouldBeBool
           (from cond)
           (from condOut)
           Nothing
@@ -403,13 +418,13 @@ infer expr =
       let
         conditionIsBool =
           makeConstraint
-            (AstE.getMonoType condOut.expression)
+            (AstE.getMonoType condOut)
             (from AstT.BoolType)
             conditionIsBoolInfo
         thenIsElse =
           makeConstraint
-            (AstE.getMonoType thenOut.expression)
-            (AstE.getMonoType elseOut.expression)
+            (AstE.getMonoType thenOut)
+            (AstE.getMonoType elseOut)
             thenIsElseInfo
       addConstraint conditionIsBool
       addConstraint thenIsElse
@@ -435,6 +450,7 @@ infer expr =
 
 check
   :: Error Text :> es
+  => HasCallStack
   => Reader Context :> es
   => Accumulator Constraint :> es
   => IdGenerator TypeVariableId :> es
@@ -485,12 +501,12 @@ check expr ty cr =
       inferred <- infer expr
       let
         inferredType =
-          AstE.getType inferred.expression
+          AstE.getType inferred
       constraintInfo <-
         makeConstraintInfo
           cr
           (from expr)
-          (from inferred.expression)
+          (from inferred)
           Nothing
           []
       let
@@ -506,6 +522,7 @@ check expr ty cr =
 
 occursCheckAndAddtoSubs
   :: State Substitution :> es
+  => HasCallStack
   => Error Text :> es
   => InferenceVariable
   -> AstT.MonoType InferenceVariable
@@ -532,6 +549,7 @@ occursCheckAndAddtoSubs v t =
 
 makeRemainArrowConstraints
   :: State ConstraintId :> es
+  => HasCallStack
   => NonEmpty (AstT.MonoType InferenceVariable)
   -> NonEmpty (AstT.MonoType InferenceVariable)
   -> Constraint
@@ -560,6 +578,7 @@ makeRemainArrowConstraints (x0 :| xs0) (y0 :| ys0) c =
 
 unify
   :: Reader Context :> es
+  => HasCallStack
   => Accumulator Constraint :> es
   => IdGenerator TypeVariableId :> es
   => State Substitution :> es
@@ -599,3 +618,23 @@ unify c = do
         Common.pText "Error, can't unify in constraint"
           <> Pretty.line
           <> indentPretty c
+
+
+solveExpressionType
+  :: forall es
+   . Error Text :> es
+  => HasCallStack
+  => Reader Context :> es
+  => Accumulator Constraint :> es
+  => IdGenerator TypeVariableId :> es
+  => State ConstraintId :> es
+  => Log :> es
+  => CstE.Expression ExpressionVariableId TypeVariableId
+  -> Eff es (AstE.Expression AstT.TypeVariable)
+solveExpressionType expr = do
+  (inferredExpression, initialSubs) <-
+    runState Substitution.empty $ infer expr
+  subs <- Substitution.finalizeSubstitution initialSubs
+  Substitution.apply
+    subs
+    inferredExpression

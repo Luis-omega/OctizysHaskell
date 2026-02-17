@@ -14,7 +14,7 @@ module Octizys.Inference.Constraint
   , getLeftType
   , getRightType
   , asTuple
-  , ConstraintId
+  , ConstraintId (ConstraintId')
   , generateConstraintId
   , modifyTypes
   ) where

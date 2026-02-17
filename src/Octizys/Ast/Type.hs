@@ -22,6 +22,7 @@ import Data.Text (Text)
 import Effectful (Eff, (:>))
 import GHC.Generics (Generic, Generically (..))
 import Octizys.Common.Format (defaultIndentationSpaces)
+import Octizys.Common.Id (GenerateFromInt (generateFromInt))
 import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
 import Prettyprinter (Pretty, pretty)
 import qualified Prettyprinter as Pretty
@@ -42,7 +43,7 @@ instance Pretty TypeValue where
 
 
 data InferenceVariable
-  = ErrorVariable String
+  = ErrorVariable Text
   | RealTypeVariable TypeVariableId
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically InferenceVariable
@@ -65,6 +66,10 @@ instance From InferenceVariable TypeVariableId where
   from = RealTypeVariable
 
 
+instance GenerateFromInt InferenceVariable where
+  generateFromInt sc oi i = RealTypeVariable $ generateFromInt sc oi i
+
+
 newtype TypeVariable = TypeVariable' {unTypeVariable :: TypeVariableId}
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically TypeVariable
@@ -76,6 +81,10 @@ instance Pretty TypeVariable where
 
 instance FreeVariables TypeVariableId TypeVariable where
   freeVariables v = singleton v.unTypeVariable
+
+
+instance GenerateFromInt TypeVariable where
+  generateFromInt sc oi i = TypeVariable' $ generateFromInt sc oi i
 
 
 inferenceVarToId :: InferenceVariable -> Maybe TypeVariableId
