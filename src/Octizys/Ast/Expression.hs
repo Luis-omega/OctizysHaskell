@@ -100,15 +100,15 @@ instance Pretty var => Pretty (Value var) where
   pretty Function {parameters, body} =
     Pretty.vsep
       [ formatText "\\"
-          <> Pretty.indent
+          <> Pretty.nest
             defaultIndentationSpaces
             ( Pretty.line
                 <> prettyParametersFunction
                   parameters
             )
-      , formatText "->"
+      , formatText "|-"
           <> ( Pretty.group
-                <<< Pretty.indent defaultIndentationSpaces
+                <<< Pretty.nest defaultIndentationSpaces
              )
             ( Pretty.line
                 <> pretty body
@@ -180,10 +180,14 @@ instance Pretty var => Pretty (Expression var) where
   pretty EValue {value} = pretty value
   pretty Variable {name} = pretty name
   pretty Application {applicationFunction, applicationArgument} =
-    (Pretty.group <<< Pretty.indent defaultIndentationSpaces)
+    (Pretty.group <<< Pretty.nest defaultIndentationSpaces)
       ( Pretty.line'
           <> prettyArg applicationFunction
-          <> prettyArg applicationArgument
+          <> Pretty.nest
+            defaultIndentationSpaces
+            ( Pretty.line
+                <> prettyArg applicationArgument
+            )
       )
     where
       prettyArg expr =
@@ -195,19 +199,19 @@ instance Pretty var => Pretty (Expression var) where
   pretty If {condition, ifTrue, ifFalse} =
     (Pretty.group <<< Pretty.vsep)
       [ formatText "if"
-          <> Pretty.indent
+          <> Pretty.nest
             defaultIndentationSpaces
             ( Pretty.line
                 <> pretty condition
             )
       , formatText "then"
-          <> Pretty.indent
+          <> Pretty.nest
             defaultIndentationSpaces
             ( Pretty.line
                 <> pretty ifTrue
             )
       , formatText "else"
-          <> Pretty.indent
+          <> Pretty.nest
             defaultIndentationSpaces
             ( Pretty.line
                 <> pretty ifFalse
@@ -217,7 +221,7 @@ instance Pretty var => Pretty (Expression var) where
     Pretty.parens
       ( (Pretty.group <<< Pretty.vsep)
           [ formatText "let"
-              <> Pretty.indent
+              <> Pretty.nest
                 defaultIndentationSpaces
                 ( Pretty.line
                     <> (Pretty.vsep <<< toList)
@@ -229,7 +233,7 @@ instance Pretty var => Pretty (Expression var) where
                 )
           , formatText
               "in"
-              <> Pretty.indent
+              <> Pretty.nest
                 defaultIndentationSpaces
                 ( Pretty.line
                     <> pretty expression
@@ -240,7 +244,7 @@ instance Pretty var => Pretty (Expression var) where
     (Pretty.parens <<< Pretty.group)
       ( pretty expression
           <> Pretty.line
-          <> Pretty.indent
+          <> Pretty.nest
             defaultIndentationSpaces
             ( formatText ":"
                 <> Pretty.line

@@ -3,6 +3,8 @@
 module Octizys.Test.Inference.BiDirectional where
 
 import Data.IORef (IORef, newIORef)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Effectful (runEff)
@@ -16,10 +18,11 @@ import Octizys.Ast.Type
   ( InferenceVariable
   , MonoType (Variable)
   , Type
+  , TypeEq (typeEq)
   )
 import qualified Octizys.Ast.Type as Ast
 import Octizys.Classes.From (from)
-import Octizys.Common.Format (indentPretty, pText, renderDoc)
+import Octizys.Common.Format (indentDoc, indentPretty, pText, renderDoc)
 import qualified Octizys.Common.Format as Common
 import Octizys.Common.Format.Config (defaultConfiguration)
 import Octizys.Common.Id
@@ -33,11 +36,18 @@ import qualified Octizys.FrontEnd.Cst.Combinators as C
 import qualified Octizys.FrontEnd.Cst.Expression as Cst
 import qualified Octizys.FrontEnd.Cst.Node as Cst
 import Octizys.FrontEnd.Format.Expression (formatExpression)
-import Octizys.Inference.BiDirectional (solveExpressionType)
-import Octizys.Inference.Constraint (ConstraintId (ConstraintId'))
+import Octizys.Inference.BiDirectional
+  ( solveExpressionTypeAddInfo
+  )
+import Octizys.Inference.Constraint
+  ( Constraint
+  , ConstraintId (ConstraintId')
+  )
 import Octizys.Inference.Context (Context, contextFromList, emptyContext)
+import Octizys.Inference.Substitution (Substitution (Substitution))
 import Octizys.Logging.Interpreters.Console (runLog)
 import Octizys.Logging.Levels (Level (Info))
+import qualified Octizys.Test.Inference.Substitution as C
 import Prettyprinter (Pretty (pretty))
 import qualified Prettyprinter as Pretty
 import Test.Tasty (TestTree, testGroup)
@@ -56,17 +66,22 @@ makeMonoVar counter =
 assertEqualTypes
   :: Context
   -> Cst.Expression ExpressionVariableId TypeVariableId
+  -> Ast.Expression Ast.TypeVariable
+  -> [Constraint]
+  -> Map TypeVariableId (Ast.MonoType Ast.TypeVariable)
   -> Type Ast.TypeVariable
   -> Type Ast.TypeVariable
   -> IO ()
-assertEqualTypes ctx expr t1 t2 =
-  if t1 == t2
+assertEqualTypes ctx expr ast constraints subs t1 t2 =
+  if typeEq t1 t2
     then pure ()
     else
       assertFailure $
         Text.unpack
           ( renderDoc $
               pretty ctx
+                <> Pretty.hardline
+                <> pretty constraints
                 <> Pretty.hardline
                 <> pText "Expected:"
                 <> indentPretty t1
@@ -75,14 +90,30 @@ assertEqualTypes ctx expr t1 t2 =
                 <> indentPretty t2
                 <> Pretty.hardline
                 <> pText "Original expression:"
-                <> formatExpression defaultConfiguration expr
+                <> indentDoc (formatExpression defaultConfiguration expr)
+                <> Pretty.hardline
+                <> pText "Inferred expression:"
+                <> indentDoc (pretty ast)
+                <> Pretty.hardline
+                <> pText "Substitution:"
+                <> indentDoc (prettyMap subs)
           )
+  where
+    prettyMap m = Common.prettyItemList (Map.toList m) (pretty ',') (pretty '~')
 
 
 runSolver
   :: Context
   -> Cst.Expression ExpressionVariableId TypeVariableId
-  -> IO (Either Text (Ast.Expression Ast.TypeVariable))
+  -> IO
+      ( Either
+          Text
+          ( ( Ast.Expression Ast.TypeVariable
+            , Map TypeVariableId (Ast.MonoType Ast.TypeVariable)
+            )
+          , [Constraint]
+          )
+      )
 runSolver ctx expr =
   runEff $
     runConsole $
@@ -90,13 +121,12 @@ runSolver ctx expr =
         runErrorNoCallStack $
           runReader ctx $
             runReader C.simbolContext $
-              runAccumulatorAlone [] $
+              runAccumulatorFull [] $
                 runIdGeneratoAlone 0 $
-                  runStateAlone (ConstraintId' 0) (solveExpressionType expr)
+                  runStateAlone (ConstraintId' 0) (solveExpressionTypeAddInfo expr)
   where
     runStateAlone s ef = fst <$> runState s ef
     runIdGeneratoAlone s ef = fst <$> runIdGeneratorFull s ef
-    runAccumulatorAlone s ef = fst <$> runAccumulatorFull s ef
 
 
 tests :: TestTree
@@ -146,6 +176,92 @@ tests =
         let
           expr = C.eIf (C.bool True) (C.bool False) (C.int 2)
         assertFails emptyContext expr
+    , testCase "If constraints function argument to be bool" $ do
+        counter <- newIORef 0
+        nId <- C.makeExpressionVariableId counter
+        let
+          n = Cst.Variable C.sourceInfo nId
+          expr =
+            C.function
+              (C.parameters (C.parameter nId Nothing) [])
+              ( C.eIf (C.bool True) n (C.int 2)
+              )
+        assertInfers
+          emptyContext
+          expr
+          ( Ast.TMono
+              ( A.arrow [A.intType] A.intType
+              )
+          )
+    , testCase "Multiplication example" $ do
+        counter <- newIORef 0
+        lt <- C.eVar counter
+        mul <- C.eVar counter
+        minus <- C.eVar counter
+        nId <- C.makeExpressionVariableId counter
+        let ltT = A.arrow [A.intType, A.intType] A.boolType
+            mulT = A.arrow [A.intType, A.intType] A.intType
+            minusT = A.arrow [A.intType, A.intType] A.intType
+            n = Cst.Variable C.sourceInfo nId
+            ctx =
+              contextFromList
+                [ (lt.name, Ast.TMono ltT)
+                , (mul.name, Ast.TMono mulT)
+                , (minus.name, Ast.TMono minusT)
+                ]
+                []
+            expr =
+              C.function
+                (C.parameters (C.parameter nId Nothing) [])
+                ( C.eIf
+                    (C.app lt [n, C.int 1])
+                    (C.int 1)
+                    (C.app mul [n, C.int 2])
+                )
+        assertInfers ctx expr (Ast.TMono (A.arrow [A.intType] A.intType))
+    , testCase "Identity" $ do
+        counter <- newIORef 0
+        nId <- C.makeExpressionVariableId counter
+        tId <- C.makeTypeVariableId counter
+        let
+          n = Cst.Variable C.sourceInfo nId
+          t = Variable (Ast.TypeVariable' tId)
+          expr =
+            C.function
+              (C.parameters (C.parameter nId Nothing) [])
+              n
+        assertInfers emptyContext expr (A.scheme [tId] (A.arrow [t] t))
+    , testCase "Partial application" $ do
+        counter <- newIORef 0
+        lt <- C.eVar counter
+        nId <- C.makeExpressionVariableId counter
+        let ltT = A.arrow [A.intType, A.intType] A.boolType
+            n = Cst.Variable C.sourceInfo nId
+            ctx =
+              contextFromList
+                [ (lt.name, Ast.TMono ltT)
+                ]
+                []
+            expr =
+              C.function
+                (C.parameters (C.parameter nId Nothing) [])
+                ( C.app lt [n]
+                )
+        assertInfers
+          ctx
+          expr
+          (Ast.TMono (A.arrow [A.intType, A.intType] A.boolType))
+    , testCase "Self application fails" $ do
+        counter <- newIORef 0
+        nId <- C.makeExpressionVariableId counter
+        let
+          n = Cst.Variable C.sourceInfo nId
+          expr =
+            C.function
+              (C.parameters (C.parameter nId Nothing) [])
+              ( C.app n [n]
+              )
+        assertFails emptyContext expr
     ]
 
 
@@ -158,10 +274,13 @@ assertInfers
 assertInfers context expression expected = do
   maybeResult <- runSolver context expression
   case maybeResult of
-    Right result ->
+    Right ((result, subs), constraints) ->
       assertEqualTypes
         context
         expression
+        result
+        constraints
+        subs
         expected
         (Ast.TMono $ Ast.getType result)
     Left msg -> do
@@ -187,7 +306,7 @@ assertFails
 assertFails context expression = do
   maybeResult <- runSolver context expression
   case maybeResult of
-    Right result ->
+    Right ((result, _), _) ->
       assertFailure $
         Text.unpack $
           renderDoc

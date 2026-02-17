@@ -29,12 +29,14 @@ import qualified Octizys.Ast.Node as Ast
 import Octizys.Ast.Type (InferenceVariable)
 import qualified Octizys.Ast.Type as AstT
 import Octizys.Classes.From
+import Octizys.Common.Format (indentDoc, indentPretty, pText)
 import Octizys.Common.Id (ExpressionVariableId)
 import qualified Octizys.FrontEnd.Cst.Node as Cst
 import Octizys.FrontEnd.Cst.Type
   ( TypeVariableId
   )
-import Prettyprinter (Pretty (pretty))
+import Prettyprinter (Pretty (pretty), (<+>))
+import qualified Prettyprinter as Pretty
 import Prelude hiding (lookup)
 
 
@@ -113,7 +115,7 @@ data ConstraintInfo = ConstraintInfo'
 
 
 instance Pretty ConstraintInfo where
-  pretty c = pretty (c.reason, c.constraintId, c.ast)
+  pretty c = pretty (c.reason, c.constraintId, c.cst)
 
 
 makeConstraintInfo
@@ -143,7 +145,23 @@ data Constraint = Constraint'
 instance Pretty Constraint where
   pretty c =
     pretty @Text "Constraint["
-      <> pretty (c.constraintType1, c.constraintType2, c.constraintInfo)
+      <> indentDoc
+        ( Pretty.align
+            ( Pretty.vsep
+                [ pText "Id:"
+                    <+> pretty c.constraintInfo.constraintId
+                    <> pText ", parent:"
+                    <+> pretty c.constraintInfo.parent
+                    <+> pText ", dependentsOn:"
+                    <+> pretty c.constraintInfo.dependedOn
+                , pretty c.constraintInfo.reason
+                , pretty c.constraintType1
+                , pretty c.constraintType2
+                , pretty c.constraintInfo.ast
+                ]
+            )
+        )
+      <> Pretty.line'
       <> pretty @Text "]"
 
 

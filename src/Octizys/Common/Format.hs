@@ -10,9 +10,9 @@ import Prettyprinter
   , align
   , concatWith
   , defaultLayoutOptions
-  , indent
   , layoutPretty
   , line
+  , nest
   , pretty
   , (<+>)
   )
@@ -20,7 +20,7 @@ import Prettyprinter.Render.Text (renderStrict)
 
 
 defaultIndentationSpaces :: Int
-defaultIndentationSpaces = 4
+defaultIndentationSpaces = 2
 
 
 pText :: Text -> Doc ann
@@ -33,7 +33,7 @@ indentPretty x = indentDoc (pretty x)
 
 
 indentDoc :: Doc ann -> Doc ann
-indentDoc x = indent defaultIndentationSpaces (line <> x)
+indentDoc x = nest defaultIndentationSpaces (line <> x)
 
 
 prettyWithHeader :: Pretty a => Text -> a -> Doc ann
@@ -68,7 +68,7 @@ prettyItemList items sep binder =
         <+> binder
         <+> pretty ri
    in
-    (align <<< indent defaultIndentationSpaces)
+    (align <<< nest defaultIndentationSpaces)
       ( concatWith
           ( \x y ->
               x <> line <> sep <+> y

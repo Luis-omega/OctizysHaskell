@@ -234,15 +234,15 @@ formatExpression configuration e =
                     configuration
                     parameters
               )
-        , ( Pretty.group
-              <<< nest configuration
-          )
-            ( Pretty.line
-                <> pretty @Text "|-"
-                <> formatExpression
-                  configuration
-                  body
-            )
+        , pretty @Text "|-"
+            <> ( Pretty.group
+                  <<< nest configuration
+               )
+              ( Pretty.line
+                  <> formatExpression
+                    configuration
+                    body
+              )
         ]
     Application
       { applicationFunction =

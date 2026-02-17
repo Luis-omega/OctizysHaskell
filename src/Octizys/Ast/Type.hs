@@ -6,7 +6,7 @@ module Octizys.Ast.Type where
 
 import Control.Arrow ((<<<))
 import Data.Foldable (foldl')
-import Data.List.NonEmpty (NonEmpty, cons)
+import Data.List.NonEmpty (NonEmpty ((:|)), cons)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Set (singleton)
 import qualified Data.Set as Set
@@ -28,6 +28,14 @@ import Prettyprinter (Pretty, pretty)
 import qualified Prettyprinter as Pretty
 
 
+class TypeEq a where
+  typeEq :: a -> a -> Bool
+
+
+class NormalizeType a where
+  normalize :: a -> a
+
+
 data TypeValue = BoolType | IntType
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically TypeValue
@@ -40,6 +48,10 @@ instance FreeVariables TypeVariableId TypeValue where
 instance Pretty TypeValue where
   pretty BoolType = pretty @Text "Bool"
   pretty IntType = pretty @Text "Int"
+
+
+instance TypeEq TypeValue where
+  typeEq = (==)
 
 
 data InferenceVariable
@@ -70,6 +82,11 @@ instance GenerateFromInt InferenceVariable where
   generateFromInt sc oi i = RealTypeVariable $ generateFromInt sc oi i
 
 
+instance TypeEq InferenceVariable where
+  typeEq (RealTypeVariable x) (RealTypeVariable y) = x == y
+  typeEq _ _ = False
+
+
 newtype TypeVariable = TypeVariable' {unTypeVariable :: TypeVariableId}
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically TypeVariable
@@ -85,6 +102,10 @@ instance FreeVariables TypeVariableId TypeVariable where
 
 instance GenerateFromInt TypeVariable where
   generateFromInt sc oi i = TypeVariable' $ generateFromInt sc oi i
+
+
+instance TypeEq TypeVariable where
+  typeEq = (==)
 
 
 inferenceVarToId :: InferenceVariable -> Maybe TypeVariableId
@@ -111,6 +132,44 @@ instance From outVar inVar => From (MonoType outVar) (MonoType inVar) where
   from VType {value} = VType {value}
   from Arrow {start, remain} = Arrow {start = from start, remain = from <$> remain}
   from (Variable var) = Variable (from var)
+
+
+instance NormalizeType (MonoType var) where
+  normalize (Arrow start1 remain1) =
+    let
+      start2 = normalize start1
+      remain2 = normalize <$> remain1
+     in
+      flattenArrows start2 (NonEmpty.toList remain2)
+    where
+      flattenArrows :: MonoType var -> [MonoType var] -> MonoType var
+      flattenArrows initType [] = initType
+      flattenArrows initType (x : remain) =
+        case flattenArrows x remain of
+          Arrow newDom newRange ->
+            Arrow initType (NonEmpty.cons newDom newRange)
+          _ -> Arrow initType (x :| remain)
+  normalize x = x
+
+
+instance TypeEq a => TypeEq [a] where
+  typeEq [] [] = True
+  typeEq (x : xs) (y : ys) = typeEq x y && typeEq xs ys
+  typeEq _ _ = False
+
+
+instance TypeEq a => TypeEq (NonEmpty a) where
+  typeEq x y = typeEq (NonEmpty.toList x) (NonEmpty.toList y)
+
+
+instance TypeEq var => TypeEq (MonoType var) where
+  typeEq x y =
+    case (normalize x, normalize y) of
+      (VType v1, VType v2) -> typeEq v1 v2
+      (Arrow start1 remain1, Arrow start2 remain2) ->
+        typeEq start1 start2 && typeEq remain1 remain2
+      (Variable v1, Variable v2) -> typeEq v1 v2
+      (_, _) -> False
 
 
 needsParentsInArrow :: MonoType var -> Bool
@@ -150,6 +209,21 @@ replaceMonoVars s (Arrow t1 t2) =
     (replaceMonoVars s <$> t2)
 replaceMonoVars s t@(Variable v) =
   Data.Maybe.fromMaybe t (Map.lookup v s)
+
+
+replaceMonoTypeId
+  :: Map TypeVariableId TypeVariableId
+  -> MonoType TypeVariable
+  -> MonoType TypeVariable
+replaceMonoTypeId _ t@(VType _) = t
+replaceMonoTypeId s (Arrow t1 t2) =
+  Arrow
+    (replaceMonoTypeId s t1)
+    (replaceMonoTypeId s <$> t2)
+replaceMonoTypeId s t@(Variable v) =
+  case Map.lookup (unTypeVariable v) s of
+    Just newId -> Variable (TypeVariable' newId)
+    Nothing -> t
 
 
 instance Pretty var => Pretty (MonoType var) where
@@ -220,6 +294,34 @@ instance
     Set.difference
       (freeVariables s.body)
       (Set.fromList (NonEmpty.toList (from <$> s.arguments)))
+
+
+pairSchemeVars
+  :: NonEmpty TypeVariableId
+  -> NonEmpty TypeVariableId
+  -> Either () (Map TypeVariableId TypeVariableId)
+pairSchemeVars x y =
+  case go (NonEmpty.toList x) (NonEmpty.toList y) of
+    Right xs -> Right $ Map.fromList xs
+    Left _ -> Left ()
+  where
+    go [] [] = Right mempty
+    go (x1 : xs) (y1 : ys) =
+      case go xs ys of
+        Right out1 -> Right ((x1, y1) : out1)
+        Left _ -> Left ()
+    go _ _ = Left ()
+
+
+instance NormalizeType (Scheme var) where
+  normalize (Scheme' args1 body1) = Scheme' args1 (normalize body1)
+
+
+instance TypeEq (Scheme TypeVariable) where
+  typeEq (Scheme' args1 body1) (Scheme' args2 body2) =
+    case pairSchemeVars args1 args2 of
+      Right sub -> typeEq (replaceMonoTypeId sub body1) body2
+      Left _ -> False
 
 
 {- | Closes the variables of a scheme by generating new
@@ -294,6 +396,17 @@ instance
   where
   freeVariables (TMono m) = freeVariables m
   freeVariables (TPoly s) = freeVariables s
+
+
+instance NormalizeType (Type var) where
+  normalize (TMono m) = TMono (normalize m)
+  normalize (TPoly s) = TPoly (normalize s)
+
+
+instance TypeEq (Type TypeVariable) where
+  typeEq (TMono m) (TMono m2) = typeEq m m2
+  typeEq (TPoly s) (TPoly s2) = typeEq s s2
+  typeEq _ _ = False
 
 
 {- | Closes the variables of a type (if it has) by generating new

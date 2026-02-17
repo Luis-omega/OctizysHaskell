@@ -23,12 +23,13 @@ import Octizys.Common.Qualifier (Qualifier)
 import Control.Arrow ((<<<))
 import Data.Aeson (ToJSON, ToJSONKey)
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Text (Text)
 import GHC.Generics (Generic, Generically (..))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath, logicPathSeparator)
 import Octizys.Common.Name (Name)
 import qualified Octizys.Package.Reference as Package
-import Prettyprinter (Pretty, pretty)
+import Prettyprinter (Doc, Pretty, pretty)
 
 
 newtype Id = Id' {idRaw :: Int}
@@ -116,14 +117,18 @@ instance GenerateFromInt Symbol where
 
 
 instance Pretty Symbol where
-  pretty s =
-    case s.originInfo of
-      Just info -> pretty s.context.packageRef <> pretty logicPathSeparator <> pretty info
-      Nothing ->
-        pretty s.context
-          <> pretty logicPathSeparator
-          <> pretty 'v'
-          <> pretty s.uniqueId
+  pretty s = prettySymbolWithVariablePrefix s "v"
+
+
+prettySymbolWithVariablePrefix :: Symbol -> Text -> Doc ann
+prettySymbolWithVariablePrefix s t =
+  case s.originInfo of
+    Just info -> pretty s.context.packageRef <> pretty logicPathSeparator <> pretty info
+    Nothing ->
+      pretty s.context
+        <> pretty logicPathSeparator
+        <> pretty t
+        <> pretty s.uniqueId
 
 
 instance HasSymbolStructure Symbol where
@@ -151,7 +156,7 @@ instance GenerateFromInt TypeVariableId where
 
 
 instance Pretty TypeVariableId where
-  pretty = pretty <<< getSymbol
+  pretty t = prettySymbolWithVariablePrefix (getSymbol t) "t"
 
 
 newtype ExpressionVariableId = ExpressionVariableId'

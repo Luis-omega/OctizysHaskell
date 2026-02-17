@@ -5,6 +5,7 @@ import qualified Octizys.FrontEnd.Cst.Type as CstT
 
 import Control.Arrow ((<<<))
 import Control.Monad (foldM, when)
+import Data.Aeson (ToJSON (toJSON))
 import qualified Data.Bifunctor as Bifunctor
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -52,6 +53,8 @@ import qualified Octizys.Inference.Context as Context
 import Octizys.Inference.Substitution (Substitution)
 import qualified Octizys.Inference.Substitution as Substitution
 import Octizys.Logging.Effect (Log)
+import Octizys.Logging.Entry (field, fieldWith)
+import qualified Octizys.Logging.Loggers as Log
 import Prettyprinter (Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 import Prelude hiding (lookup)
@@ -610,7 +613,14 @@ unify c = do
       inConstraint <- makeConstraintFromParent in1 in2 c
       unify inConstraint
       accumulate inConstraint
-      outConstraints <- makeRemainArrowConstraints out1 out2 c
+
+      newSubs <- get @Substitution
+
+      let
+        newOut1 = Substitution.applyToMonoType newSubs <$> out1
+        newOut2 = Substitution.applyToMonoType newSubs <$> out2
+
+      outConstraints <- makeRemainArrowConstraints newOut1 newOut2 c
       mapM_ accumulate outConstraints
       mapM_ unify outConstraints
     (_, _) ->
@@ -618,6 +628,32 @@ unify c = do
         Common.pText "Error, can't unify in constraint"
           <> Pretty.line
           <> indentPretty c
+
+
+solveExpressionTypeAddInfo
+  :: forall es
+   . Error Text :> es
+  => HasCallStack
+  => Reader Context :> es
+  => Accumulator Constraint :> es
+  => IdGenerator TypeVariableId :> es
+  => State ConstraintId :> es
+  => Log :> es
+  => CstE.Expression ExpressionVariableId TypeVariableId
+  -> Eff
+      es
+      ( AstE.Expression AstT.TypeVariable
+      , Map TypeVariableId (AstT.MonoType AstT.TypeVariable)
+      )
+solveExpressionTypeAddInfo expr = do
+  (inferredExpression, initialSubs) <-
+    runState Substitution.empty $ infer expr
+  subs <- Substitution.finalizeSubstitution initialSubs
+  out <-
+    Substitution.apply
+      subs
+      inferredExpression
+  pure (out, subs)
 
 
 solveExpressionType
@@ -631,10 +667,4 @@ solveExpressionType
   => Log :> es
   => CstE.Expression ExpressionVariableId TypeVariableId
   -> Eff es (AstE.Expression AstT.TypeVariable)
-solveExpressionType expr = do
-  (inferredExpression, initialSubs) <-
-    runState Substitution.empty $ infer expr
-  subs <- Substitution.finalizeSubstitution initialSubs
-  Substitution.apply
-    subs
-    inferredExpression
+solveExpressionType expr = fst <$> solveExpressionTypeAddInfo expr

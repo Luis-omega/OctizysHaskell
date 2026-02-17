@@ -123,10 +123,10 @@ compose
   :: Substitution
   -> Substitution
   -> Substitution
-compose (Substitution itemsL) s2@(Substitution itemsR) =
+compose s1@(Substitution itemsL) (Substitution itemsR) =
   Substitution $
-    Map.map (applyToMonoType s2) itemsL
-      `Map.union` itemsR
+    Map.map (applyToMonoType s1) itemsR
+      `Map.union` itemsL
 
 
 class ApplyMap a tv ti where
