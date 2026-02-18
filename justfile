@@ -26,6 +26,17 @@ spell:
 format-check:
   nix build .\#format-check
 
+docs:
+  cabal haddock --haddock-hoogle
+  hoogle generate --database=.hoogle/project.hoo --local=dist-newstyle/
+
+search item:
+   hoogle {{item}} --count=50 --database=".hoogle/project.hoo"
+
+hoogle:
+   hoogle server --database=".hoogle/project.hoo"
+
+
 
 # haddock complains about post-qualified imports
 qualify:
