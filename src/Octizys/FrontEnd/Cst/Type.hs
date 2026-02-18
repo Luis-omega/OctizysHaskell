@@ -19,12 +19,17 @@ module Octizys.FrontEnd.Cst.Type
   , TypeVariableId
   ) where
 
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty, cons)
 import Octizys.Common.Id (TypeVariableId)
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo)
 
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Format.Class (Formattable (format))
+import qualified Octizys.Format.Config as Format
+import qualified Octizys.Format.Utils as Format
+import Prettyprinter (Doc)
+import qualified Prettyprinter as Pretty
 
 
 {- | Stores source information in a separate place, so
@@ -54,3 +59,47 @@ data Type tvar
     TVariable {info :: SourceInfo, variable :: tvar}
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically (Type tvar)
+
+
+instance Formattable tvar => Formattable (Type tvar) where
+  format = formatType
+
+
+-- * Format
+
+
+-- | To determine if the arrow arguments needs parens or not.
+needsParentsInArrow :: Type tvar -> Bool
+needsParentsInArrow t =
+  case t of
+    IntType {} -> False
+    BoolType {} -> False
+    Arrow {} -> True
+    Parens {} -> True
+    TVariable {} -> False
+
+
+formatType
+  :: forall tvar ann
+   . Formattable tvar
+  => Format.Configuration
+  -> Type tvar
+  -> Doc ann
+formatType configuration t =
+  case t of
+    IntType _ -> Format.text "Int"
+    BoolType _ -> Format.text "Bool"
+    Arrow {start = _domain, remain = _codomain} ->
+      Format.formatListItemsWith
+        configuration
+        prettyArg
+        (Format.text "->")
+        (cons _domain (snd <$> _codomain))
+      where
+        prettyArg c ty =
+          if needsParentsInArrow ty
+            then Pretty.parens (formatType c ty)
+            else formatType c ty
+    Parens {_type = t2} ->
+      formatType configuration t2
+    TVariable {variable = v} -> format configuration v

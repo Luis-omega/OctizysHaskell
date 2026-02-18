@@ -9,6 +9,7 @@ import Prettyprinter (Pretty (pretty))
 import Data.Aeson (ToJSON)
 import Data.Aeson.Types (ToJSONKey)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Format.Class (Formattable (format))
 
 
 -- | All process
@@ -29,3 +30,7 @@ instance From Qualifier LogicPath where
 instance Pretty Qualifier where
   pretty (ModuleQualifier lp) = pretty lp
   pretty (Repl nm) = pretty @Text "!Repl" <> pretty logicPathSeparator <> pretty nm
+
+
+instance Formattable Qualifier where
+  format _ = pretty

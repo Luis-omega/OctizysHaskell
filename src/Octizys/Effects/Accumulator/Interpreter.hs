@@ -6,6 +6,7 @@ module Octizys.Effects.Accumulator.Interpreter
   , runAccumulatorFull
   , Accumulator
   , accumulate
+  , AccumulatorState
   ) where
 
 import Effectful (Eff, (:>))

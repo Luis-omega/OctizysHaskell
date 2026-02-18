@@ -10,6 +10,9 @@ import Octizys.Common.Id (ExpressionVariableId)
 
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Format.Class (Formattable (format))
+import qualified Octizys.Format.Utils as Format
+import qualified Prettyprinter as Pretty
 
 
 data Node var
@@ -40,3 +43,15 @@ instance From (Node var) (ExpressionVariableId, Type var) where
 
 instance From (Node var) (Value var) where
   from = NValue
+
+
+instance Formattable var => Formattable (Node var) where
+  format configuration (NType t) = format configuration t
+  format configuration (NExp t) = format configuration t
+  format configuration (NDef t) = format configuration t
+  format configuration (NParameter t) =
+    Format.formatTupleItems
+      configuration
+      Pretty.comma
+      t
+  format configuration (NValue t) = format configuration t

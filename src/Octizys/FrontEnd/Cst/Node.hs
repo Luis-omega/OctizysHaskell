@@ -13,6 +13,7 @@ import Octizys.FrontEnd.Cst.Type (Type)
 
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Format.Class (Formattable (format))
 
 
 data Node evar tvar
@@ -38,3 +39,10 @@ instance From (Node evar tvar) (Definition evar tvar) where
 
 instance From (Node evar tvar) (Expression evar tvar) where
   from = NExp
+
+
+instance (Formattable evar, Formattable tvar) => Formattable (Node evar tvar) where
+  format configuration (NType t) = format configuration t
+  format configuration (NParam p) = format configuration p
+  format configuration (NDef t) = format configuration t
+  format configuration (NExp t) = format configuration t

@@ -26,6 +26,9 @@ import Data.Text (Text)
 import GHC.Generics (Generic, Generically (..))
 import GHC.List (foldl')
 import Language.Haskell.TH.Syntax (Lift)
+import Octizys.Format.Class (Formattable, format)
+import Octizys.Format.Config (defaultConfiguration)
+import qualified Octizys.Format.Config as Format
 import Octizys.Logging.Levels (Level)
 import Prettyprinter
   ( Doc
@@ -82,21 +85,25 @@ render =
 
 
 -- | Create field with to json function
-fieldWith :: (a -> Value) -> (a -> Doc ann) -> Text -> a -> Field
+fieldWith
+  :: (a -> Value) -> (Format.Configuration -> a -> Doc ann) -> Text -> a -> Field
 fieldWith toJson toDoc name value =
-  makeField name (toJson value) (Just $ toJSON $ render (toDoc value))
+  makeField
+    name
+    (toJson value)
+    (Just $ toJSON $ render (toDoc defaultConfiguration value))
 
 
 -- | Create fields easily if you have a show instance
 field
   :: forall a
-   . (Pretty a, ToJSON a)
+   . (Formattable a, ToJSON a)
   => Text
   -> a
   -- ^ field name
   -> Field
 -- \| value of the field -> Field
-field = fieldWith (toJSON @a) (pretty @a)
+field = fieldWith (toJSON @a) (format @a)
 
 
 getName :: Field -> Text

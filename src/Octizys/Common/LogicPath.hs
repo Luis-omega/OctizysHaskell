@@ -17,6 +17,7 @@ import Prettyprinter (Pretty (pretty))
 import Data.Aeson (ToJSON)
 import Data.Aeson.Types (ToJSONKey)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Format.Class (Formattable (format))
 
 
 -- | Represents a module direction.
@@ -30,20 +31,12 @@ newtype LogicPath = LogicPath'
 instance ToJSONKey LogicPath
 
 
-makeLogicPath :: Text -> LogicPath
-makeLogicPath = undefined
-
-
 instance From LogicPath (NonEmpty Name) where
   from = LogicPath'
 
 
 instance From (NonEmpty Name) LogicPath where
   from = logicPathRaw
-
-
-logicPathSeparator :: Text
-logicPathSeparator = "/"
 
 
 instance Pretty LogicPath where
@@ -54,6 +47,18 @@ instance Pretty LogicPath where
         let withSeparator =
               ((\x -> pretty x <> pretty logicPathSeparator) <$> other)
          in foldl (<>) mempty withSeparator
+
+
+instance Formattable LogicPath where
+  format _ = pretty
+
+
+logicPathSeparator :: Text
+logicPathSeparator = "/"
+
+
+makeLogicPath :: Text -> LogicPath
+makeLogicPath = undefined
 
 
 -- | Adds the given name at the end of a logic path.

@@ -3,7 +3,7 @@ module Octizys.Common.Id
       ( Id'
       , idRaw
       )
-  , SymbolContext
+  , SymbolContext (SymbolContext')
   , SymbolOriginInfo (qualifier, name)
   , Symbol
   , ExpressionVariableId
@@ -21,14 +21,16 @@ module Octizys.Common.Id
 import Octizys.Common.Qualifier (Qualifier)
 
 import Control.Arrow ((<<<))
-import Data.Aeson (ToJSON)
+import Data.Aeson (ToJSON, ToJSONKey)
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Text (Text)
 import GHC.Generics (Generic, Generically (..))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath, logicPathSeparator)
 import Octizys.Common.Name (Name)
-import Octizys.Common.PackageRef (PackageRef)
-import Prettyprinter (Pretty, pretty)
+import Octizys.Format.Class (Formattable (format))
+import qualified Octizys.Package.Reference as Package
+import Prettyprinter (Doc, Pretty, pretty)
 
 
 newtype Id = Id' {idRaw :: Int}
@@ -43,7 +45,7 @@ newtype Id = Id' {idRaw :: Int}
 
 
 data SymbolContext = SymbolContext'
-  { packageRef :: PackageRef
+  { packageRef :: Package.Reference
   , qualifier :: Qualifier
   }
   deriving (Eq, Ord, Show, Generic)
@@ -51,7 +53,7 @@ data SymbolContext = SymbolContext'
 
 
 instance Pretty SymbolContext where
-  pretty s = pretty s.packageRef <> pretty s.qualifier
+  pretty s = pretty s.packageRef <> pretty logicPathSeparator <> pretty s.qualifier
 
 
 data SymbolOriginInfo = SymbolOriginInfo'
@@ -65,7 +67,10 @@ data SymbolOriginInfo = SymbolOriginInfo'
 instance Pretty SymbolOriginInfo where
   pretty s =
     case s.qualifier of
-      Just path -> pretty path <> pretty logicPathSeparator <> pretty s.name
+      Just path ->
+        pretty path
+          <> pretty logicPathSeparator
+          <> pretty s.name
       Nothing -> pretty s.name
 
 
@@ -104,7 +109,7 @@ data Symbol = Symbol'
 
 
 class HasSymbolStructure a where
-  getPackageRef :: a -> PackageRef
+  getPackageRef :: a -> Package.Reference
   getQualifier :: a -> Qualifier
   getUniqueId :: a -> Id
   getOriginalName :: a -> Maybe (Maybe LogicPath, Name)
@@ -116,14 +121,22 @@ instance GenerateFromInt Symbol where
 
 
 instance Pretty Symbol where
-  pretty s =
-    case s.originInfo of
-      Just info -> pretty s.context.packageRef <> pretty logicPathSeparator <> pretty info
-      Nothing ->
-        pretty s.context
-          <> pretty logicPathSeparator
-          <> pretty 'v'
-          <> pretty s.uniqueId
+  pretty s = prettySymbolWithVariablePrefix s "v"
+
+
+instance Formattable Symbol where
+  format _ = pretty
+
+
+prettySymbolWithVariablePrefix :: Symbol -> Text -> Doc ann
+prettySymbolWithVariablePrefix s t =
+  case s.originInfo of
+    Just info -> pretty info
+    Nothing ->
+      pretty s.context
+        <> pretty logicPathSeparator
+        <> pretty t
+        <> pretty s.uniqueId
 
 
 instance HasSymbolStructure Symbol where
@@ -142,13 +155,20 @@ newtype TypeVariableId = TypeVariableId'
   deriving (ToJSON) via Generically TypeVariableId
 
 
+instance ToJSONKey TypeVariableId
+
+
 instance GenerateFromInt TypeVariableId where
   generateFromInt ctx oinfo x =
     TypeVariableId' (generateFromInt ctx oinfo x)
 
 
 instance Pretty TypeVariableId where
-  pretty = pretty <<< getSymbol
+  pretty t = prettySymbolWithVariablePrefix (getSymbol t) "t"
+
+
+instance Formattable TypeVariableId where
+  format _ = pretty
 
 
 newtype ExpressionVariableId = ExpressionVariableId'
@@ -159,6 +179,9 @@ newtype ExpressionVariableId = ExpressionVariableId'
   deriving (ToJSON) via Generically ExpressionVariableId
 
 
+instance ToJSONKey ExpressionVariableId
+
+
 instance GenerateFromInt ExpressionVariableId where
   generateFromInt ctx oinfo x =
     ExpressionVariableId' (generateFromInt ctx oinfo x)
@@ -166,3 +189,7 @@ instance GenerateFromInt ExpressionVariableId where
 
 instance Pretty ExpressionVariableId where
   pretty = pretty <<< getSymbol
+
+
+instance Formattable ExpressionVariableId where
+  format _ = pretty

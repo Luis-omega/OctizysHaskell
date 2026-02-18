@@ -1,13 +1,13 @@
 module Octizys.Common.Report where
 
 import Data.Text (Text)
-import Octizys.Common.Format.Config (nest)
-import qualified Octizys.Common.Format.Config as Format
 import Prettyprinter (Doc, Pretty (pretty))
 import qualified Prettyprinter as Pretty
 
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
+import qualified Octizys.Format.Config as Format
+import qualified Octizys.Format.Utils as Format
 
 
 data ReportKind
@@ -40,11 +40,11 @@ formatLongDescription configuration ld =
       Just content ->
         case ld.preDescription of
           Just _ ->
-            nest
+            Format.nest
               configuration
               (Pretty.line <> content)
           Nothing ->
-            nest
+            Format.nest
               configuration
               content
       Nothing -> mempty
@@ -69,8 +69,8 @@ formatReport configuration r =
   pretty r.reportKind
     <> pretty '>'
     <> pretty r.shortDescription
-    <> Pretty.nest
-      2
+    <> Format.nest
+      configuration
       ( case r.descriptions of
           [] -> mempty
           _ ->

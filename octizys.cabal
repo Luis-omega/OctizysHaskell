@@ -60,7 +60,7 @@ flag TestMode
 
 common warnings
   if flag(testmode)
-    ghc-options: -Wall -Wno-prepositive-qualified-module
+    ghc-options: -Wall -Wno-prepositive-qualified-module -ferror-spans
 
   else
     ghc-options: -Wall -Werror -Wno-prepositive-qualified-module
@@ -103,25 +103,26 @@ library
 
   -- Modules exported by the library.
   exposed-modules:
+    Octizys.Ast.Combinators
     Octizys.Ast.Expression
-    Octizys.Ast.Format.Expression
-    Octizys.Ast.Format.Type
     Octizys.Ast.Node
     Octizys.Ast.Type
     Octizys.Classes.FreeVariables
     Octizys.Classes.From
-    Octizys.Common.Format.Config
-    Octizys.Common.Format.Markup
     Octizys.Common.HistoryMap
     Octizys.Common.Id
     Octizys.Common.LogicPath
     Octizys.Common.Name
-    Octizys.Common.PackageRef
     Octizys.Common.Qualifier
     Octizys.Common.Report
     Octizys.Common.Version
+    Octizys.Compiler.Error
+    Octizys.Compiler.Pipeline
+    Octizys.Compiler.Stage
+    Octizys.Compiler.Warn
     Octizys.Effects.Accumulator.Effect
     Octizys.Effects.Accumulator.Interpreter
+    Octizys.Effects.Accumulator.Utils
     Octizys.Effects.Console.Effect
     Octizys.Effects.Console.Interpreter
     Octizys.Effects.FileReader.Effect
@@ -130,26 +131,37 @@ library
     Octizys.Effects.IdGenerator.Interpreter
     Octizys.Effects.ListDir.Effect
     Octizys.Effects.ListDir.Interpreter
+    Octizys.Format.Class
+    Octizys.Format.Config
+    Octizys.Format.Utils
+    Octizys.FrontEnd.Cst.Combinators
     Octizys.FrontEnd.Cst.Comment
     Octizys.FrontEnd.Cst.Expression
     Octizys.FrontEnd.Cst.Node
     Octizys.FrontEnd.Cst.SourceInfo
     Octizys.FrontEnd.Cst.TopItem
     Octizys.FrontEnd.Cst.Type
-    Octizys.FrontEnd.Format.Comment
-    Octizys.FrontEnd.Format.Expression
-    Octizys.FrontEnd.Format.TopItem
-    Octizys.FrontEnd.Format.Type
     Octizys.FrontEnd.Parser.Common
     Octizys.FrontEnd.Parser.Error
     Octizys.FrontEnd.Parser.Expression
     Octizys.FrontEnd.Parser.TopItem
     Octizys.FrontEnd.Parser.Type
+    Octizys.Inference.BiDirectional
+    Octizys.Inference.Constraint
+    Octizys.Inference.Context
+    Octizys.Inference.Substitution
     Octizys.Logging.Effect
     Octizys.Logging.Entry
     Octizys.Logging.Interpreters.Console
     Octizys.Logging.Levels
     Octizys.Logging.Loggers
+    Octizys.Module.Build
+    Octizys.Module.Dependencies
+    Octizys.Module.Index
+    Octizys.Package.Build
+    Octizys.Package.Dependencies
+    Octizys.Package.Index
+    Octizys.Package.Reference
     Octizys.PathResolution.DependencyTree
     Octizys.PathResolution.PathIndex
     Octizys.Scope
@@ -157,9 +169,6 @@ library
     Octizys.SymbolResolution.MakeUniqueIds
 
   -- Octizys.Ast.Evaluation
-  --Octizys.Inference.ConstraintsGeneration
-  --Octizys.Inference.ConstraintsSolver
-  --Octizys.Inference.Errors
   -- Modules included in this library but not exported.
   -- other-modules:
 
@@ -177,6 +186,7 @@ library
     , effectful-plugin
     , effectful-th
     , EffectfulParserCombinators
+    , optparse-applicative
     , pretty-show
     , prettyprinter
     , QuickCheck
@@ -258,7 +268,10 @@ test-suite octizys-test
   main-is:          Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules:    Octizys.Test.Parser.PrettyParse
+  other-modules:
+    Octizys.Test.Inference.BiDirectional
+    Octizys.Test.Inference.Substitution
+    Octizys.Test.Parser.PrettyParse
 
   -- Octizys.Test.Parser.PrettyParse
   -- Test dependencies.
