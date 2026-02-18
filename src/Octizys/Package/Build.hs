@@ -8,11 +8,12 @@ import Data.Aeson (ToJSON)
 import Data.Aeson.Types (Value)
 import GHC.Generics (Generic, Generically (..))
 import qualified Octizys.Compiler.Stage as Compiler
+import Octizys.Format.Class (Formattable (format))
 import qualified Octizys.Module.Build as Module
 import qualified Octizys.Module.Index as Module
 import qualified Octizys.Package.Index as Package
 import qualified Octizys.Package.Reference as Package
-import Prettyprinter (Pretty)
+import Prettyprinter (Pretty (pretty))
 import qualified Prettyprinter as Pretty
 
 
@@ -32,6 +33,14 @@ data BuildState (cs :: Compiler.Stage) = BuildState'
   , packageDependencies :: Package.Index
   }
   deriving (Show, Eq, Ord, Generic)
+
+
+instance Pretty (Module.BuildState cs) => Pretty (BuildState cs) where
+  pretty = prettyBuildState
+
+
+instance Formattable (Module.Index cs) => Formattable (BuildState cs) where
+  format c bs = format c bs.modules
 
 
 getModuleIndex :: BuildState cs -> Module.Index cs

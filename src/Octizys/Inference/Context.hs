@@ -19,11 +19,9 @@ import Effectful.Error.Static (Error)
 import GHC.Generics (Generic, Generically (..))
 import Octizys.Ast.Type (InferenceVariable)
 import qualified Octizys.Ast.Type as Ast
-import Octizys.Common.Format
-import qualified Octizys.Common.Format as Common
 import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
-import Prettyprinter (Pretty (pretty), concatWith, indent, line, (<+>))
+import Prettyprinter (Pretty (pretty), concatWith, line, (<+>))
 
 import Control.Arrow ((<<<))
 import Data.Set (Set)
@@ -31,6 +29,10 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
+import Octizys.Format.Class (Formattable (format))
+import Octizys.Format.Config (defaultConfiguration)
+import qualified Octizys.Format.Utils as Format
+import qualified Prettyprinter as Pretty
 import Prelude hiding (lookup)
 
 
@@ -42,20 +44,19 @@ data Context = Context'
   deriving (ToJSON) via Generically Context
 
 
-instance Pretty Context where
-  pretty (Context' c v) =
+instance Formattable Context where
+  format configuration (Context' c v) =
     let
-      items = Map.toList c
       prettyItems =
-        Common.prettyItemList items (pretty ',') (pretty ':')
+        Format.formatMapWith
+          configuration
+          (\con (k, y) -> format con k <> pretty ':' <> format con y)
+          Pretty.comma
+          c
      in
-      pText "Context"
-        <+> pretty '['
-        <> line
+      Format.text "Context"
         <> prettyItems
-        <> line
-        <> pretty ']'
-        <+> pretty (Set.toList v)
+        <+> Format.formatSet configuration v
 
 
 instance FreeVariables InferenceVariable Context where
@@ -88,12 +89,12 @@ lookup context@(Context' ctx _) inferenceVar =
   case Map.lookup inferenceVar ctx of
     Just st -> pure st
     Nothing ->
-      throwDocError
-        ( pText "Can't find the required variable"
-            <> indentPretty inferenceVar
+      Format.throwDocError
+        ( Format.text "Can't find the required variable"
+            <> Format.indentFormat defaultConfiguration inferenceVar
             <> line
-            <> pText "context"
-            <> indentPretty context
+            <> Format.text "context"
+            <> Format.indentFormat defaultConfiguration context
         )
 
 
@@ -127,19 +128,19 @@ addExpressionVars newVars (Context' ctx varScope) =
               else
                 let
                   errorMsg (name, (oldValue, newValue)) =
-                    pText "The variable "
-                      <> indentPretty name
+                    Format.text "The variable "
+                      <> Format.indentFormat defaultConfiguration name
                       <> line
-                      <> pText "is already defined as"
-                      <> indentPretty oldValue
+                      <> Format.text "is already defined as"
+                      <> Format.indentFormat defaultConfiguration oldValue
                       <> line
-                      <> pText "and is being redefined as "
-                      <> indentPretty newValue
+                      <> Format.text "and is being redefined as "
+                      <> Format.indentFormat defaultConfiguration newValue
                  in
-                  throwDocError
-                    ( pText "Error"
-                        <> indent
-                          Common.defaultIndentationSpaces
+                  Format.throwDocError
+                    ( Format.text "Error"
+                        <> Format.indentDoc
+                          defaultConfiguration
                           ( concatWith
                               (\x y -> x <> line <> y)
                               ( errorMsg
@@ -148,12 +149,17 @@ addExpressionVars newVars (Context' ctx varScope) =
                           )
                     )
       else
-        throwDocError
-          ( pText "Tried to add duplicate elements to context"
-              <> indent
-                Common.defaultIndentationSpaces
+        Format.throwDocError
+          ( Format.text "Tried to add duplicate elements to context"
+              <> Format.indentDoc
+                defaultConfiguration
                 ( line
-                    <> pretty (Map.toList repeatedItems)
+                    <> Format.formatMapWith
+                      defaultConfiguration
+                      ( \c -> Format.formatTupleItemsWith c format Format.formatList (pretty ':')
+                      )
+                      Pretty.comma
+                      repeatedItems
                 )
           )
 

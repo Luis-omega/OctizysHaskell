@@ -8,14 +8,12 @@ module Octizys.Module.Build where
 import Data.Aeson (KeyValue ((.=)), ToJSON (toJSON), object)
 import Data.Text (Text)
 import GHC.Generics (Generic, Generically (..))
-import Octizys.Common.Format.Config (defaultConfiguration)
 import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
-import Octizys.Common.LogicPath (LogicPath)
 import qualified Octizys.Compiler.Stage as Compiler
 import qualified Octizys.Compiler.Stage as Compiler.Stage
+import Octizys.Format.Class (Formattable (format))
 import Octizys.FrontEnd.Cst.SourceInfo (SourceVariable)
 import qualified Octizys.FrontEnd.Cst.TopItem as Cst
-import qualified Octizys.FrontEnd.Format.TopItem as Cst
 import Prettyprinter (Pretty (pretty))
 
 
@@ -26,6 +24,10 @@ data AstModule = AstModule'
 
 instance Pretty AstModule where
   pretty _ = pretty @Text "AstModuleStub"
+
+
+instance Formattable AstModule where
+  format _ = pretty
 
 
 data BuildState (cs :: Compiler.Stage) where
@@ -59,17 +61,17 @@ instance ToJSON (BuildState Compiler.Stage.Parsed) where
       ]
 
 
-instance Pretty (BuildState Compiler.Stage.Parsed) where
-  pretty (Parsed m) = Cst.formatModule defaultConfiguration m
+instance Formattable (BuildState Compiler.Stage.Parsed) where
+  format c (Parsed m) = format c m
 
 
-instance Pretty (BuildState Compiler.Stage.SymbolsSolved) where
-  pretty (SymbolsSolved _ m) = Cst.formatModule defaultConfiguration m
+instance Formattable (BuildState Compiler.Stage.SymbolsSolved) where
+  format c (SymbolsSolved _ m) = format c m
 
 
-instance Pretty (BuildState Compiler.Stage.TypesChecked) where
-  pretty (TypesChecked _ m) = pretty m
+instance Formattable (BuildState Compiler.Stage.TypesChecked) where
+  format c (TypesChecked _ m) = format c m
 
 
-instance Pretty (BuildState Compiler.Stage.Optimized) where
-  pretty (Optimized _ m) = pretty m
+instance Formattable (BuildState Compiler.Stage.Optimized) where
+  format c (Optimized _ m) = format c m

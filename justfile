@@ -2,7 +2,7 @@ run:
   just repl
 
 repl:
-  rlwrap cabal run octizys -- repl --logLevel=info --showCst --showAst --showAstTypeVars
+  rlwrap cabal run octizys -- repl --logLevel=info
 
 compile *paths:
   cabal run octizys -- compile --logLevel=trace {{paths}}

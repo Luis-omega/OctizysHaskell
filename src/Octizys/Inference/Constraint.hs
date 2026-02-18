@@ -29,8 +29,9 @@ import qualified Octizys.Ast.Node as Ast
 import Octizys.Ast.Type (InferenceVariable)
 import qualified Octizys.Ast.Type as AstT
 import Octizys.Classes.From
-import Octizys.Common.Format (indentDoc, indentPretty, pText)
 import Octizys.Common.Id (ExpressionVariableId)
+import Octizys.Format.Class (Formattable (format))
+import qualified Octizys.Format.Utils as Format
 import qualified Octizys.FrontEnd.Cst.Node as Cst
 import Octizys.FrontEnd.Cst.Type
   ( TypeVariableId
@@ -114,10 +115,6 @@ data ConstraintInfo = ConstraintInfo'
   deriving (Show, Ord, Eq)
 
 
-instance Pretty ConstraintInfo where
-  pretty c = pretty (c.reason, c.constraintId, c.cst)
-
-
 makeConstraintInfo
   :: State ConstraintId :> es
   => ConstraintReason
@@ -142,22 +139,23 @@ data Constraint = Constraint'
   deriving (Show, Ord, Eq)
 
 
-instance Pretty Constraint where
-  pretty c =
+instance Formattable Constraint where
+  format configuration c =
     pretty @Text "Constraint["
-      <> indentDoc
+      <> Format.indentDoc
+        configuration
         ( Pretty.align
             ( Pretty.vsep
-                [ pText "Id:"
+                [ Format.text "Id:"
                     <+> pretty c.constraintInfo.constraintId
-                    <> pText ", parent:"
+                    <> Format.text ", parent:"
                     <+> pretty c.constraintInfo.parent
-                    <+> pText ", dependentsOn:"
+                    <+> Format.text ", dependentsOn:"
                     <+> pretty c.constraintInfo.dependedOn
                 , pretty c.constraintInfo.reason
-                , pretty c.constraintType1
-                , pretty c.constraintType2
-                , pretty c.constraintInfo.ast
+                , format configuration c.constraintType1
+                , format configuration c.constraintType2
+                , format configuration c.constraintInfo.ast
                 ]
             )
         )

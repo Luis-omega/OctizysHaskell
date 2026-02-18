@@ -3,6 +3,7 @@ module Octizys.Compiler.Warn where
 import Data.Aeson (ToJSON)
 import Data.Text (Text)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Format.Class (Formattable (format))
 import Prettyprinter (Pretty (pretty))
 
 
@@ -15,3 +16,8 @@ data Warn = Warn'
 -- TODO:STUB
 instance Pretty Warn where
   pretty Warn' = pretty @Text "WarnStub"
+
+
+-- TODO:STUB
+instance Formattable Warn where
+  format _ = pretty

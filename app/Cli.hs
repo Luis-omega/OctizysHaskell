@@ -6,7 +6,13 @@ module Cli
   ) where
 
 import qualified Data.Char as Char
-import Octizys.Common.Format.Config (Configuration, makeConfiguration)
+import Octizys.Format.Config
+  ( Configuration
+  , defaultAstConfiguration
+  , defaultConstraintsConfiguration
+  , defaultCstConfiguration
+  , makeConfiguration
+  )
 import Octizys.Logging.Levels (Level (Debug, Error, Info, Trace))
 import Options.Applicative
 
@@ -80,19 +86,14 @@ parseArguments =
 parseFormatterConfiguration :: Parser Configuration
 parseFormatterConfiguration =
   makeConfiguration
-    <$> switch
-      ( long "showAstTypeVars" <> help "Displays all the type variables in the ast."
-      )
-    <*> option
+    defaultAstConfiguration
+    defaultCstConfiguration
+    defaultConstraintsConfiguration
+    <$> option
       auto
       ( long "indentation"
           <> help "The indentation used (in spaces) by the formatter."
           <> value 2
-      )
-    <*> switch
-      ( long "showConstraintsReasons"
-          <> help
-            "Constraint shows a little description at it's side."
       )
 
 

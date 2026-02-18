@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Octizys.Module.Index where
 
@@ -9,6 +10,7 @@ import qualified Data.Map as Map
 import GHC.Generics (Generic, Generically (..))
 import Octizys.Common.LogicPath (LogicPath)
 import qualified Octizys.Compiler.Stage as Compiler
+import Octizys.Format.Class (Formattable (format))
 import Octizys.Module.Build (BuildState)
 import Prettyprinter (Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
@@ -37,10 +39,25 @@ instance Pretty Path where
   pretty (ModulePath' _ lp) = pretty lp
 
 
+instance Formattable Path where
+  format _ (ModulePath' _ lp) = pretty lp
+
+
 newtype Index (cs :: Compiler.Stage) = Index'
   { unIndex :: Map LogicPath (BuildState cs)
   }
   deriving (Show, Eq, Ord, Generic)
+
+
+instance Formattable (BuildState cs) => Formattable (Index cs) where
+  format c (Index' m) =
+    Pretty.vsep
+      [ pretty path
+        <+> "=>"
+        <> Pretty.line
+        <> Pretty.indent 2 (format c modl)
+      | (path, modl) <- Map.toList m
+      ]
 
 
 listIndex :: Index cs -> [(LogicPath, BuildState cs)]

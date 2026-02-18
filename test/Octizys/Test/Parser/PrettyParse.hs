@@ -16,16 +16,10 @@ import EffectfulParserCombinators.Effect (Parser)
 import EffectfulParserCombinators.Error (ParserError, humanReadableError)
 import EffectfulParserCombinators.Interpreter (runFullParser)
 import EffectfulParserCombinators.ParserState (ParserState)
-import Octizys.Common.Format.Config (defaultConfiguration)
-import qualified Octizys.Common.Format.Config as Format
 import qualified Octizys.Common.LogicPath as LogicPath
 import Octizys.Common.Name (makeName)
-import Octizys.FrontEnd.Format.Comment (formatComment)
-import Octizys.FrontEnd.Format.Expression
-  ( formatExpression
-  , formatParameters
-  )
-import Octizys.FrontEnd.Format.TopItem (formatModule)
+import Octizys.Format.Class (Formattable (format))
+import Octizys.Format.Config (defaultConfiguration)
 import Octizys.FrontEnd.Parser.Common
   ( comment
   )
@@ -62,12 +56,6 @@ type P a =
     a
 
 
-ignoreState
-  :: Eff es (a, s)
-  -> Eff es a
-ignoreState = fmap fst
-
-
 runParser
   :: P a
   -> Text
@@ -96,22 +84,22 @@ expectationFailure = assertFailure <<< Text.unpack
 
 
 shouldParse
-  :: forall a ann
+  :: forall a
    . Eq a
-  => (Format.Configuration -> a -> Doc ann)
-  -> Text
+  => Formattable a
+  => Text
   -> Either (ParserError OctizysParseError) a
   -> Maybe Text
   -> Assertion
-shouldParse _ input (Left e) maybeExpected = do
+shouldParse input (Left e) maybeExpected = do
   expectationFailure
     ( renderError input e
         <> "\n"
         <> "Expected:"
         <> fromMaybe input maybeExpected
     )
-shouldParse toDoc input (Right result) maybeExpected =
-  let prettyResult = render (toDoc defaultConfiguration result)
+shouldParse input (Right result) maybeExpected =
+  let prettyResult = render (format defaultConfiguration result)
    in if stripSpacesAndNewlines
         prettyResult
         == stripSpacesAndNewlines
@@ -124,7 +112,7 @@ shouldParse toDoc input (Right result) maybeExpected =
                     <> pretty (fromMaybe input maybeExpected)
                     <> Pretty.line
                     <> "Got:"
-                    <> toDoc defaultConfiguration result
+                    <> format defaultConfiguration result
                 )
             )
 
@@ -139,13 +127,11 @@ tests =
     [ testGroup
         "comment parsers"
         [ makePositiveTest
-            (\_ x -> formatComment x)
             "line comment"
             "-- hola mundo\n"
             Nothing
             (comment <* eof @OctizysParseError)
         , makePositiveTest
-            (\_ x -> formatComment x)
             "block comment"
             "{- hola mundo\n como estas?\n he?\n bye!-}"
             Nothing
@@ -155,91 +141,76 @@ tests =
       testGroup
         "expressions parser"
         [ makePositiveTest
-            formatExpression
             "bool True"
             "True"
             Nothing
             boolParser
         , makePositiveTest
-            formatExpression
             "bool False"
             "False"
             Nothing
             boolParser
         , makePositiveTest
-            formatExpression
             "int zero"
             "0"
             Nothing
             intParser
         , makePositiveTest
-            formatExpression
             "int no _ in int"
             "3487982"
             Nothing
             intParser
         , makePositiveTest
-            formatExpression
             "int"
             "34_87_98___2"
             Nothing
             intParser
         , makePositiveTest
-            formatExpression
             "variable"
             "abcde"
             Nothing
             variableParser
         , makePositiveTest
-            formatExpression
             "function (lambdas)"
             "\\ a, b, c, d |- c"
             Nothing
             functionParser
         , makePositiveTest
-            formatExpression
             "if"
             "if 1 then 2 else 3"
             Nothing
             ifParser
         , makePositiveTest
-            formatExpression
             "let single"
             "let a = 1; in 3"
             Nothing
             letParser
         , makePositiveTest
-            formatExpression
             "let two vars"
             "let a = 1; b =2; in 3"
             Nothing
             letParser
         , makePositiveTest
-            formatExpression
             "let five vars"
             "let a = 1; b =2; c=3; d=4; e=5; in 6"
             Nothing
             letParser
         , makePositiveTest
-            formatExpression
             "let capture avoid params"
             "let f: x |- Int = x; g:x |- Bool = x; in g 6"
             Nothing
             letParser
         , makePositiveTest
-            formatParameters
             "parameters with 2 parameters"
             "x:Bool,y:Int|-"
             (Just "x:Bool,y:Int")
             parametersParser
         , makePositiveTest
-            formatParameters
             "parameters, with 3 parameters"
             "x:Bool,y:Int,z:Bool->Int|-"
             (Just "x:Bool,y:Int,z:Bool->Int")
             parametersParser
         , makePositiveTest
-            formatExpression
             "factorial example"
             "let fact = \\ n |- if lt n 2 then 1 else mul n (fact (minus n 1 )); in fact 5"
             Nothing
@@ -248,7 +219,6 @@ tests =
     , testGroup
         "module"
         [ makePositiveTest
-            formatModule
             "single definition"
             "add_one: n:Int, m:Int, j:Int |- Int = addition n 1;"
             Nothing
@@ -262,14 +232,13 @@ tests =
 
 makePositiveTest
   :: Eq a
-  => (Format.Configuration -> a -> Doc ann)
-  -> Text
+  => Formattable a
+  => Text
   -> Text
   -> Maybe Text
   -> P a
   -> TestTree
 makePositiveTest
-  toDoc
   testName
   input
   maybeExpected
@@ -277,7 +246,7 @@ makePositiveTest
     do
       testCase (Text.unpack testName) $ do
         let result = runParser parser input
-        shouldParse toDoc input result maybeExpected
+        shouldParse input result maybeExpected
 
 -- tests :: TestTree
 -- tests =

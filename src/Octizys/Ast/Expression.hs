@@ -18,8 +18,9 @@ import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 import Control.Arrow ((<<<))
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
-import Octizys.Common.Format (defaultIndentationSpaces)
-import Octizys.Common.Format.Config (formatText)
+import Octizys.Format.Class (Formattable, format)
+import qualified Octizys.Format.Config as Format
+import qualified Octizys.Format.Utils as Format
 import Prettyprinter (Doc, Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 
@@ -33,13 +34,8 @@ data Definition var = Definition'
   deriving (ToJSON) via Generically (Definition var)
 
 
-instance Pretty var => Pretty (Definition var) where
-  pretty Definition' {name, definition, inferType} =
-    pretty name
-      <+> ":"
-      <+> pretty inferType
-      <+> "="
-      <+> pretty definition
+instance Formattable var => Formattable (Definition var) where
+  format = formatDefinition
 
 
 instance
@@ -65,55 +61,39 @@ data Value var
   deriving (ToJSON) via Generically (Value var)
 
 
+instance Formattable var => Formattable (Value var) where
+  format = formatValue
+
+
 getValueType :: Value var -> MonoType var
 getValueType v = v.inferType
 
 
-prettyParameterFunction
-  :: Pretty var
-  => (ExpressionVariableId, MonoType var)
+formatParameterFunction
+  :: Formattable var
+  => Format.Configuration
+  -> (ExpressionVariableId, MonoType var)
   -> Doc ann
-prettyParameterFunction (expr, t) =
+formatParameterFunction c (expr, t) =
   Pretty.parens
     ( pretty expr
         <+> ":"
-        <+> pretty t
+        <+> format c t
     )
 
 
-prettyParametersFunction
-  :: Pretty var
-  => NonEmpty (ExpressionVariableId, MonoType var)
+formatParametersFunction
+  :: Formattable var
+  => Format.Configuration
+  -> NonEmpty (ExpressionVariableId, MonoType var)
   -> Doc ann
-prettyParametersFunction ps =
+formatParametersFunction c ps =
   (Pretty.vsep <<< toList)
     ( ( Pretty.group
-          <<< prettyParameterFunction
+          <<< formatParameterFunction c
       )
         <$> ps
     )
-
-
-instance Pretty var => Pretty (Value var) where
-  pretty VInt {intValue} = pretty @Text intValue
-  pretty VBool {boolValue} = pretty boolValue
-  pretty Function {parameters, body} =
-    Pretty.vsep
-      [ formatText "\\"
-          <> Pretty.nest
-            defaultIndentationSpaces
-            ( Pretty.line
-                <> prettyParametersFunction
-                  parameters
-            )
-      , formatText "|-"
-          <> ( Pretty.group
-                <<< Pretty.nest defaultIndentationSpaces
-             )
-            ( Pretty.line
-                <> pretty body
-            )
-      ]
 
 
 instance
@@ -176,81 +156,8 @@ needsParentsInApplication e =
     Annotation {} -> True
 
 
-instance Pretty var => Pretty (Expression var) where
-  pretty EValue {value} = pretty value
-  pretty Variable {name} = pretty name
-  pretty Application {applicationFunction, applicationArgument} =
-    (Pretty.group <<< Pretty.nest defaultIndentationSpaces)
-      ( Pretty.line'
-          <> prettyArg applicationFunction
-          <> Pretty.nest
-            defaultIndentationSpaces
-            ( Pretty.line
-                <> prettyArg applicationArgument
-            )
-      )
-    where
-      prettyArg expr =
-        if needsParentsInApplication expr
-          then
-            Pretty.parens
-              (pretty expr)
-          else pretty expr
-  pretty If {condition, ifTrue, ifFalse} =
-    (Pretty.group <<< Pretty.vsep)
-      [ formatText "if"
-          <> Pretty.nest
-            defaultIndentationSpaces
-            ( Pretty.line
-                <> pretty condition
-            )
-      , formatText "then"
-          <> Pretty.nest
-            defaultIndentationSpaces
-            ( Pretty.line
-                <> pretty ifTrue
-            )
-      , formatText "else"
-          <> Pretty.nest
-            defaultIndentationSpaces
-            ( Pretty.line
-                <> pretty ifFalse
-            )
-      ]
-  pretty Let {definitions, expression} =
-    Pretty.parens
-      ( (Pretty.group <<< Pretty.vsep)
-          [ formatText "let"
-              <> Pretty.nest
-                defaultIndentationSpaces
-                ( Pretty.line
-                    <> (Pretty.vsep <<< toList)
-                      ( ( (<> formatText ";")
-                            <<< pretty
-                        )
-                          <$> definitions
-                      )
-                )
-          , formatText
-              "in"
-              <> Pretty.nest
-                defaultIndentationSpaces
-                ( Pretty.line
-                    <> pretty expression
-                )
-          ]
-      )
-  pretty Annotation {expression, inferType} =
-    (Pretty.parens <<< Pretty.group)
-      ( pretty expression
-          <> Pretty.line
-          <> Pretty.nest
-            defaultIndentationSpaces
-            ( formatText ":"
-                <> Pretty.line
-                <> pretty inferType
-            )
-      )
+instance Formattable var => Formattable (Expression var) where
+  format = formatExpression
 
 
 buildValueDefinitionsMap
@@ -320,3 +227,170 @@ getMonoType e = e.inferType
 
 getType :: HasCallStack => Expression var -> MonoType var
 getType e = e.inferType
+
+
+-- * Format
+
+
+formatDefinition
+  :: Formattable var
+  => Format.Configuration
+  -> Definition var
+  -> Doc ann
+formatDefinition configuration Definition' {name, definition, inferType} =
+  pretty name
+    <+> ":"
+    <+> format configuration inferType
+    <+> "="
+    <+> formatExpression configuration definition
+
+
+annotateType
+  :: Formattable var
+  => Format.Configuration
+  -> Doc ann
+  -> MonoType var
+  -> Doc ann
+annotateType configuration doc t =
+  if Format.shouldAstShowTypes configuration
+    then
+      Pretty.parens
+        ( Pretty.group
+            ( doc
+                <> Format.nest
+                  configuration
+                  ( Pretty.line'
+                      <> Format.text ":"
+                      <> format configuration t
+                  )
+            )
+        )
+    else doc
+
+
+formatValue
+  :: Formattable var
+  => Format.Configuration
+  -> Value var
+  -> Doc ann
+formatValue _ VInt {intValue} = pretty @Text intValue
+formatValue _ VBool {boolValue} = pretty boolValue
+formatValue configuration Function {parameters, body, inferType} =
+  annotateType
+    configuration
+    ( Pretty.vsep
+        [ Format.functionStart
+            <> Format.nest
+              configuration
+              ( Pretty.line
+                  <> formatParametersFunction
+                    configuration
+                    parameters
+              )
+        , Format.functionBodySeparator
+            <> ( Pretty.group
+                  <<< Format.nest configuration
+               )
+              ( Pretty.line
+                  <> formatExpression configuration body
+              )
+        ]
+    )
+    inferType
+
+
+formatExpression
+  :: Formattable var
+  => Format.Configuration
+  -> Expression var
+  -> Doc ann
+formatExpression configuration EValue {value} = formatValue configuration value
+formatExpression configuration Variable {name, inferType} =
+  annotateType
+    configuration
+    ( pretty name
+    )
+    inferType
+formatExpression configuration Application {applicationFunction, applicationArgument, inferType} =
+  annotateType
+    configuration
+    ( (Pretty.group <<< Format.nest configuration)
+        ( Pretty.line'
+            <> prettyArg applicationFunction
+            <> prettyArg applicationArgument
+        )
+    )
+    inferType
+  where
+    prettyArg expr =
+      if needsParentsInApplication expr
+        then
+          Pretty.parens
+            ( formatExpression
+                configuration
+                expr
+            )
+        else formatExpression configuration expr
+formatExpression configuration If {condition, ifTrue, ifFalse, inferType} =
+  annotateType
+    configuration
+    ( (Pretty.group <<< Pretty.vsep)
+        [ Format.text "if"
+            <> Format.nest
+              configuration
+              ( Pretty.line
+                  <> formatExpression configuration condition
+              )
+        , Format.text "then"
+            <> Format.nest
+              configuration
+              ( Pretty.line
+                  <> formatExpression configuration ifTrue
+              )
+        , Format.text "else"
+            <> Format.nest
+              configuration
+              ( Pretty.line
+                  <> formatExpression configuration ifFalse
+              )
+        ]
+    )
+    inferType
+formatExpression configuration Let {definitions, expression, inferType} =
+  annotateType
+    configuration
+    ( Pretty.parens
+        ( (Pretty.group <<< Pretty.vsep)
+            [ Format.text "let"
+                <> Format.nest
+                  configuration
+                  ( Pretty.line
+                      <> (Pretty.vsep <<< toList)
+                        ( ( (<> Format.text ";")
+                              <<< formatDefinition configuration
+                          )
+                            <$> definitions
+                        )
+                  )
+            , Format.text
+                "in"
+                <> Format.nest
+                  configuration
+                  ( Pretty.line
+                      <> formatExpression configuration expression
+                  )
+            ]
+        )
+    )
+    inferType
+formatExpression configuration Annotation {expression, inferType} =
+  (Pretty.parens <<< Pretty.group)
+    ( formatExpression configuration expression
+        <> Pretty.line
+        <> Format.nest
+          configuration
+          ( Format.text ":"
+              <> Pretty.line
+              <> format configuration inferType
+          )
+    )

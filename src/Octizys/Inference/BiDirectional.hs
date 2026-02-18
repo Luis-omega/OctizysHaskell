@@ -5,16 +5,13 @@ import qualified Octizys.FrontEnd.Cst.Type as CstT
 
 import Control.Arrow ((<<<))
 import Control.Monad (foldM, when)
-import Data.Aeson (ToJSON (toJSON))
 import qualified Data.Bifunctor as Bifunctor
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Map (Map)
-import qualified Data.Map as Map
-import qualified Data.Maybe
 import Data.Text (Text)
 import Effectful (Eff, (:>))
-import Effectful.Error.Static (Error, HasCallStack, throwError)
+import Effectful.Error.Static (Error, HasCallStack, tryError)
 import Effectful.Reader.Static (Reader, ask, local)
 import Effectful.State.Static.Local (State, get, put, runState)
 import qualified Octizys.Ast.Expression as AstE
@@ -24,11 +21,12 @@ import Octizys.Ast.Type
   )
 import qualified Octizys.Ast.Type as AstT
 import Octizys.Classes.From (From (from))
-import Octizys.Common.Format (indentPretty, throwDocError)
-import qualified Octizys.Common.Format as Common
 import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 import Octizys.Effects.Accumulator.Interpreter (Accumulator, accumulate)
 import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
+import Octizys.Format.Class (Formattable (format))
+import Octizys.Format.Config (defaultConfiguration)
+import qualified Octizys.Format.Utils as Format
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo)
 import Octizys.FrontEnd.Cst.Type
   ( Type
@@ -53,8 +51,6 @@ import qualified Octizys.Inference.Context as Context
 import Octizys.Inference.Substitution (Substitution)
 import qualified Octizys.Inference.Substitution as Substitution
 import Octizys.Logging.Effect (Log)
-import Octizys.Logging.Entry (field, fieldWith)
-import qualified Octizys.Logging.Loggers as Log
 import Prettyprinter (Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 import Prelude hiding (lookup)
@@ -533,11 +529,11 @@ occursCheckAndAddtoSubs
 occursCheckAndAddtoSubs v t =
   if AstT.hasTypeVarMono v t
     then
-      throwDocError $
-        Common.pText "Error, the variable "
+      Format.throwDocError $
+        Format.text "Error, the variable "
           <+> pretty v
-          <+> Common.pText "occurs on the type"
-          <+> pretty t
+          <+> Format.text "occurs on the type"
+          <+> format defaultConfiguration t
     else do
       currentSubstitution <- get
       case v of
@@ -624,10 +620,10 @@ unify c = do
       mapM_ accumulate outConstraints
       mapM_ unify outConstraints
     (_, _) ->
-      throwDocError $
-        Common.pText "Error, can't unify in constraint"
+      Format.throwDocError $
+        Format.text "Error, can't unify in constraint"
           <> Pretty.line
-          <> indentPretty c
+          <> Format.indentFormat defaultConfiguration c
 
 
 solveExpressionTypeAddInfo
@@ -648,12 +644,53 @@ solveExpressionTypeAddInfo
 solveExpressionTypeAddInfo expr = do
   (inferredExpression, initialSubs) <-
     runState Substitution.empty $ infer expr
-  subs <- Substitution.finalizeSubstitution initialSubs
-  out <-
-    Substitution.apply
-      subs
-      inferredExpression
-  pure (out, subs)
+  maybeSubs <- tryError $ Substitution.finalizeSubstitution initialSubs
+  case maybeSubs of
+    Left (_, originalMsg) ->
+      Format.throwDocError
+        ( Format.text "Error while trying to finalize the substitution!"
+            <> Format.nest
+              defaultConfiguration
+              ( Pretty.hardline
+                  <> Format.text originalMsg
+                  <> Format.formatWithHeader
+                    defaultConfiguration
+                    "Annotated AST:"
+                    inferredExpression
+                  <> Format.formatWithHeader
+                    defaultConfiguration
+                    "Substitution not finalized:"
+                    initialSubs
+              )
+        )
+    Right subs -> do
+      maybeFinalExpression <-
+        tryError
+          ( Substitution.apply
+              subs
+              inferredExpression
+          )
+      case maybeFinalExpression of
+        Right out -> pure (out, subs)
+        Left (_, originalMsg) ->
+          Format.throwDocError
+            ( Format.text
+                "Error while trying apply the final substitution to the annotated expression!"
+                <> Format.nest
+                  defaultConfiguration
+                  ( Pretty.hardline
+                      <> Format.text originalMsg
+                      <> Pretty.hardline
+                      <> Format.formatWithHeader
+                        defaultConfiguration
+                        "Annotated AST:"
+                        inferredExpression
+                      <> Pretty.hardline
+                      <> Format.text "Finalized substitution:"
+                      <> Pretty.hardline
+                      <> Format.formatMap defaultConfiguration subs
+                  )
+            )
 
 
 solveExpressionType

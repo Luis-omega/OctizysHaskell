@@ -105,15 +105,10 @@ library
   exposed-modules:
     Octizys.Ast.Combinators
     Octizys.Ast.Expression
-    Octizys.Ast.Format.Expression
-    Octizys.Ast.Format.Type
     Octizys.Ast.Node
     Octizys.Ast.Type
     Octizys.Classes.FreeVariables
     Octizys.Classes.From
-    Octizys.Common.Format
-    Octizys.Common.Format.Config
-    Octizys.Common.Format.Markup
     Octizys.Common.HistoryMap
     Octizys.Common.Id
     Octizys.Common.LogicPath
@@ -136,6 +131,9 @@ library
     Octizys.Effects.IdGenerator.Interpreter
     Octizys.Effects.ListDir.Effect
     Octizys.Effects.ListDir.Interpreter
+    Octizys.Format.Class
+    Octizys.Format.Config
+    Octizys.Format.Utils
     Octizys.FrontEnd.Cst.Combinators
     Octizys.FrontEnd.Cst.Comment
     Octizys.FrontEnd.Cst.Expression
@@ -143,10 +141,6 @@ library
     Octizys.FrontEnd.Cst.SourceInfo
     Octizys.FrontEnd.Cst.TopItem
     Octizys.FrontEnd.Cst.Type
-    Octizys.FrontEnd.Format.Comment
-    Octizys.FrontEnd.Format.Expression
-    Octizys.FrontEnd.Format.TopItem
-    Octizys.FrontEnd.Format.Type
     Octizys.FrontEnd.Parser.Common
     Octizys.FrontEnd.Parser.Error
     Octizys.FrontEnd.Parser.Expression
@@ -192,6 +186,7 @@ library
     , effectful-plugin
     , effectful-th
     , EffectfulParserCombinators
+    , optparse-applicative
     , pretty-show
     , prettyprinter
     , QuickCheck

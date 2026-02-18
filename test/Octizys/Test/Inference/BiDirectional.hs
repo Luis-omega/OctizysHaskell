@@ -4,7 +4,6 @@ module Octizys.Test.Inference.BiDirectional where
 
 import Data.IORef (IORef, newIORef)
 import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Effectful (runEff)
@@ -22,9 +21,6 @@ import Octizys.Ast.Type
   )
 import qualified Octizys.Ast.Type as Ast
 import Octizys.Classes.From (from)
-import Octizys.Common.Format (indentDoc, indentPretty, pText, renderDoc)
-import qualified Octizys.Common.Format as Common
-import Octizys.Common.Format.Config (defaultConfiguration)
 import Octizys.Common.Id
   ( ExpressionVariableId
   , TypeVariableId
@@ -32,10 +28,20 @@ import Octizys.Common.Id
 import Octizys.Effects.Accumulator.Interpreter (runAccumulatorFull)
 import Octizys.Effects.Console.Interpreter (runConsole)
 import Octizys.Effects.IdGenerator.Interpreter (runIdGeneratorFull)
+import Octizys.Format.Class (Formattable (format))
+import Octizys.Format.Config (defaultConfiguration)
+import Octizys.Format.Utils
+  ( formatListWith
+  , formatMapWith
+  , formatWithHeader
+  , indentDoc
+  , indentFormat
+  , renderDoc
+  , text
+  )
 import qualified Octizys.FrontEnd.Cst.Combinators as C
 import qualified Octizys.FrontEnd.Cst.Expression as Cst
 import qualified Octizys.FrontEnd.Cst.Node as Cst
-import Octizys.FrontEnd.Format.Expression (formatExpression)
 import Octizys.Inference.BiDirectional
   ( solveExpressionTypeAddInfo
   )
@@ -44,11 +50,10 @@ import Octizys.Inference.Constraint
   , ConstraintId (ConstraintId')
   )
 import Octizys.Inference.Context (Context, contextFromList, emptyContext)
-import Octizys.Inference.Substitution (Substitution (Substitution))
 import Octizys.Logging.Interpreters.Console (runLog)
 import Octizys.Logging.Levels (Level (Info))
 import qualified Octizys.Test.Inference.Substitution as C
-import Prettyprinter (Pretty (pretty))
+import Prettyprinter (Pretty (pretty), (<+>))
 import qualified Prettyprinter as Pretty
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit
@@ -79,27 +84,31 @@ assertEqualTypes ctx expr ast constraints subs t1 t2 =
       assertFailure $
         Text.unpack
           ( renderDoc $
-              pretty ctx
+              format defaultConfiguration ctx
                 <> Pretty.hardline
-                <> pretty constraints
+                <> formatListWith defaultConfiguration format constraints
                 <> Pretty.hardline
-                <> pText "Expected:"
-                <> indentPretty t1
+                <> text "Expected:"
+                <> indentFormat defaultConfiguration t1
                 <> Pretty.hardline
-                <> pText "Result:"
-                <> indentPretty t2
+                <> text "Result:"
+                <> indentFormat defaultConfiguration t2
                 <> Pretty.hardline
-                <> pText "Original expression:"
-                <> indentDoc (formatExpression defaultConfiguration expr)
+                <> text "Original expression:"
+                <> indentDoc defaultConfiguration (format defaultConfiguration expr)
                 <> Pretty.hardline
-                <> pText "Inferred expression:"
-                <> indentDoc (pretty ast)
+                <> text "Inferred expression:"
+                <> indentDoc defaultConfiguration (format defaultConfiguration ast)
                 <> Pretty.hardline
-                <> pText "Substitution:"
-                <> indentDoc (prettyMap subs)
+                <> text "Substitution:"
+                <> indentDoc defaultConfiguration (formatSub subs)
           )
   where
-    prettyMap m = Common.prettyItemList (Map.toList m) (pretty ',') (pretty '~')
+    formatSub =
+      formatMapWith
+        defaultConfiguration
+        (\c (x, y) -> format c x <+> pretty '~' <+> format c y)
+        (pretty ',')
 
 
 runSolver
@@ -287,11 +296,11 @@ assertInfers context expression expected = do
       assertFailure $
         Text.unpack $
           renderDoc
-            ( pretty context
+            ( format defaultConfiguration context
                 <> Pretty.hardline
-                <> Common.pText "Can't infer a type, but a type was expected!"
-                <> Pretty.hardline
-                <> pretty
+                <> formatWithHeader
+                  defaultConfiguration
+                  "Can't infer a type, but a type was expected!"
                   (from @(Cst.Node ExpressionVariableId TypeVariableId) expression)
                 <> Pretty.hardline
                 <> pretty msg
@@ -310,9 +319,9 @@ assertFails context expression = do
       assertFailure $
         Text.unpack $
           renderDoc
-            ( pretty context
+            ( format defaultConfiguration context
                 <> Pretty.hardline
-                <> Common.pText "Expected type error, but inferred: "
-                <> pretty result
+                <> text "Expected type error, but inferred: "
+                <> format defaultConfiguration result
             )
     Left _ -> pure ()

@@ -21,10 +21,12 @@ import qualified Data.Maybe
 import Data.Text (Text)
 import Effectful (Eff, (:>))
 import GHC.Generics (Generic, Generically (..))
-import Octizys.Common.Format (defaultIndentationSpaces)
 import Octizys.Common.Id (GenerateFromInt (generateFromInt))
 import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
-import Prettyprinter (Pretty, pretty)
+import Octizys.Format.Class (Formattable (format))
+import qualified Octizys.Format.Config as Format
+import qualified Octizys.Format.Utils as Format
+import Prettyprinter (Doc, Pretty, pretty)
 import qualified Prettyprinter as Pretty
 
 
@@ -48,6 +50,10 @@ instance FreeVariables TypeVariableId TypeValue where
 instance Pretty TypeValue where
   pretty BoolType = pretty @Text "Bool"
   pretty IntType = pretty @Text "Int"
+
+
+instance Formattable TypeValue where
+  format = formatValue
 
 
 instance TypeEq TypeValue where
@@ -74,6 +80,10 @@ instance Pretty InferenceVariable where
   pretty (RealTypeVariable vid) = pretty vid
 
 
+instance Formattable InferenceVariable where
+  format _ = pretty
+
+
 instance From InferenceVariable TypeVariableId where
   from = RealTypeVariable
 
@@ -94,6 +104,10 @@ newtype TypeVariable = TypeVariable' {unTypeVariable :: TypeVariableId}
 
 instance Pretty TypeVariable where
   pretty (TypeVariable' vid) = pretty vid
+
+
+instance Formattable TypeVariable where
+  format _ = pretty
 
 
 instance FreeVariables TypeVariableId TypeVariable where
@@ -132,6 +146,10 @@ instance From outVar inVar => From (MonoType outVar) (MonoType inVar) where
   from VType {value} = VType {value}
   from Arrow {start, remain} = Arrow {start = from start, remain = from <$> remain}
   from (Variable var) = Variable (from var)
+
+
+instance Formattable var => Formattable (MonoType var) where
+  format = formatMono
 
 
 instance NormalizeType (MonoType var) where
@@ -226,25 +244,6 @@ replaceMonoTypeId s t@(Variable v) =
     Nothing -> t
 
 
-instance Pretty var => Pretty (MonoType var) where
-  pretty VType {value} = pretty value
-  pretty Arrow {start, remain} =
-    (Pretty.group <<< Pretty.indent defaultIndentationSpaces)
-      ( Pretty.line'
-          <> Pretty.concatWith
-            (\l r -> l <> Pretty.line <> pretty @Text "->" <> r)
-            ( prettyArg
-                <$> cons start remain
-            )
-      )
-    where
-      prettyArg ty =
-        if needsParentsInArrow ty
-          then Pretty.parens (pretty ty)
-          else pretty ty
-  pretty (Variable v) = pretty v
-
-
 instance
   (Eq var, Ord var)
   => FreeVariables var (MonoType var)
@@ -266,24 +265,8 @@ data Scheme var = Scheme'
   deriving (ToJSON) via Generically (Scheme var)
 
 
-instance Pretty var => Pretty (Scheme var) where
-  pretty (Scheme' {arguments, body}) =
-    pretty @Text "forall"
-      <> Pretty.indent
-        defaultIndentationSpaces
-        ( Pretty.line
-            <> Pretty.fillSep
-              ( Pretty.punctuate
-                  (pretty ',')
-                  (pretty <$> NonEmpty.toList arguments)
-              )
-        )
-      <> Pretty.line
-      <> pretty '.'
-      <> Pretty.indent
-        defaultIndentationSpaces
-        ( pretty body
-        )
+instance Formattable var => Formattable (Scheme var) where
+  format = formatScheme
 
 
 instance
@@ -368,9 +351,9 @@ data Type var
   deriving (ToJSON) via Generically (Type var)
 
 
-instance Pretty var => Pretty (Type var) where
-  pretty (TMono v) = pretty v
-  pretty (TPoly v) = pretty v
+instance Formattable var => Formattable (Type var) where
+  format c (TMono v) = format c v
+  format c (TPoly v) = format c v
 
 
 instance From (Type var) TypeValue where
@@ -426,3 +409,67 @@ hasTypeVar
   -> Bool
 hasTypeVar v (TMono ty) = hasTypeVarMono v ty
 hasTypeVar v (TPoly ty) = hasTypeVarScheme v ty
+
+
+-- * Format
+
+
+formatValue :: Format.Configuration -> TypeValue -> Doc ann
+formatValue _ BoolType = Format.text "Bool"
+formatValue _ IntType = Format.text "Int"
+
+
+formatMono
+  :: Formattable var
+  => Format.Configuration
+  -> MonoType var
+  -> Doc ann
+formatMono configuration VType {value} = formatValue configuration value
+formatMono configuration Arrow {start, remain} =
+  (Pretty.group <<< Format.nest configuration)
+    ( Pretty.line'
+        <> Pretty.concatWith
+          (\l r -> l <> Pretty.line <> pretty @Text "->" <> r)
+          ( prettyArg
+              <$> cons start remain
+          )
+    )
+  where
+    prettyArg ty =
+      if needsParentsInArrow ty
+        then Pretty.parens (formatMono configuration ty)
+        else formatMono configuration ty
+formatMono configuration (Variable v) = format configuration v
+
+
+formatScheme
+  :: Formattable var
+  => Format.Configuration
+  -> Scheme var
+  -> Doc ann
+formatScheme configuration (Scheme' {arguments, body}) =
+  pretty @Text "forall"
+    <> Format.nest
+      configuration
+      ( Pretty.line
+          <> Pretty.fillSep
+            ( Pretty.punctuate
+                (pretty ',')
+                (pretty <$> NonEmpty.toList arguments)
+            )
+      )
+    <> Pretty.line
+    <> pretty '.'
+    <> Format.nest
+      configuration
+      ( formatMono configuration body
+      )
+
+
+formatType
+  :: Formattable var
+  => Format.Configuration
+  -> Type var
+  -> Doc ann
+formatType configuration (TMono t) = formatMono configuration t
+formatType configuration (TPoly t) = formatScheme configuration t

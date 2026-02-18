@@ -15,10 +15,9 @@ module Octizys.Inference.Substitution
 import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
-import Prettyprinter (Pretty (pretty), line, (<+>))
+import Prettyprinter (Pretty (pretty), (<+>))
 
 import Data.Aeson (ToJSON)
-import qualified Data.Bifunctor
 import Data.Map (Map)
 import qualified Data.Maybe
 import Data.Text (Text)
@@ -30,17 +29,13 @@ import Octizys.Ast.Type
   , Scheme
   , Type (..)
   , TypeVariable (TypeVariable')
-  , hasTypeVar
   , inferenceVarToId
   )
 import Octizys.Classes.From (from)
-import Octizys.Common.Format (throwDocError)
-import qualified Octizys.Common.Format as Common
 import Octizys.Common.Id
+import Octizys.Format.Class (Formattable (format))
+import qualified Octizys.Format.Utils as Format
 import Octizys.Inference.Constraint (Constraint, modifyTypes)
-import Octizys.Logging.Effect (Log)
-import Octizys.Logging.Entry (field)
-import qualified Octizys.Logging.Loggers as Log
 
 
 newtype Substitution = Substitution
@@ -59,16 +54,13 @@ singleton tv ty =
   Substitution (Map.singleton tv ty)
 
 
-instance Pretty Substitution where
-  pretty s =
-    pretty '('
-      <+> line
-      <+> Common.prettyItemList
-        (Map.toList s.unSubstitution)
-        (pretty ',')
-        (pretty '~')
-      <+> line
-      <+> pretty ')'
+instance Formattable Substitution where
+  format configuration s =
+    Format.formatMapWith
+      configuration
+      (\c (x, y) -> format c x <+> pretty '~' <+> format c y)
+      (pretty ',')
+      s.unSubstitution
 
 
 applyToMonoType
@@ -154,8 +146,8 @@ instance ApplyMap MonoType tv InferenceVariable where
             case Map.lookup vId s of
               Just value -> pure value
               Nothing ->
-                throwDocError
-                  (Common.pText "[Error] Couldn't find type variable with id " <> pretty vId)
+                Format.throwDocError
+                  (Format.text "[Error] Couldn't find type variable with id " <> pretty vId)
           ErrorVariable msg ->
             throwError msg
 

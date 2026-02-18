@@ -11,7 +11,6 @@ import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
 import EffectfulParserCombinators.Interpreter (runFullParser)
 import Octizys.Classes.From (From (from))
-import Octizys.Common.Format.Config (defaultConfiguration)
 import qualified Octizys.Compiler.Error as Compiler
 import qualified Octizys.Compiler.Stage as Compiler.Stage
 import qualified Octizys.Compiler.Warn as Compiler
@@ -22,7 +21,8 @@ import Octizys.Effects.Accumulator.Utils
   )
 import Octizys.Effects.FileReader.Effect (FileReader)
 import qualified Octizys.Effects.FileReader.Effect as FileReader
-import qualified Octizys.FrontEnd.Format.TopItem as Cst
+import Octizys.Format.Class (Formattable (format))
+import qualified Octizys.Format.Utils as Format
 import qualified Octizys.FrontEnd.Parser.TopItem as Parser
 import Octizys.Logging.Effect (Log)
 import Octizys.Logging.Entry (field, fieldWith)
@@ -64,9 +64,7 @@ parseModule path = do
     "Parsing result"
     [ field "logic path" logicPath
     , field "system path" filePath
-    , fieldWith
-        toJSON
-        (Cst.formatModule defaultConfiguration)
+    , field
         "parsed module"
         out
     ]
@@ -101,10 +99,10 @@ parseModules modulePaths packageRef = do
         Package.Index.empty
   Log.trace
     "Package modules parsed"
-    [ field "files" modulePaths
+    [ fieldWith toJSON Format.formatList "files" modulePaths
     , fieldWith
         Package.toJSONBuildState
-        Package.prettyBuildState
+        format
         "parsed modules"
         out
     ]

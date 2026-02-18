@@ -7,6 +7,7 @@ import GHC.Generics (Generic, Generically (..))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath)
 import qualified Octizys.Effects.FileReader.Effect as FileReader
+import Octizys.Format.Class (Formattable (format))
 import Octizys.FrontEnd.Parser.Error (OctizysParseError)
 import Prettyprinter (Pretty (pretty))
 
@@ -31,3 +32,8 @@ instance Pretty Error where
   pretty (ParserError _ _ src parseError) =
     Parser.humanReadableError Nothing src parseError
   pretty (FileReadError e) = pretty e
+
+
+-- TODO:STUB
+instance Formattable Error where
+  format _ = pretty

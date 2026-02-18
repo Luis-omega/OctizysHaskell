@@ -12,6 +12,7 @@ import EffectfulParserCombinators.Effect (Parser)
 import GHC.Generics (Generic, Generically (..))
 import GHC.Unicode (isAlpha)
 import Octizys.Classes.From (From (from))
+import Octizys.Format.Class (Formattable (format))
 import Octizys.FrontEnd.Parser.Error (OctizysParseError)
 import Prettyprinter (Pretty (pretty))
 
@@ -29,6 +30,14 @@ instance ToJSONKey Name
 
 instance From Text Name where
   from x = x.nameRaw
+
+
+instance Pretty Name where
+  pretty = pretty <<< nameRaw
+
+
+instance Formattable Name where
+  format _ = pretty
 
 
 isValidNameStartChar :: Char -> Bool
@@ -65,7 +74,3 @@ parseName = do
       isValidNameMiddleChar
   let full_string = _head <> remain
   pure $ Name' full_string
-
-
-instance Pretty Name where
-  pretty = pretty <<< nameRaw

@@ -28,6 +28,7 @@ import GHC.Generics (Generic, Generically (..))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.LogicPath (LogicPath, logicPathSeparator)
 import Octizys.Common.Name (Name)
+import Octizys.Format.Class (Formattable (format))
 import qualified Octizys.Package.Reference as Package
 import Prettyprinter (Doc, Pretty, pretty)
 
@@ -52,7 +53,7 @@ data SymbolContext = SymbolContext'
 
 
 instance Pretty SymbolContext where
-  pretty s = pretty s.packageRef <> pretty s.qualifier
+  pretty s = pretty s.packageRef <> pretty logicPathSeparator <> pretty s.qualifier
 
 
 data SymbolOriginInfo = SymbolOriginInfo'
@@ -66,7 +67,10 @@ data SymbolOriginInfo = SymbolOriginInfo'
 instance Pretty SymbolOriginInfo where
   pretty s =
     case s.qualifier of
-      Just path -> pretty path <> pretty logicPathSeparator <> pretty s.name
+      Just path ->
+        pretty path
+          <> pretty logicPathSeparator
+          <> pretty s.name
       Nothing -> pretty s.name
 
 
@@ -120,10 +124,14 @@ instance Pretty Symbol where
   pretty s = prettySymbolWithVariablePrefix s "v"
 
 
+instance Formattable Symbol where
+  format _ = pretty
+
+
 prettySymbolWithVariablePrefix :: Symbol -> Text -> Doc ann
 prettySymbolWithVariablePrefix s t =
   case s.originInfo of
-    Just info -> pretty s.context.packageRef <> pretty logicPathSeparator <> pretty info
+    Just info -> pretty info
     Nothing ->
       pretty s.context
         <> pretty logicPathSeparator
@@ -159,6 +167,10 @@ instance Pretty TypeVariableId where
   pretty t = prettySymbolWithVariablePrefix (getSymbol t) "t"
 
 
+instance Formattable TypeVariableId where
+  format _ = pretty
+
+
 newtype ExpressionVariableId = ExpressionVariableId'
   { getExpressionVariableIdSymbol :: Symbol
   }
@@ -177,3 +189,7 @@ instance GenerateFromInt ExpressionVariableId where
 
 instance Pretty ExpressionVariableId where
   pretty = pretty <<< getSymbol
+
+
+instance Formattable ExpressionVariableId where
+  format _ = pretty

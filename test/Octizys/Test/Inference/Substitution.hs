@@ -11,7 +11,6 @@ import Octizys.Ast.Type
   , TypeValue (BoolType, IntType)
   )
 import Octizys.Classes.From (from)
-import Octizys.Common.Format (indentPretty, pText, renderDoc)
 import Octizys.Common.Id
   ( SymbolContext (SymbolContext')
   , TypeVariableId
@@ -21,6 +20,8 @@ import Octizys.Common.LogicPath (LogicPath)
 import qualified Octizys.Common.LogicPath as LogicPath
 import Octizys.Common.Name (Name, makeName)
 import Octizys.Common.Qualifier (Qualifier)
+import Octizys.Format.Config (defaultConfiguration)
+import Octizys.Format.Utils (indentFormat, renderDoc, text)
 import qualified Octizys.Inference.Substitution as Substitution
 import qualified Octizys.Package.Reference as Package
 import qualified Prettyprinter as Pretty
@@ -76,11 +77,11 @@ assertEqualTypes t1 t2 =
       assertFailure $
         Text.unpack
           ( renderDoc $
-              pText "Expected:"
-                <> indentPretty t1
+              text "Expected:"
+                <> indentFormat defaultConfiguration t1
                 <> Pretty.line
-                <> pText "Result:"
-                <> indentPretty t2
+                <> text "Result:"
+                <> indentFormat defaultConfiguration t2
           )
 
 

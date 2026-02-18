@@ -8,6 +8,8 @@ module Octizys.Package.Index
 import Data.Aeson (ToJSON)
 import Effectful (Eff, (:>))
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Format.Class (Formattable (format))
+import qualified Octizys.Format.Utils as Format
 import Octizys.Logging.Effect (Log)
 import qualified Octizys.Module.Index as Module
 
@@ -16,6 +18,10 @@ import qualified Octizys.Module.Index as Module
 data Index = Index'
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically Index
+
+
+instance Formattable Index where
+  format _ _ = Format.text "StubIndex"
 
 
 empty :: Index
