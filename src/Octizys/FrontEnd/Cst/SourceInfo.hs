@@ -10,6 +10,7 @@ import GHC.Generics (Generic, Generically (..))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Id (SymbolOriginInfo)
 import Octizys.Common.Name (Name)
+import Octizys.Format.Class (Formattable (format))
 import Octizys.FrontEnd.Cst.Comment (Comment)
 import Prettyprinter (Pretty (pretty))
 
@@ -46,3 +47,7 @@ instance From SourceVariable SymbolOriginInfo where
 
 instance Pretty SourceVariable where
   pretty (SourceVariable' sv) = pretty sv
+
+
+instance Formattable SourceVariable where
+  format _ = pretty

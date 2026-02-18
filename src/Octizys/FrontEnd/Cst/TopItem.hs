@@ -10,11 +10,15 @@ import Octizys.Common.LogicPath (LogicPath)
 import Octizys.Common.Name (Name)
 import Octizys.FrontEnd.Cst.Expression (Definition)
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo, SourceVariable)
-import Prettyprinter (Pretty (pretty))
+import Prettyprinter (Doc, Pretty (pretty))
 import qualified Prettyprinter as Pretty
 
+import Control.Arrow ((<<<))
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Format.Class (Formattable (format))
+import qualified Octizys.Format.Config as Format
+import qualified Octizys.Format.Utils as Format
 
 
 data ModulePath
@@ -60,6 +64,10 @@ instance From (NonEmpty (SourceInfo, Name)) ImportItems where
     (lastItem.info, lastItem.name) :| ((\(x, _) -> (x.info, x.name)) <$> items)
 
 
+instance Formattable ImportItems where
+  format = formatImportItems
+
+
 data ImportAlias = ImportAlias'
   { _as :: SourceInfo
   , path :: (SourceInfo, ModulePath)
@@ -97,6 +105,10 @@ data ImportModule
   deriving (ToJSON) via Generically ImportModule
 
 
+instance Formattable ImportModule where
+  format = formatImportModule
+
+
 data TopItem
   = TopDefinition
       { definition :: Definition SourceVariable SourceVariable
@@ -120,3 +132,109 @@ data Module evar tvar = Module'
   }
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically (Module evar tvar)
+
+
+instance
+  (Formattable evar, Formattable tvar)
+  => Formattable (Module evar tvar)
+  where
+  format = formatModule
+
+
+-- * Format
+
+
+formatImportItems
+  :: Format.Configuration
+  -> ImportItems
+  -> Doc ann
+formatImportItems
+  _
+  (ImportItems' {items, lastItem, lastComma}) =
+    let lastI =
+          maybe
+            mempty
+            ( const
+                ( Pretty.line
+                    <> pretty ','
+                )
+            )
+            lastComma
+     in case items of
+          [] -> pretty lastItem <> lastI
+          (start : end) ->
+            pretty (fst start)
+              <> (Pretty.vsep <<< Pretty.punctuate (pretty ','))
+                (((\(x, _) -> pretty x) <$> end) ++ [pretty lastItem])
+              <> lastI
+
+
+formatImportModule
+  :: Format.Configuration
+  -> ImportModule
+  -> Doc ann
+formatImportModule
+  configuration
+  (ImportModuleAs' {_import, path, alias}) =
+    pretty @Text "import"
+      <> (Pretty.group <<< Format.nest configuration)
+        ( Pretty.line
+            <> pretty (snd path)
+            <> maybe mempty (\x -> Pretty.line <> pretty x) alias
+        )
+formatImportModule
+  configuration
+  ( ImportModuleUnqualified'
+      { _import
+      , path
+      , items
+      }
+    ) =
+    pretty @Text "import"
+      <> (Pretty.group <<< Format.nest configuration)
+        ( Pretty.line
+            <> pretty (snd path)
+            <> pretty '('
+            <> Pretty.line
+            <> Format.nest configuration (formatImportItems configuration items)
+            <> Pretty.line
+            <> pretty ')'
+        )
+
+
+formatModule
+  :: Formattable evar
+  => Formattable tvar
+  => Format.Configuration
+  -> Module evar tvar
+  -> Doc ann
+formatModule
+  configuration
+  ( Module'
+      { lastComments = _lastComment
+      , definitions = _definitions
+      , imports = _imports
+      }
+    ) =
+    -- TODO: missing last comment!
+    Pretty.vsep
+      ( ( \x ->
+            formatImportModule
+              configuration
+              (fst x)
+              <> pretty ';'
+              <> Pretty.hardline
+        )
+          <$> _imports
+      )
+      <> Pretty.hardline
+      <> Pretty.vsep
+        ( ( \x ->
+              format
+                configuration
+                (fst x)
+                <> pretty ';'
+                <> Pretty.hardline
+          )
+            <$> _definitions
+        )

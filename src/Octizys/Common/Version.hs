@@ -8,6 +8,7 @@ module Octizys.Common.Version
 
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Format.Class (Formattable (format))
 import Prettyprinter (Pretty (pretty))
 
 
@@ -19,6 +20,19 @@ data Version = Version'
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (ToJSON) via Generically Version
+
+
+instance Pretty Version where
+  pretty v =
+    pretty v.major
+      <> pretty '.'
+      <> pretty v.minor
+      <> pretty '.'
+      <> pretty v.patch
+
+
+instance Formattable Version where
+  format _ = pretty
 
 
 getMajor :: Version -> Int
@@ -35,12 +49,3 @@ getPatch = patch
 
 makeVersion :: Int -> Int -> Int -> Version
 makeVersion = Version'
-
-
-instance Pretty Version where
-  pretty v =
-    pretty v.major
-      <> pretty '.'
-      <> pretty v.minor
-      <> pretty '.'
-      <> pretty v.patch
