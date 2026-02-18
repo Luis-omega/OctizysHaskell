@@ -45,7 +45,7 @@
         in
         {
           devShell = hspkgs.shellFor {
-            withHoogle = true;
+            withHoogle = false;
             packages = p: [ p.octizys ];
             buildInputs = [
               hspkgs.cabal-install
@@ -53,6 +53,7 @@
               hspkgs.haskell-language-server
               hspkgs.hlint
               hspkgs.fourmolu
+              hspkgs.hoogle
               pkgs.bashInteractive
               pkgs.mdformat
               pkgs.typos
