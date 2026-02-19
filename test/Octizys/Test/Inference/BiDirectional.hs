@@ -13,13 +13,14 @@ import Effectful.State.Static.Local (runState)
 import GHC.Stack (HasCallStack)
 import qualified Octizys.Ast.Combinators as A
 import qualified Octizys.Ast.Expression as Ast
-import Octizys.Ast.Type
-  ( InferenceVariable
-  , MonoType (Variable)
-  , Type
-  , TypeEq (typeEq)
-  )
+import Octizys.Ast.Type (Type)
 import qualified Octizys.Ast.Type as Ast
+import Octizys.Ast.Type.Basics
+  ( InferenceVariable
+  , TypeEq (typeEq)
+  , TypeVariable (TypeVariable')
+  )
+import Octizys.Ast.Type.MonoType (MonoType (MonoVariable))
 import Octizys.Classes.From (from)
 import Octizys.Common.Id
   ( ExpressionVariableId
@@ -65,17 +66,17 @@ import Test.Tasty.HUnit
 
 makeMonoVar :: IORef Int -> IO (MonoType InferenceVariable)
 makeMonoVar counter =
-  Variable <$> C.makeVariable counter
+  MonoVariable <$> C.makeVariable counter
 
 
 assertEqualTypes
   :: Context
   -> Cst.Expression ExpressionVariableId TypeVariableId
-  -> Ast.Expression Ast.TypeVariable
+  -> Ast.Expression TypeVariable
   -> [Constraint]
-  -> Map TypeVariableId (Ast.MonoType Ast.TypeVariable)
-  -> Type Ast.TypeVariable
-  -> Type Ast.TypeVariable
+  -> Map TypeVariableId (MonoType TypeVariable)
+  -> Type TypeVariable
+  -> Type TypeVariable
   -> IO ()
 assertEqualTypes ctx expr ast constraints subs t1 t2 =
   if typeEq t1 t2
@@ -117,8 +118,8 @@ runSolver
   -> IO
       ( Either
           Text
-          ( ( Ast.Expression Ast.TypeVariable
-            , Map TypeVariableId (Ast.MonoType Ast.TypeVariable)
+          ( ( Ast.Expression TypeVariable
+            , Map TypeVariableId (MonoType TypeVariable)
             )
           , [Constraint]
           )
@@ -234,7 +235,7 @@ tests =
         tId <- C.makeTypeVariableId counter
         let
           n = Cst.Variable C.sourceInfo nId
-          t = Variable (Ast.TypeVariable' tId)
+          t = MonoVariable (TypeVariable' tId)
           expr =
             C.function
               (C.parameters (C.parameter nId Nothing) [])
@@ -278,7 +279,7 @@ assertInfers
   :: HasCallStack
   => Context
   -> Cst.Expression ExpressionVariableId TypeVariableId
-  -> Ast.Type Ast.TypeVariable
+  -> Ast.Type TypeVariable
   -> Assertion
 assertInfers context expression expected = do
   maybeResult <- runSolver context expression

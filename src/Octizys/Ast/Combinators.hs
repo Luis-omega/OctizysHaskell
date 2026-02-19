@@ -2,14 +2,14 @@ module Octizys.Ast.Combinators where
 
 import Data.IORef (IORef)
 import qualified Data.List.NonEmpty as NonEmpty
-import Octizys.Ast.Type
+import Octizys.Ast.Type (Type)
+import Octizys.Ast.Type.Basics
   ( InferenceVariable
-  , MonoType (..)
-  , Scheme (Scheme')
-  , Type
-  , TypeValue (..)
-  , TypeVariable
+  , TypeValue (BoolType, IntType)
   )
+import Octizys.Ast.Type.MonoType (Arrow (Arrow'), MonoType)
+import qualified Octizys.Ast.Type.MonoType as Mono
+import Octizys.Ast.Type.Scheme (Scheme (Scheme'))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Id (TypeVariableId)
 import qualified Octizys.FrontEnd.Cst.Combinators as Cst
@@ -24,18 +24,19 @@ intType = from IntType
 
 
 tVar :: IORef Int -> IO (MonoType InferenceVariable)
-tVar counter = Variable <$> Cst.makeVariable counter
+tVar counter = Mono.MonoVariable <$> Cst.makeVariable counter
 
 
 arrow :: [MonoType tvar] -> MonoType tvar -> MonoType tvar
 arrow [] t = t
 arrow (x : xs) out =
-  Arrow
-    x
-    ( NonEmpty.prependList
-        xs
-        (out NonEmpty.:| [])
-    )
+  Mono.MonoArrow $
+    Arrow'
+      x
+      ( NonEmpty.prependList
+          xs
+          (out NonEmpty.:| [])
+      )
 
 
 scheme :: [TypeVariableId] -> MonoType tvar -> Type tvar

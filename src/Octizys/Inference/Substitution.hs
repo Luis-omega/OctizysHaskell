@@ -12,25 +12,29 @@ module Octizys.Inference.Substitution
   , ApplyMap (apply)
   ) where
 
+import Data.Aeson (ToJSON)
 import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
 import Prettyprinter (Pretty (pretty), (<+>))
 
-import Data.Aeson (ToJSON)
 import Data.Map (Map)
 import qualified Data.Maybe
 import Data.Text (Text)
 import GHC.Generics (Generic, Generically (..))
+
 import qualified Octizys.Ast.Expression as AstE
-import Octizys.Ast.Type
+import Octizys.Ast.Type (Type (..))
+import Octizys.Ast.Type.Basics
   ( InferenceVariable (ErrorVariable, RealTypeVariable)
-  , MonoType (..)
-  , Scheme
-  , Type (..)
   , TypeVariable (TypeVariable')
   , inferenceVarToId
   )
+import Octizys.Ast.Type.MonoType
+  ( Arrow (Arrow')
+  , MonoType (MonoArrow, MonoValue, MonoVariable)
+  )
+import Octizys.Ast.Type.Scheme (Scheme)
 import Octizys.Classes.From (from)
 import Octizys.Common.Id
 import Octizys.Format.Class (Formattable (format))
@@ -69,12 +73,13 @@ applyToMonoType
   -> MonoType InferenceVariable
 applyToMonoType s ty =
   case ty of
-    VType _ -> ty
-    Arrow start remain ->
-      Arrow
-        (applyToMonoType s start)
-        (applyToMonoType s <$> remain)
-    Variable v ->
+    MonoValue _ -> ty
+    MonoArrow (Arrow' start remain) ->
+      MonoArrow $
+        Arrow'
+          (applyToMonoType s start)
+          (applyToMonoType s <$> remain)
+    MonoVariable v ->
       case inferenceVarToId v of
         Just vId ->
           Data.Maybe.fromMaybe
@@ -132,15 +137,16 @@ class ApplyMap a tv ti where
 instance ApplyMap MonoType tv InferenceVariable where
   apply s ty =
     case ty of
-      VType v -> pure $ VType v
-      Arrow start remain -> do
+      MonoValue v -> pure $ MonoValue v
+      MonoArrow (Arrow' start remain) -> do
         newStart <- apply s start
         newRemain <- mapM (apply s) remain
         pure $
-          Arrow
-            newStart
-            newRemain
-      Variable v ->
+          MonoArrow $
+            Arrow'
+              newStart
+              newRemain
+      MonoVariable v ->
         case v of
           RealTypeVariable vId ->
             case Map.lookup vId s of
@@ -257,18 +263,19 @@ finalizeMonoType
   -> Eff es (MonoType TypeVariable)
 finalizeMonoType ty =
   case ty of
-    VType v -> pure $ VType v
-    Arrow start remain -> do
+    MonoValue v -> pure $ MonoValue v
+    MonoArrow (Arrow' start remain) -> do
       newStart <- finalizeMonoType start
       newRemain <- mapM finalizeMonoType remain
       pure $
-        Arrow
-          newStart
-          newRemain
-    Variable v ->
+        MonoArrow $
+          Arrow'
+            newStart
+            newRemain
+    MonoVariable v ->
       case v of
         RealTypeVariable vId ->
-          pure $ Variable $ TypeVariable' vId
+          pure $ MonoVariable $ TypeVariable' vId
         ErrorVariable msg ->
           throwError msg
 

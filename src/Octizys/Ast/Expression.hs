@@ -3,26 +3,28 @@
 
 module Octizys.Ast.Expression where
 
+import Control.Arrow ((<<<))
+import Data.Aeson (ToJSON)
 import Data.Foldable (foldl')
 import Data.List.NonEmpty (NonEmpty, toList)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (difference)
 import Data.Text (Text)
+import GHC.Generics (Generic, Generically (..))
+
 import Effectful.Dispatch.Dynamic (HasCallStack)
-import Octizys.Ast.Type (MonoType, Type)
+import Prettyprinter (Doc, Pretty (pretty), (<+>))
+import qualified Prettyprinter as Pretty
+
+import Octizys.Ast.Type (Type)
+import Octizys.Ast.Type.MonoType (MonoType)
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
 import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
-
-import Control.Arrow ((<<<))
-import Data.Aeson (ToJSON)
-import GHC.Generics (Generic, Generically (..))
 import Octizys.Format.Class (Formattable, format)
 import qualified Octizys.Format.Config as Format
 import qualified Octizys.Format.Utils as Format
-import Prettyprinter (Doc, Pretty (pretty), (<+>))
-import qualified Prettyprinter as Pretty
 
 
 data Definition var = Definition'
