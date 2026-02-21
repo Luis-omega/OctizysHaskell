@@ -32,13 +32,15 @@ import Octizys.Common.Id
   )
 import Octizys.Effects.IdGenerator.Interpreter (IdGenerator, generateId)
 import Octizys.FrontEnd.Cst.Expression
-  ( Definition
-      ( Definition'
-      , definition
-      , equal
-      , name
-      , _type
-      )
+  ( Application (Application')
+  , BoolExpression (BoolExpression')
+  , Definition
+    ( Definition'
+    , definition
+    , equal
+    , name
+    , _type
+    )
   , DefinitionTypeAnnotation
     ( DefinitionTypeAnnotation'
     , outputType
@@ -46,42 +48,27 @@ import Octizys.FrontEnd.Cst.Expression
     , schemeStart
     )
   , Expression
-    ( Annotation
-    , Application
+    ( EAnnotation
+    , EApplication
     , EBool
     , EFunction
+    , EIf
     , EInt
-    , If
-    , Let
-    , Variable
-    , applicationFunction
-    , applicationRemain
-    , body
-    , condition
-    , definitions
-    , expression
-    , ifFalse
-    , ifTrue
-    , info
-    , lparen
-    , name
-    , parameters
-    , rparen
-    , start
-    , _type
+    , ELet
+    , EParens
+    , EVariable
     )
+  , If (condition, ifFalse, ifTrue)
+  , IntExpression (IntExpression')
+  , Let (definitions, expression)
   , Parameter
     ( ParameterAlone
     , ParameterWithType
     , name
     , _type
     )
-  , Parameters
-    ( Parameters'
-    , bodySeparator
-    , initParameter
-    , otherParameters
-    )
+  , Parameters (..)
+  , Parens (expression, lparen, rparen)
   , SchemeStart (typeArguments)
   )
 import qualified Octizys.FrontEnd.Cst.Expression as E
@@ -90,7 +77,7 @@ import Octizys.FrontEnd.Cst.Type
   ( Arrow (Arrow', remain, start)
   , BoolType (BoolType', info)
   , IntType (IntType', info)
-  , Parens (Parens', lparen, rparen, _type)
+  , Parens (lparen, rparen, _type)
   , Type
     ( TArrow
     , TBool
@@ -387,9 +374,9 @@ makeTypeVariablesUnique t =
                 pure (x, result)
           )
       pure $ from $ Arrow' {start = startNew, remain = remainNew}
-    TParens (Parens' {lparen, rparen, _type}) -> do
+    TParens (Type.Parens' {lparen, rparen, _type}) -> do
       newType <- makeTypeVariablesUnique _type
-      pure $ from $ Parens' {lparen, rparen, _type = newType}
+      pure $ from $ Type.Parens' {lparen, rparen, _type = newType}
     TVariable (Type.Variable' {info, variable}) -> do
       varId <- findTvar variable info
       pure $
@@ -621,64 +608,75 @@ makeVariablesUnique
   -> Eff es (Expression ExpressionVariableId TypeVariableId)
 makeVariablesUnique e =
   case e of
-    EInt {..} -> pure EInt {..}
-    EBool {..} -> pure EBool {..}
-    Variable {info, name} -> do
+    EInt (IntExpression' {..}) -> pure $ EInt $ IntExpression' {..}
+    EBool (BoolExpression' {..}) -> pure $ EBool $ BoolExpression' {..}
+    EVariable (E.Variable' {info, name}) -> do
       varId <- findEvar name info
-      pure Variable {info, name = varId}
-    E.Parens {lparen, rparen, expression} -> do
+      pure $ EVariable $ E.Variable' {info, name = varId}
+    EParens e2@(E.Parens' {lparen, rparen, expression}) -> do
       newExp <- makeVariablesUnique expression
-      pure e {expression = newExp, lparen, rparen}
+      pure $ EParens $ e2 {expression = newExp, lparen, rparen}
     EFunction
-      { start
-      , parameters
-      , body
-      } ->
+      ( E.Function'
+          { start
+          , parameters
+          , body
+          }
+        ) ->
         do
           newParams <- makeParametersUnique parameters
           newBody <- makeVariablesUnique body
           deregisterParameters newParams parameters
-          pure
-            EFunction
-              { start
-              , parameters = newParams
-              , body = newBody
-              }
-    Application {applicationFunction, applicationRemain} -> do
-      newFunc <- makeVariablesUnique applicationFunction
-      newRemain <- forM applicationRemain makeVariablesUnique
-      pure
-        Application
-          { applicationFunction = newFunc
-          , applicationRemain = newRemain
-          }
-    If {condition, ifTrue, ifFalse} -> do
+          pure $
+            EFunction $
+              E.Function'
+                { start
+                , parameters = newParams
+                , body = newBody
+                }
+    EApplication (E.Application' {function, remain}) -> do
+      newFunc <- makeVariablesUnique function
+      newRemain <- forM remain makeVariablesUnique
+      pure $
+        EApplication $
+          Application'
+            { function = newFunc
+            , remain = newRemain
+            }
+    EIf e2@(E.If' {condition, ifTrue, ifFalse}) -> do
       newCond <- makeVariablesUnique condition
       newTrue <- makeVariablesUnique ifTrue
       newFalse <- makeVariablesUnique ifFalse
-      pure
-        e
-          { condition = newCond
-          , ifTrue = newTrue
-          , ifFalse = newFalse
-          }
-    Let {definitions, expression} -> do
+      pure $
+        EIf $
+          e2
+            { condition = newCond
+            , ifTrue = newTrue
+            , ifFalse = newFalse
+            }
+    ELet e2@(E.Let' {definitions, expression}) -> do
       (newDefs, names) <- makeDefinitionsUnique definitions
       newExp <- makeVariablesUnique expression
       forM_ names (uncurry deregisterEvar)
-      pure
-        e
-          { definitions = newDefs
-          , expression = newExp
+      pure $
+        ELet $
+          e2
+            { definitions = newDefs
+            , expression = newExp
+            }
+    EAnnotation
+      ( E.Annotation'
+          { expression
+          , colon
+          , _type
           }
-    Annotation
-      { expression
-      , _type
-      } -> do
+        ) -> do
         newExp <- makeVariablesUnique expression
         newType <- makeTypeVariablesUnique _type
-        pure
-          e
-            { expression = newExp
-            , _type = newType
-            }
+        pure $
+          EAnnotation $
+            E.Annotation'
+              { expression = newExp
+              , colon
+              , _type = newType
+              }

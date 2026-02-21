@@ -32,6 +32,10 @@ import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
 import Octizys.Format.Class (Formattable (format))
 import Octizys.Format.Config (defaultConfiguration)
 import qualified Octizys.Format.Utils as Format
+import Octizys.FrontEnd.Cst.Expression
+  ( BoolExpression (BoolExpression')
+  , IntExpression (IntExpression')
+  )
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo)
 import Octizys.FrontEnd.Cst.Type
   ( Type
@@ -280,6 +284,245 @@ inferDefinitions definitions = do
   pure (inferredBodies, finalContext)
 
 
+inferVariable
+  :: forall es
+   . Error Text :> es
+  => HasCallStack
+  => Reader Context :> es
+  => Accumulator Constraint :> es
+  => IdGenerator TypeVariableId :> es
+  => State ConstraintId :> es
+  => State Substitution :> es
+  => Log :> es
+  => CstE.Variable ExpressionVariableId
+  -> Eff es (AstE.Expression InferenceVariable)
+inferVariable (CstE.Variable' {name}) = do
+  ty <- lookup name
+  tyClosed <- instanceType ty
+  pure $
+    AstE.EVariable $
+      AstE.Variable'
+        { name = name
+        , inferType = tyClosed
+        }
+
+
+inferFunction
+  :: forall es
+   . Error Text :> es
+  => HasCallStack
+  => Reader Context :> es
+  => Accumulator Constraint :> es
+  => IdGenerator TypeVariableId :> es
+  => State ConstraintId :> es
+  => State Substitution :> es
+  => Log :> es
+  => CstE.Function ExpressionVariableId TypeVariableId
+  -> Eff es (AstE.Expression InferenceVariable)
+inferFunction f@(CstE.Function' {}) = do
+  -- Generate type vars for every parameter
+  newParams <- cstParametersToAstParameters f.parameters
+
+  -- Extend the context with the new type vars
+  context <- ask
+  extendedContext <-
+    Context.addExpressionVars
+      (NonEmpty.toList (Bifunctor.second from <$> newParams))
+      context
+
+  -- Infer the body with the new type vars
+  newBody <- local (const extendedContext) (infer f.body)
+  let
+    newBodyType = getMonoType newBody
+  case snd <$> newParams of
+    value :| remain ->
+      let
+        -- Construct the arrow
+        newEnd =
+          case NonEmpty.nonEmpty remain of
+            Just nonEmptyRemain ->
+              nonEmptyRemain <> NonEmpty.singleton newBodyType
+            Nothing -> NonEmpty.singleton newBodyType
+        inferredType = AstT.Arrow' {start = value, remain = newEnd}
+        outExpression =
+          from $
+            from @(AstE.Value InferenceVariable) $
+              AstE.Function'
+                { parameters = newParams
+                , body = newBody
+                , inferType = inferredType
+                }
+       in
+        pure outExpression
+
+
+inferApplication
+  :: forall es
+   . Error Text :> es
+  => HasCallStack
+  => Reader Context :> es
+  => Accumulator Constraint :> es
+  => IdGenerator TypeVariableId :> es
+  => State ConstraintId :> es
+  => State Substitution :> es
+  => Log :> es
+  => CstE.Application ExpressionVariableId TypeVariableId
+  -> Eff es (AstE.Expression InferenceVariable)
+inferApplication
+  expr@( CstE.Application'
+          { function = fun
+          , remain = args
+          }
+        ) = do
+    initialOut <- infer fun
+    (_, out) <- foldM go (Nothing, initialOut) args
+    pure out
+    where
+      go
+        :: ( Maybe Constraint
+           , AstE.Expression InferenceVariable
+           )
+        -> CstE.Expression ExpressionVariableId TypeVariableId
+        -> Eff es (Maybe Constraint, AstE.Expression InferenceVariable)
+      go (maybeConstraint, preOut) arg = do
+        domain <- freshMonoVar
+        codomain <- freshMonoVar
+        outArgDomain <- check arg domain ArgumentShouldBeOfDomainType
+        let
+          newApp =
+            from $
+              AstE.Application'
+                { function = preOut
+                , argument = outArgDomain
+                , inferType = codomain
+                }
+        constraintInfo <-
+          makeConstraintInfo
+            ApplicationShouldBeOnArrows
+            ( from $
+                from @(CstE.Expression ExpressionVariableId TypeVariableId)
+                  expr
+            )
+            (from newApp)
+            maybeConstraint
+            []
+        let
+          preIsArrow =
+            makeConstraint
+              (AstE.getMonoType preOut)
+              ( AstT.MonoArrow
+                  AstT.Arrow'
+                    { start = domain
+                    , remain = codomain :| []
+                    }
+              )
+              constraintInfo
+        addConstraint preIsArrow
+        unify preIsArrow
+        pure (Just preIsArrow, newApp)
+
+
+inferIf
+  :: forall es
+   . Error Text :> es
+  => HasCallStack
+  => Reader Context :> es
+  => Accumulator Constraint :> es
+  => IdGenerator TypeVariableId :> es
+  => State ConstraintId :> es
+  => State Substitution :> es
+  => Log :> es
+  => CstE.If ExpressionVariableId TypeVariableId
+  -> Eff es (AstE.Expression InferenceVariable)
+inferIf expr@CstE.If' {condition = cond, ifTrue, ifFalse, _then, _else} = do
+  condOut <- infer cond
+  thenOut <- infer ifTrue
+  elseOut <- infer ifFalse
+  let
+    newIf =
+      from $
+        AstE.If'
+          { condition = condOut
+          , ifTrue = thenOut
+          , ifFalse = elseOut
+          , inferType = AstE.getMonoType thenOut
+          }
+  conditionIsBoolInfo <-
+    makeConstraintInfo
+      IfConditionShouldBeBool
+      (from cond)
+      (from condOut)
+      Nothing
+      []
+  thenIsElseInfo <-
+    makeConstraintInfo
+      IfCasesShouldMatch
+      (from $ from @(CstE.Expression ExpressionVariableId TypeVariableId) expr)
+      (from newIf)
+      Nothing
+      []
+  let
+    conditionIsBool =
+      makeConstraint
+        (AstE.getMonoType condOut)
+        (from AstT.BoolType)
+        conditionIsBoolInfo
+    thenIsElse =
+      makeConstraint
+        (AstE.getMonoType thenOut)
+        (AstE.getMonoType elseOut)
+        thenIsElseInfo
+  addConstraint conditionIsBool
+  addConstraint thenIsElse
+  unify conditionIsBool
+  unify thenIsElse
+  pure newIf
+
+
+inferLet
+  :: forall es
+   . Error Text :> es
+  => HasCallStack
+  => Reader Context :> es
+  => Accumulator Constraint :> es
+  => IdGenerator TypeVariableId :> es
+  => State ConstraintId :> es
+  => State Substitution :> es
+  => Log :> es
+  => CstE.Let ExpressionVariableId TypeVariableId
+  -> Eff es (AstE.Expression InferenceVariable)
+inferLet CstE.Let' {definitions, expression = _in} = do
+  (inferredBodies, finalContext) <-
+    inferDefinitions definitions
+  newInBody <- local (const finalContext) (infer _in)
+  pure
+    ( from $
+        AstE.Let'
+          { definitions =
+              (\(n, d) -> AstE.Definition' n d (from $ getMonoType d)) <$> inferredBodies
+          , expression = newInBody
+          , inferType = getMonoType newInBody
+          }
+    )
+
+
+inferAnnotation
+  :: forall es
+   . Error Text :> es
+  => HasCallStack
+  => Reader Context :> es
+  => Accumulator Constraint :> es
+  => IdGenerator TypeVariableId :> es
+  => State ConstraintId :> es
+  => State Substitution :> es
+  => Log :> es
+  => CstE.Annotation ExpressionVariableId TypeVariableId
+  -> Eff es (AstE.Expression InferenceVariable)
+inferAnnotation CstE.Annotation' {expression = exprr, _type = ann} = do
+  let newTypeAnn = cstToAstMonoType ann
+  check exprr newTypeAnn TypeAnnotation
+
+
 infer
   :: forall es
    . Error Text :> es
@@ -294,169 +537,23 @@ infer
   -> Eff es (AstE.Expression InferenceVariable)
 infer expr =
   case expr of
-    CstE.EInt {intValue} -> do
+    CstE.EInt (IntExpression' {value}) -> do
       pure $
         AstE.EValue $
           AstE.VInt $
-            AstE.ValueInt' {value = intValue}
-    CstE.EBool {boolValue} -> do
+            AstE.ValueInt' {value}
+    CstE.EBool (BoolExpression' {value}) -> do
       pure $
         AstE.EValue $
           AstE.VBool $
-            AstE.ValueBool'
-              { value = boolValue
-              }
-    CstE.Variable {name} -> do
-      ty <- lookup name
-      tyClosed <- instanceType ty
-      pure $
-        AstE.EVariable $
-          AstE.Variable'
-            { name = name
-            , inferType = tyClosed
-            }
-    CstE.Parens {expression} -> infer expression
-    f@CstE.EFunction {} -> do
-      -- Generate type vars for every parameter
-      newParams <- cstParametersToAstParameters f.parameters
-
-      -- Extend the context with the new type vars
-      context <- ask
-      extendedContext <-
-        Context.addExpressionVars
-          (NonEmpty.toList (Bifunctor.second from <$> newParams))
-          context
-
-      -- Infer the body with the new type vars
-      newBody <- local (const extendedContext) (infer f.body)
-      let
-        newBodyType = getMonoType newBody
-      case snd <$> newParams of
-        value :| remain ->
-          let
-            -- Construct the arrow
-            newEnd =
-              case NonEmpty.nonEmpty remain of
-                Just nonEmptyRemain ->
-                  nonEmptyRemain <> NonEmpty.singleton newBodyType
-                Nothing -> NonEmpty.singleton newBodyType
-            inferredType = AstT.Arrow' {start = value, remain = newEnd}
-            outExpression =
-              from $
-                from @(AstE.Value InferenceVariable) $
-                  AstE.Function'
-                    { parameters = newParams
-                    , body = newBody
-                    , inferType = inferredType
-                    }
-           in
-            pure outExpression
-    CstE.Application
-      { applicationFunction = fun
-      , applicationRemain = args
-      } -> do
-        initialOut <- infer fun
-        (_, out) <- foldM go (Nothing, initialOut) args
-        pure out
-        where
-          go
-            :: ( Maybe Constraint
-               , AstE.Expression InferenceVariable
-               )
-            -> CstE.Expression ExpressionVariableId TypeVariableId
-            -> Eff es (Maybe Constraint, AstE.Expression InferenceVariable)
-          go (maybeConstraint, preOut) arg = do
-            domain <- freshMonoVar
-            codomain <- freshMonoVar
-            outArgDomain <- check arg domain ArgumentShouldBeOfDomainType
-            let
-              newApp =
-                from $
-                  AstE.Application'
-                    { function = preOut
-                    , argument = outArgDomain
-                    , inferType = codomain
-                    }
-            constraintInfo <-
-              makeConstraintInfo
-                ApplicationShouldBeOnArrows
-                (from expr)
-                (from newApp)
-                maybeConstraint
-                []
-            let
-              preIsArrow =
-                makeConstraint
-                  (AstE.getMonoType preOut)
-                  ( AstT.MonoArrow
-                      AstT.Arrow'
-                        { start = domain
-                        , remain = codomain :| []
-                        }
-                  )
-                  constraintInfo
-            addConstraint preIsArrow
-            unify preIsArrow
-            pure (Just preIsArrow, newApp)
-    CstE.If {condition = cond, ifTrue, ifFalse, _then, _else} -> do
-      condOut <- infer cond
-      thenOut <- infer ifTrue
-      elseOut <- infer ifFalse
-      let
-        newIf =
-          from $
-            AstE.If'
-              { condition = condOut
-              , ifTrue = thenOut
-              , ifFalse = elseOut
-              , inferType = AstE.getMonoType thenOut
-              }
-      conditionIsBoolInfo <-
-        makeConstraintInfo
-          IfConditionShouldBeBool
-          (from cond)
-          (from condOut)
-          Nothing
-          []
-      thenIsElseInfo <-
-        makeConstraintInfo
-          IfCasesShouldMatch
-          (from expr)
-          (from newIf)
-          Nothing
-          []
-      let
-        conditionIsBool =
-          makeConstraint
-            (AstE.getMonoType condOut)
-            (from AstT.BoolType)
-            conditionIsBoolInfo
-        thenIsElse =
-          makeConstraint
-            (AstE.getMonoType thenOut)
-            (AstE.getMonoType elseOut)
-            thenIsElseInfo
-      addConstraint conditionIsBool
-      addConstraint thenIsElse
-      unify conditionIsBool
-      unify thenIsElse
-      pure newIf
-    CstE.Let {definitions, expression = _in} -> do
-      (inferredBodies, finalContext) <-
-        inferDefinitions definitions
-      newInBody <- local (const finalContext) (infer _in)
-      pure
-        ( from $
-            AstE.Let'
-              { definitions =
-                  (\(n, d) -> AstE.Definition' n d (from $ getMonoType d)) <$> inferredBodies
-              , expression = newInBody
-              , inferType = getMonoType newInBody
-              }
-        )
-    CstE.Annotation {expression = exprr, _type = ann} -> do
-      let newTypeAnn = cstToAstMonoType ann
-      check exprr newTypeAnn TypeAnnotation
+            AstE.ValueBool' {value}
+    CstE.EVariable v -> inferVariable v
+    CstE.EParens (CstE.Parens' {expression}) -> infer expression
+    CstE.EFunction v -> inferFunction v
+    CstE.EApplication v -> inferApplication v
+    CstE.EIf v -> inferIf v
+    CstE.ELet v -> inferLet v
+    CstE.EAnnotation v -> inferAnnotation v
 
 
 check
@@ -474,21 +571,21 @@ check
   -> Eff es (AstE.Expression InferenceVariable)
 check expr ty cr =
   case (expr, ty) of
-    (CstE.EInt {intValue}, AstT.MonoValue AstT.IntType) ->
+    (CstE.EInt (CstE.IntExpression' {value}), AstT.MonoValue AstT.IntType) ->
       pure $
         from $
           from @(AstE.Value InferenceVariable) $
             AstE.ValueInt'
               { value =
-                  intValue
+                  value
               }
-    (CstE.EBool {boolValue}, AstT.MonoValue AstT.BoolType) ->
+    (CstE.EBool (CstE.BoolExpression' {value}), AstT.MonoValue AstT.BoolType) ->
       pure $
         from $
           from @(AstE.Value InferenceVariable) $
             AstE.ValueBool'
               { value =
-                  boolValue
+                  value
               }
     -- TODO:
     -- ( CstE.EFunction

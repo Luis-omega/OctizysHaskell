@@ -159,11 +159,11 @@ tests =
         counter <- newIORef 0
         evar <- C.eVar counter
         let ctx = contextFromList [(evar.name, Ast.TMono A.boolType)] []
-        assertInfers ctx evar (Ast.TMono A.boolType)
+        assertInfers ctx (from evar) (Ast.TMono A.boolType)
     , testCase "Variable missing" $ do
         counter <- newIORef 0
         evar <- C.eVar counter
-        assertFails emptyContext evar
+        assertFails emptyContext (from evar)
     , testCase "Mono application" $ do
         counter <- newIORef 0
         f <- C.eVar counter
@@ -176,7 +176,7 @@ tests =
                 , (x.name, Ast.TMono xT)
                 ]
                 []
-            expr = C.app f [x]
+            expr = C.app (from f) [from x]
         assertInfers ctx expr (Ast.TMono A.boolType)
     , testCase "If condition must be bool" $ do
         let
@@ -190,7 +190,7 @@ tests =
         counter <- newIORef 0
         nId <- C.makeExpressionVariableId counter
         let
-          n = Cst.Variable C.sourceInfo nId
+          n = from $ Cst.Variable' C.sourceInfo nId
           expr =
             C.function
               (C.parameters (C.parameter nId Nothing) [])
@@ -212,7 +212,7 @@ tests =
         let ltT = A.arrow [A.intType, A.intType] A.boolType
             mulT = A.arrow [A.intType, A.intType] A.intType
             minusT = A.arrow [A.intType, A.intType] A.intType
-            n = Cst.Variable C.sourceInfo nId
+            n = from $ Cst.Variable' C.sourceInfo nId
             ctx =
               contextFromList
                 [ (lt.name, Ast.TMono ltT)
@@ -224,9 +224,9 @@ tests =
               C.function
                 (C.parameters (C.parameter nId Nothing) [])
                 ( C.eIf
-                    (C.app lt [n, C.int 1])
+                    (C.app (from lt) [n, C.int 1])
                     (C.int 1)
-                    (C.app mul [n, C.int 2])
+                    (C.app (from mul) [n, C.int 2])
                 )
         assertInfers ctx expr (Ast.TMono (A.arrow [A.intType] A.intType))
     , testCase "Identity" $ do
@@ -234,7 +234,7 @@ tests =
         nId <- C.makeExpressionVariableId counter
         tId <- C.makeTypeVariableId counter
         let
-          n = Cst.Variable C.sourceInfo nId
+          n = from $ Cst.Variable' C.sourceInfo nId
           t = MonoVariable (TypeVariable' tId)
           expr =
             C.function
@@ -246,7 +246,7 @@ tests =
         lt <- C.eVar counter
         nId <- C.makeExpressionVariableId counter
         let ltT = A.arrow [A.intType, A.intType] A.boolType
-            n = Cst.Variable C.sourceInfo nId
+            n = from $ Cst.Variable' C.sourceInfo nId
             ctx =
               contextFromList
                 [ (lt.name, Ast.TMono ltT)
@@ -255,7 +255,7 @@ tests =
             expr =
               C.function
                 (C.parameters (C.parameter nId Nothing) [])
-                ( C.app lt [n]
+                ( C.app (from lt) [n]
                 )
         assertInfers
           ctx
@@ -265,7 +265,7 @@ tests =
         counter <- newIORef 0
         nId <- C.makeExpressionVariableId counter
         let
-          n = Cst.Variable C.sourceInfo nId
+          n = from $ Cst.Variable' C.sourceInfo nId
           expr =
             C.function
               (C.parameters (C.parameter nId Nothing) [])
