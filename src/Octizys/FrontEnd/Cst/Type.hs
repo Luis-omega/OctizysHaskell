@@ -3,28 +3,25 @@ The `Type` is designed to be fault tolerant.
 -}
 module Octizys.FrontEnd.Cst.Type
   ( Type
-      ( BoolType
-      , IntType
-      , Arrow
-      , Parens
+      ( TBool
+      , TInt
+      , TArrow
+      , TParens
       , TVariable
       )
-  , info
-  , start
-  , remain
-  , lparen
-  , rparen
-  , _type
-  , variable
-  , TypeVariableId
+  , BoolType (BoolType', info)
+  , IntType (IntType', info)
+  , Arrow (Arrow', start, remain)
+  , Parens (Parens', lparen, _type, rparen)
+  , Variable (Variable', info, variable)
   ) where
 
 import Data.List.NonEmpty (NonEmpty, cons)
-import Octizys.Common.Id (TypeVariableId)
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo)
 
 import Data.Aeson (ToJSON)
 import GHC.Generics (Generic, Generically (..))
+import Octizys.Classes.From (From, from)
 import Octizys.Format.Class (Formattable (format))
 import qualified Octizys.Format.Config as Format
 import qualified Octizys.Format.Utils as Format
@@ -32,37 +29,96 @@ import Prettyprinter (Doc)
 import qualified Prettyprinter as Pretty
 
 
-{- | Stores source information in a separate place, so
-    we can mutate or do other things on it without
-    modifying the tree.
--}
+newtype BoolType = BoolType' {info :: SourceInfo}
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically BoolType
+
+
+instance Formattable BoolType where
+  format _ _ = Format.text "Bool"
+
+
+newtype IntType = IntType' {info :: SourceInfo}
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically IntType
+
+
+instance Formattable IntType where
+  format _ _ = Format.text "Int"
+
+
+data Arrow tvar = Arrow'
+  { start :: Type tvar
+  , remain :: NonEmpty (SourceInfo, Type tvar)
+  }
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Arrow tvar)
+
+
+instance Formattable tvar => Formattable (Arrow tvar) where
+  format = formatArrow
+
+
+data Parens tvar = Parens'
+  { lparen :: SourceInfo
+  , _type :: Type tvar
+  , rparen :: SourceInfo
+  }
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Parens tvar)
+
+
+instance Formattable tvar => Formattable (Parens tvar) where
+  format = formatParens
+
+
+data Variable tvar = Variable' {info :: SourceInfo, variable :: tvar}
+  deriving (Show, Eq, Ord, Generic)
+  deriving (ToJSON) via Generically (Variable tvar)
+
+
+instance Formattable tvar => Formattable (Variable tvar) where
+  format = formatVariable
+
+
 data Type tvar
   = -- | The boolean type hardcoded. Right now we don't have sum types or
     --  support for user defined types.
-    BoolType {info :: SourceInfo}
+    TBool BoolType
   | -- | The int type hacoded. See `BoolType`
-    IntType {info :: SourceInfo}
+    TInt IntType
   | -- | Represent a function type.
     -- It can have multiple items, and it must have at least one.
-    Arrow
-      { start :: Type tvar
-      , remain :: NonEmpty (SourceInfo, Type tvar)
-      }
+    TArrow (Arrow tvar)
   | -- | Represents a type inside parentheses.
-    Parens
-      { lparen :: SourceInfo
-      , _type :: Type tvar
-      , rparen :: SourceInfo
-      }
-  | -- | All variables are translated at parsing time to a internal
-    -- identifier. You can think of it as a pointer in symbol table.
-    TVariable {info :: SourceInfo, variable :: tvar}
+    TParens (Parens tvar)
+  | TVariable (Variable tvar)
   deriving (Show, Eq, Ord, Generic)
   deriving (ToJSON) via Generically (Type tvar)
 
 
 instance Formattable tvar => Formattable (Type tvar) where
   format = formatType
+
+
+instance From (Type tvar) BoolType where
+  from = TBool
+
+
+instance From (Type tvar) IntType where
+  from = TInt
+
+
+instance From (Type tvar) (Arrow tvar) where
+  from = TArrow
+
+
+instance From (Type tvar) (Parens tvar) where
+  from = TParens
+
+
+instance From (Type tvar) (Variable tvar) where
+  from = TVariable
 
 
 -- * Format
@@ -72,11 +128,38 @@ instance Formattable tvar => Formattable (Type tvar) where
 needsParentsInArrow :: Type tvar -> Bool
 needsParentsInArrow t =
   case t of
-    IntType {} -> False
-    BoolType {} -> False
-    Arrow {} -> True
-    Parens {} -> True
+    TInt {} -> False
+    TBool {} -> False
+    TArrow {} -> True
+    TParens {} -> True
     TVariable {} -> False
+
+
+formatArrow
+  :: Formattable tvar => Format.Configuration -> Arrow tvar -> Doc ann
+formatArrow configuration (Arrow' {start = _domain, remain = _codomain}) =
+  Format.formatListItemsWith
+    configuration
+    prettyArg
+    (Format.text "->")
+    (cons _domain (snd <$> _codomain))
+  where
+    prettyArg c ty =
+      if needsParentsInArrow ty
+        then Pretty.parens (formatType c ty)
+        else formatType c ty
+
+
+formatParens
+  :: Formattable tvar => Format.Configuration -> Parens tvar -> Doc ann
+formatParens configuration (Parens' {_type}) =
+  Pretty.parens (formatType configuration _type)
+
+
+formatVariable
+  :: Formattable a => Format.Configuration -> Variable a -> Doc ann
+formatVariable configuration (Variable' {variable}) =
+  format configuration variable
 
 
 formatType
@@ -87,19 +170,8 @@ formatType
   -> Doc ann
 formatType configuration t =
   case t of
-    IntType _ -> Format.text "Int"
-    BoolType _ -> Format.text "Bool"
-    Arrow {start = _domain, remain = _codomain} ->
-      Format.formatListItemsWith
-        configuration
-        prettyArg
-        (Format.text "->")
-        (cons _domain (snd <$> _codomain))
-      where
-        prettyArg c ty =
-          if needsParentsInArrow ty
-            then Pretty.parens (formatType c ty)
-            else formatType c ty
-    Parens {_type = t2} ->
-      formatType configuration t2
-    TVariable {variable = v} -> format configuration v
+    TInt v -> format configuration v
+    TBool v -> format configuration v
+    TArrow a -> format configuration a
+    TParens v -> formatParens configuration v
+    TVariable v -> formatVariable configuration v

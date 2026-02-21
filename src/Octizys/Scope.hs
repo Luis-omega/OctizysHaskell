@@ -3,7 +3,8 @@ module Octizys.Scope where
 import Data.Map (Map)
 import EffectfulParserCombinators.Span (Span)
 import Octizys.Ast.Expression (Expression)
-import Octizys.Ast.Type (Type, TypeVariable)
+import Octizys.Ast.Type (Type)
+import Octizys.Ast.Type.Basics (TypeVariable)
 import Octizys.Common.Id (ExpressionVariableId)
 import Octizys.FrontEnd.Cst.Comment (Comment)
 

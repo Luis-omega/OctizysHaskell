@@ -12,25 +12,29 @@ module Octizys.Inference.Substitution
   , ApplyMap (apply)
   ) where
 
+import Data.Aeson (ToJSON)
 import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error, throwError)
 import Prettyprinter (Pretty (pretty), (<+>))
 
-import Data.Aeson (ToJSON)
 import Data.Map (Map)
 import qualified Data.Maybe
 import Data.Text (Text)
 import GHC.Generics (Generic, Generically (..))
+
 import qualified Octizys.Ast.Expression as AstE
-import Octizys.Ast.Type
+import Octizys.Ast.Type (Type (..))
+import Octizys.Ast.Type.Basics
   ( InferenceVariable (ErrorVariable, RealTypeVariable)
-  , MonoType (..)
-  , Scheme
-  , Type (..)
   , TypeVariable (TypeVariable')
   , inferenceVarToId
   )
+import Octizys.Ast.Type.MonoType
+  ( Arrow (Arrow')
+  , MonoType (MonoArrow, MonoValue, MonoVariable)
+  )
+import Octizys.Ast.Type.Scheme (Scheme)
 import Octizys.Classes.From (from)
 import Octizys.Common.Id
 import Octizys.Format.Class (Formattable (format))
@@ -69,12 +73,13 @@ applyToMonoType
   -> MonoType InferenceVariable
 applyToMonoType s ty =
   case ty of
-    VType _ -> ty
-    Arrow start remain ->
-      Arrow
-        (applyToMonoType s start)
-        (applyToMonoType s <$> remain)
-    Variable v ->
+    MonoValue _ -> ty
+    MonoArrow (Arrow' start remain) ->
+      MonoArrow $
+        Arrow'
+          (applyToMonoType s start)
+          (applyToMonoType s <$> remain)
+    MonoVariable v ->
       case inferenceVarToId v of
         Just vId ->
           Data.Maybe.fromMaybe
@@ -121,7 +126,7 @@ compose s1@(Substitution itemsL) (Substitution itemsR) =
       `Map.union` itemsL
 
 
-class ApplyMap a tv ti where
+class ApplyMap a ti tv where
   apply
     :: Error Text :> es
     => Map TypeVariableId (MonoType tv)
@@ -129,18 +134,29 @@ class ApplyMap a tv ti where
     -> Eff es (a tv)
 
 
-instance ApplyMap MonoType tv InferenceVariable where
+instance ApplyMap MonoType ti tv => ApplyMap Arrow ti tv where
+  apply s (Arrow' start remain) = do
+    newStart <- apply s start
+    newRemain <- mapM (apply s) remain
+    pure $
+      Arrow'
+        newStart
+        newRemain
+
+
+instance ApplyMap MonoType InferenceVariable tv where
   apply s ty =
     case ty of
-      VType v -> pure $ VType v
-      Arrow start remain -> do
+      MonoValue v -> pure $ MonoValue v
+      MonoArrow (Arrow' start remain) -> do
         newStart <- apply s start
         newRemain <- mapM (apply s) remain
         pure $
-          Arrow
-            newStart
-            newRemain
-      Variable v ->
+          MonoArrow $
+            Arrow'
+              newStart
+              newRemain
+      MonoVariable v ->
         case v of
           RealTypeVariable vId ->
             case Map.lookup vId s of
@@ -152,25 +168,23 @@ instance ApplyMap MonoType tv InferenceVariable where
             throwError msg
 
 
-instance ApplyMap Scheme tv ti where
+instance ApplyMap Scheme ti tv where
   apply _ _ = undefined
 
 
-instance ApplyMap MonoType tv ti => ApplyMap Type tv ti where
+instance ApplyMap MonoType ti tv => ApplyMap Type ti tv where
   apply s (TMono t) = TMono <$> apply s t
   apply s (TPoly t) = from <$> apply s t
 
 
-instance ApplyMap MonoType tv ti => ApplyMap AstE.Value tv ti where
+instance ApplyMap MonoType ti tv => ApplyMap AstE.Value ti tv where
   apply s v =
     case v of
-      AstE.VInt {intValue, inferType} -> do
-        newType <- apply s inferType
-        pure AstE.VInt {intValue, inferType = newType}
-      AstE.VBool {boolValue, inferType} -> do
-        newType <- apply s inferType
-        pure AstE.VBool {boolValue, inferType = newType}
-      AstE.Function {parameters, body, inferType} -> do
+      AstE.VInt (AstE.ValueInt' {value}) ->
+        pure (AstE.VInt (AstE.ValueInt' {value}))
+      AstE.VBool (AstE.ValueBool' {value}) -> do
+        pure (AstE.VBool (AstE.ValueBool' {value}))
+      AstE.VFunction (AstE.Function' {parameters, body, inferType}) -> do
         newType <- apply s inferType
         newParams <-
           mapM
@@ -180,75 +194,78 @@ instance ApplyMap MonoType tv ti => ApplyMap AstE.Value tv ti where
             )
             parameters
         newBody <- apply s body
-        pure
-          AstE.Function
-            { parameters = newParams
-            , body =
-                newBody
-            , inferType = newType
-            }
+        pure $
+          AstE.VFunction $
+            AstE.Function'
+              { parameters = newParams
+              , body =
+                  newBody
+              , inferType = newType
+              }
 
 
-instance ApplyMap MonoType tv ti => ApplyMap AstE.Definition tv ti where
+instance ApplyMap MonoType ti tv => ApplyMap AstE.Definition ti tv where
   apply s AstE.Definition' {definition, inferType, ..} = do
     newType <- apply s inferType
     newExpr <- apply s definition
     pure AstE.Definition' {definition = newExpr, inferType = newType, ..}
 
 
-instance ApplyMap MonoType tv ti => ApplyMap AstE.Expression tv ti where
+instance ApplyMap MonoType ti tv => ApplyMap AstE.Expression ti tv where
   apply s expr =
     case expr of
-      AstE.Variable {name, inferType} -> do
+      AstE.EVariable (AstE.Variable' {name, inferType}) -> do
         newType <- apply s inferType
-        pure AstE.Variable {name, inferType = newType}
-      AstE.EValue {inferType, value} -> do
-        newType <- apply s inferType
-        newValue <- apply s value
-        pure AstE.EValue {inferType = newType, value = newValue}
-      AstE.Application {inferType, applicationFunction, applicationArgument} -> do
-        newType <- apply s inferType
-        newFunc <- apply s applicationFunction
-        newArg <- apply s applicationArgument
-        pure
-          AstE.Application
-            { inferType = newType
-            , applicationFunction = newFunc
-            , applicationArgument = newArg
-            }
-      AstE.If {condition, ifTrue, ifFalse, inferType} -> do
+        pure $ AstE.EVariable (AstE.Variable' {name, inferType = newType})
+      AstE.EValue v -> AstE.EValue <$> apply s v
+      AstE.EApplication
+        (AstE.Application' {inferType, function, argument}) -> do
+          newType <- apply s inferType
+          newFunc <- apply s function
+          newArg <- apply s argument
+          pure $
+            AstE.EApplication $
+              AstE.Application'
+                { inferType = newType
+                , function = newFunc
+                , argument = newArg
+                }
+      AstE.EIf (AstE.If' {condition, ifTrue, ifFalse, inferType}) -> do
         newType <- apply s inferType
         newCond <- apply s condition
         newTrue <- apply s ifTrue
         newFalse <- apply s ifFalse
-        pure
-          AstE.If
-            { condition = newCond
-            , ifTrue = newTrue
-            , ifFalse = newFalse
-            , inferType = newType
-            }
-      AstE.Let {definitions, expression, inferType} -> do
+        pure $
+          AstE.EIf $
+            AstE.If'
+              { condition = newCond
+              , ifTrue = newTrue
+              , ifFalse = newFalse
+              , inferType = newType
+              }
+      AstE.ELet (AstE.Let' {definitions, expression, inferType}) -> do
         newType <- apply s inferType
         newDefinitions <- mapM (apply s) definitions
         newExpr <- apply s expression
-        pure
-          AstE.Let
-            { definitions = newDefinitions
-            , expression = newExpr
-            , inferType = newType
-            }
-      AstE.Annotation {expression, _type, inferType} -> do
+        pure $
+          AstE.ELet $
+            AstE.Let'
+              { definitions = newDefinitions
+              , expression = newExpr
+              , inferType = newType
+              }
+      AstE.EAnnotation (AstE.Annotation' {expression, _type, inferType}) -> do
         newType <- apply s inferType
         newExpr <- apply s expression
         newTypeAnn <- apply s _type
-        pure
-          AstE.Annotation
-            { expression = newExpr
-            , _type = newTypeAnn
-            , inferType =
-                newType
-            }
+        pure $
+          AstE.EAnnotation $
+            AstE.Annotation'
+              { expression = newExpr
+              , _type = newTypeAnn
+              , inferType =
+                  newType
+              }
 
 
 finalizeMonoType
@@ -257,18 +274,19 @@ finalizeMonoType
   -> Eff es (MonoType TypeVariable)
 finalizeMonoType ty =
   case ty of
-    VType v -> pure $ VType v
-    Arrow start remain -> do
+    MonoValue v -> pure $ MonoValue v
+    MonoArrow (Arrow' start remain) -> do
       newStart <- finalizeMonoType start
       newRemain <- mapM finalizeMonoType remain
       pure $
-        Arrow
-          newStart
-          newRemain
-    Variable v ->
+        MonoArrow $
+          Arrow'
+            newStart
+            newRemain
+    MonoVariable v ->
       case v of
         RealTypeVariable vId ->
-          pure $ Variable $ TypeVariable' vId
+          pure $ MonoVariable $ TypeVariable' vId
         ErrorVariable msg ->
           throwError msg
 

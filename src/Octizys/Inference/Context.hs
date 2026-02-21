@@ -17,7 +17,6 @@ import qualified Data.Map as Map
 import Effectful (Eff, (:>))
 import Effectful.Error.Static (Error)
 import GHC.Generics (Generic, Generically (..))
-import Octizys.Ast.Type (InferenceVariable)
 import qualified Octizys.Ast.Type as Ast
 import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
@@ -27,6 +26,9 @@ import Control.Arrow ((<<<))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
+import Octizys.Ast.Type.Basics (InferenceVariable)
+import qualified Octizys.Ast.Type.Basics as Ast
+import qualified Octizys.Ast.Type.MonoType as Ast
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
 import Octizys.Format.Class (Formattable (format))
@@ -195,9 +197,9 @@ generalize c (Ast.TMono t) =
         mapM
           ( \x -> do
               tyId <- generateId Nothing
-              pure (x, Ast.Variable $ Ast.RealTypeVariable tyId)
+              pure (x, Ast.MonoVariable $ Ast.RealTypeVariable tyId)
           )
           (Set.toList toReplace)
       let
         replacementMap = Map.fromList mapOfNewVars
-      pure (from $ Ast.replaceMonoVars replacementMap t)
+      pure (from $ Ast.replaceVars replacementMap t)
