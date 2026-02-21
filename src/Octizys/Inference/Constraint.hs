@@ -20,25 +20,24 @@ module Octizys.Inference.Constraint
   ) where
 
 import Control.Arrow ((<<<))
-import Data.Aeson (ToJSON)
 import Data.Text (Text)
+import GHC.Generics (Generic, Generically (..))
+import Prelude hiding (lookup)
+
+import Data.Aeson (ToJSON)
 import Effectful (Eff, (:>))
 import Effectful.State.Static.Local (State, get, put)
-import GHC.Generics (Generic, Generically (..))
+import Prettyprinter (Pretty (pretty), (<+>))
+import qualified Prettyprinter as Pretty
+
 import qualified Octizys.Ast.Node as Ast
-import Octizys.Ast.Type (InferenceVariable)
-import qualified Octizys.Ast.Type as AstT
+import Octizys.Ast.Type.Basics (InferenceVariable)
+import Octizys.Ast.Type.MonoType (MonoType)
 import Octizys.Classes.From
-import Octizys.Common.Id (ExpressionVariableId)
+import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 import Octizys.Format.Class (Formattable (format))
 import qualified Octizys.Format.Utils as Format
 import qualified Octizys.FrontEnd.Cst.Node as Cst
-import Octizys.FrontEnd.Cst.Type
-  ( TypeVariableId
-  )
-import Prettyprinter (Pretty (pretty), (<+>))
-import qualified Prettyprinter as Pretty
-import Prelude hiding (lookup)
 
 
 data ConstraintReason
@@ -132,8 +131,8 @@ makeConstraintInfo reason cst ast maybeParent dependents = do
 
 
 data Constraint = Constraint'
-  { constraintType1 :: AstT.MonoType InferenceVariable
-  , constraintType2 :: AstT.MonoType InferenceVariable
+  { constraintType1 :: MonoType InferenceVariable
+  , constraintType2 :: MonoType InferenceVariable
   , constraintInfo :: ConstraintInfo
   }
   deriving (Show, Ord, Eq)
@@ -164,8 +163,8 @@ instance Formattable Constraint where
 
 
 makeConstraint
-  :: AstT.MonoType InferenceVariable
-  -> AstT.MonoType InferenceVariable
+  :: MonoType InferenceVariable
+  -> MonoType InferenceVariable
   -> ConstraintInfo
   -> Constraint
 makeConstraint = Constraint'
@@ -173,8 +172,8 @@ makeConstraint = Constraint'
 
 makeConstraintFromParent
   :: State ConstraintId :> es
-  => AstT.MonoType InferenceVariable
-  -> AstT.MonoType InferenceVariable
+  => MonoType InferenceVariable
+  -> MonoType InferenceVariable
   -> Constraint
   -> Eff es Constraint
 makeConstraintFromParent ast1 ast2 parent = do
@@ -205,31 +204,31 @@ getConstraintId :: Constraint -> ConstraintId
 getConstraintId c = c.constraintInfo.constraintId
 
 
-getLeftType :: Constraint -> AstT.MonoType InferenceVariable
+getLeftType :: Constraint -> MonoType InferenceVariable
 getLeftType (Constraint' l _ _) = l
 
 
-getRightType :: Constraint -> AstT.MonoType InferenceVariable
+getRightType :: Constraint -> MonoType InferenceVariable
 getRightType (Constraint' _ r _) = r
 
 
 asTuple
   :: Constraint
-  -> (AstT.MonoType InferenceVariable, AstT.MonoType InferenceVariable)
+  -> (MonoType InferenceVariable, MonoType InferenceVariable)
 asTuple (Constraint' l r _) = (l, r)
 
 
 instance
   From
-    (AstT.MonoType InferenceVariable, AstT.MonoType InferenceVariable)
+    (MonoType InferenceVariable, MonoType InferenceVariable)
     Constraint
   where
   from = asTuple
 
 
 modifyTypes
-  :: AstT.MonoType InferenceVariable
-  -> AstT.MonoType InferenceVariable
+  :: MonoType InferenceVariable
+  -> MonoType InferenceVariable
   -> Constraint
   -> Constraint
 modifyTypes t1 t2 (Constraint' _ _ info) = Constraint' t1 t2 info

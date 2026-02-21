@@ -5,11 +5,11 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Maybe (fromJust)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Octizys.Ast.Type
+import Octizys.Ast.Type.Basics
   ( InferenceVariable
-  , MonoType (Variable)
   , TypeValue (BoolType, IntType)
   )
+import Octizys.Ast.Type.MonoType (MonoType (MonoVariable))
 import Octizys.Classes.From (from)
 import Octizys.Common.Id
   ( SymbolContext (SymbolContext')
@@ -63,7 +63,7 @@ makeTypeVariableId varCounter = do
 
 makeMonoVar :: IORef Int -> IO (MonoType InferenceVariable)
 makeMonoVar counter =
-  (Variable <<< from) <$> makeTypeVariableId counter
+  (MonoVariable <<< from) <$> makeTypeVariableId counter
 
 
 assertEqualTypes
@@ -101,7 +101,7 @@ tests =
         counter <- newIORef 0
         var <- makeTypeVariableId counter
         let
-          ty1 :: MonoType InferenceVariable = Variable (from var)
+          ty1 :: MonoType InferenceVariable = MonoVariable (from var)
           ty2 = from IntType
           s = Substitution.singleton var ty2
         ty2 @?= Substitution.applyToMonoType s ty1
@@ -110,7 +110,7 @@ tests =
         var1 <- makeTypeVariableId counter
         var2 <- makeTypeVariableId counter
         let
-          ty1 :: MonoType InferenceVariable = Variable (from var1)
+          ty1 :: MonoType InferenceVariable = MonoVariable (from var1)
           ty2 = from BoolType
           s = Substitution.singleton var2 ty2
         assertEqualTypes ty1 (Substitution.applyToMonoType s ty1)

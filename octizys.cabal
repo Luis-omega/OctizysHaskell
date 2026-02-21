@@ -107,6 +107,9 @@ library
     Octizys.Ast.Expression
     Octizys.Ast.Node
     Octizys.Ast.Type
+    Octizys.Ast.Type.Basics
+    Octizys.Ast.Type.MonoType
+    Octizys.Ast.Type.Scheme
     Octizys.Classes.FreeVariables
     Octizys.Classes.From
     Octizys.Common.HistoryMap

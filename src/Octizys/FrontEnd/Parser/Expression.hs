@@ -3,6 +3,7 @@
 {-# HLINT ignore "Use tuple-section" #-}
 module Octizys.FrontEnd.Parser.Expression where
 
+import Control.Arrow ((<<<))
 import Control.Monad (forM)
 import Data.Char (isDigit)
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -18,14 +19,18 @@ import EffectfulParserCombinators.Combinators
   , (<|>)
   )
 import EffectfulParserCombinators.Effect (Parser)
+import Octizys.Classes.From (From (from))
 import Octizys.FrontEnd.Cst.Expression
-  ( Definition
-      ( Definition'
-      , definition
-      , equal
-      , name
-      , _type
-      )
+  ( Annotation (Annotation', colon, expression, _type)
+  , Application (Application', function, remain)
+  , BoolExpression (BoolExpression')
+  , Definition
+    ( Definition'
+    , definition
+    , equal
+    , name
+    , _type
+    )
   , DefinitionTypeAnnotation
     ( DefinitionTypeAnnotation'
     , colon
@@ -34,46 +39,15 @@ import Octizys.FrontEnd.Cst.Expression
     , schemeStart
     )
   , Expression
-    ( Annotation
-    , Application
-    , EBool
-    , EFunction
-    , EInt
-    , If
-    , Let
-    , Parens
-    , Variable
-    , applicationFunction
-    , applicationRemain
-    , body
-    , colon
-    , condition
-    , definitions
-    , expression
-    , ifFalse
-    , ifTrue
-    , info
-    , intValue
-    , lparen
-    , name
-    , parameters
-    , rparen
-    , start
-    , _else
-    , _if
-    , _in
-    , _let
-    , _then
-    , _type
-    )
+  , Function (Function', body, parameters, start)
+  , If (If', condition, ifFalse, ifTrue, _else, _if, _then)
+  , IntExpression (IntExpression', info, value)
+  , Let (Let', definitions, expression, _in, _let)
   , Parameter (ParameterAlone, ParameterWithType, colon, name, _type)
-  , Parameters (Parameters', bodySeparator, initParameter, otherParameters)
-  , SchemeStart
-    ( SchemeStart'
-    , dot
-    , typeArguments
-    , _forall
-    )
+  , Parameters (..)
+  , Parens (Parens', expression, lparen, rparen)
+  , SchemeStart (SchemeStart', dot, typeArguments, _forall)
+  , Variable (Variable', info, name)
   )
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo, SourceVariable)
 import Octizys.FrontEnd.Cst.Type (Type)
@@ -115,8 +89,8 @@ boolParser
   :: Parser OctizysParseError :> es
   => Eff es (Expression SourceVariable SourceVariable)
 boolParser =
-  ((`EBool` True) <$> keyword "True")
-    <|> ((`EBool` False) <$> keyword "False")
+  ((from <<< (`BoolExpression'` True)) <$> keyword "True")
+    <|> ((from <<< (`BoolExpression'` False)) <$> keyword "False")
 
 
 intParser
@@ -131,7 +105,7 @@ intParser = do
           pure (_head <> others)
       )
       <?> ('v' :| "alid integer")
-  pure EInt {info = inf, intValue = value}
+  pure $ from $ IntExpression' {info = inf, value = value}
 
 
 -- ======================= Expression ===========================
@@ -150,7 +124,7 @@ variableParser
   => Eff es (Expression SourceVariable SourceVariable)
 variableParser = do
   (name, info) <- sourceVariableParser
-  pure Variable {info, name}
+  pure $ from $ Variable' {info, name}
 
 
 maybeAnnotation
@@ -161,7 +135,7 @@ maybeAnnotation = do
   maybeType <- optional typeAnnotationParser
   case maybeType of
     Just (colonInfo, _type) ->
-      pure Annotation {expression = expr, colon = colonInfo, _type}
+      pure $ from $ Annotation' {expression = expr, colon = colonInfo, _type}
     Nothing -> pure expr
 
 
@@ -174,7 +148,7 @@ parensExpressionParser = do
       leftParen
       rightParen
       maybeAnnotation
-  pure Parens {lparen, rparen, expression}
+  pure $ from $ Parens' {lparen, rparen, expression}
 
 
 atomExpressionParser
@@ -198,11 +172,12 @@ applicationParser = do
   case arguments of
     [] -> pure function
     (ini : las) ->
-      pure
-        Application
-          { applicationFunction = function
-          , applicationRemain = ini :| las
-          }
+      pure $
+        from $
+          Application'
+            { function = function
+            , remain = ini :| las
+            }
 
 
 parameterParser
@@ -264,12 +239,13 @@ functionParser = do
   startInfo <- lambdaStart
   parameters <- parametersParser
   body <- expressionParser
-  pure
-    EFunction
-      { start = startInfo
-      , parameters
-      , body
-      }
+  pure $
+    from
+      Function'
+        { start = startInfo
+        , parameters
+        , body
+        }
 
 
 ifParser
@@ -282,7 +258,7 @@ ifParser = do
   ifTrue <- expressionParser
   _else <- elseKeyword
   ifFalse <- expressionParser
-  pure If {..}
+  pure $ from $ If' {..}
 
 
 schemeStartParser
@@ -354,7 +330,7 @@ letParser = do
       )
   _in <- inKeyword
   expression <- parseExpression
-  pure Let {_let, definitions, _in, expression}
+  pure $ from $ Let' {_let, definitions, _in, expression}
 
 
 expressionParser
