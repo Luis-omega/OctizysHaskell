@@ -5,6 +5,7 @@ module Octizys.FrontEnd.Parser.Type
   , typeAtomNoVar
   ) where
 
+import Control.Arrow ((<<<))
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Effectful (Eff, (:>))
 import EffectfulParserCombinators.Combinators
@@ -23,17 +24,7 @@ import Octizys.FrontEnd.Cst.SourceInfo
   , SourceVariable
   , makeSourceInfo
   )
-import Octizys.FrontEnd.Cst.Type
-  ( Type
-      ( Arrow
-      , BoolType
-      , IntType
-      , Parens
-      , TVariable
-      , info
-      , variable
-      )
-  )
+import Octizys.FrontEnd.Cst.Type (Type)
 import qualified Octizys.FrontEnd.Cst.Type as Type
 import Octizys.FrontEnd.Parser.Common
   ( between
@@ -61,13 +52,13 @@ parseType = typeParser
 typeIntParser
   :: Parser OctizysParseError :> es
   => Eff es (Type SourceVariable)
-typeIntParser = IntType <$> keyword "Int"
+typeIntParser = (Type.TInt <<< Type.IntType') <$> keyword "Int"
 
 
 typeBoolParser
   :: Parser OctizysParseError :> es
   => Eff es (Type SourceVariable)
-typeBoolParser = BoolType <$> keyword "Bool"
+typeBoolParser = (Type.TBool <<< Type.BoolType') <$> keyword "Bool"
 
 
 typeConstantParser
@@ -85,12 +76,13 @@ typeHole = do
       <?> ('a' :| " type hole")
   let inf = makeSourceInfo span pre after
   name <- maybe (errorCustom $ CantParseName "_") pure (makeName "_")
-  pure
-    Type.TVariable
-      { info = inf
-      , variable =
-          from $ from @SymbolOriginInfo ([] @Name, name)
-      }
+  pure $
+    Type.TVariable $
+      Type.Variable'
+        { info = inf
+        , variable =
+            from $ from @SymbolOriginInfo ([] @Name, name)
+        }
 
 
 typeVariable
@@ -98,8 +90,9 @@ typeVariable
   => Eff es (Type SourceVariable)
 typeVariable = do
   (variable, info) <- sourceVariableParser
-  pure
-    TVariable {info, variable}
+  pure $
+    Type.TVariable $
+      Type.Variable' {info, variable}
 
 
 parens
@@ -108,7 +101,7 @@ parens
 parens = do
   (lparen, _type, rparen) <-
     between leftParen rightParen typeParser
-  pure Parens {..}
+  pure $ Type.TParens $ Type.Parens' {..}
 
 
 typeAtomNoVar
@@ -144,7 +137,7 @@ typeArrowParser = do
   remain <- many typeArrowAndType
   case remain of
     [] -> pure start
-    (r : emain) -> pure Arrow {start, remain = r :| emain}
+    (r : emain) -> pure $ from $ Type.Arrow' {start, remain = r :| emain}
 
 
 typeParser

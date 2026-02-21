@@ -28,11 +28,11 @@ import Octizys.Ast.Type.MonoType (MonoType)
 import qualified Octizys.Ast.Type.MonoType as Mono
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
+import Octizys.Common.Id (TypeVariableId)
 import Octizys.Effects.IdGenerator.Effect (IdGenerator, generateId)
 import Octizys.Format.Class (Formattable (format))
 import qualified Octizys.Format.Config as Format
 import qualified Octizys.Format.Utils as Format
-import Octizys.FrontEnd.Cst.Type (TypeVariableId)
 
 
 data Scheme var = Scheme'

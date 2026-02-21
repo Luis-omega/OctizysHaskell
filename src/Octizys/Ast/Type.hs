@@ -23,9 +23,9 @@ import Octizys.Ast.Type.Scheme (Scheme, instanceScheme)
 import qualified Octizys.Ast.Type.Scheme as Scheme
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
+import Octizys.Common.Id (TypeVariableId)
 import Octizys.Effects.IdGenerator.Effect (IdGenerator)
 import Octizys.Format.Class (Formattable (format))
-import Octizys.FrontEnd.Cst.Type (TypeVariableId)
 
 
 data Type var

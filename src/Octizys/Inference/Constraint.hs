@@ -34,13 +34,10 @@ import qualified Octizys.Ast.Node as Ast
 import Octizys.Ast.Type.Basics (InferenceVariable)
 import Octizys.Ast.Type.MonoType (MonoType)
 import Octizys.Classes.From
-import Octizys.Common.Id (ExpressionVariableId)
+import Octizys.Common.Id (ExpressionVariableId, TypeVariableId)
 import Octizys.Format.Class (Formattable (format))
 import qualified Octizys.Format.Utils as Format
 import qualified Octizys.FrontEnd.Cst.Node as Cst
-import Octizys.FrontEnd.Cst.Type
-  ( TypeVariableId
-  )
 
 
 data ConstraintReason

@@ -108,9 +108,9 @@ cstToAstMonoType
   -> AstT.MonoType InferenceVariable
 cstToAstMonoType t =
   case t of
-    Cst.BoolType {} -> from AstT.BoolType
-    Cst.IntType {} -> from AstT.IntType
-    Cst.Arrow {start, remain} ->
+    Cst.TBool {} -> from AstT.BoolType
+    Cst.TInt {} -> from AstT.IntType
+    Cst.TArrow (Cst.Arrow' {start, remain}) ->
       let newStart = cstToAstMonoType start
           newRemain = cstToAstMonoType <$> (snd <$> remain)
        in AstT.MonoArrow
@@ -118,8 +118,8 @@ cstToAstMonoType t =
               { start = newStart
               , remain = newRemain
               }
-    Cst.Parens {_type} -> cstToAstMonoType _type
-    Cst.TVariable {variable} ->
+    Cst.TParens (Cst.Parens' {_type}) -> cstToAstMonoType _type
+    Cst.TVariable (Cst.Variable' {variable}) ->
       AstT.MonoVariable (AstT.RealTypeVariable variable)
 
 

@@ -15,6 +15,7 @@ import Octizys.Common.Id
   ( ExpressionVariableId
   , GenerateFromInt (generateFromInt)
   , SymbolContext (SymbolContext')
+  , TypeVariableId
   )
 import Octizys.Common.LogicPath (LogicPath)
 import qualified Octizys.Common.LogicPath as LogicPath
@@ -30,13 +31,14 @@ import Octizys.FrontEnd.Cst.Expression
   )
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo, makeSourceInfo)
 import Octizys.FrontEnd.Cst.Type
-  ( Type
-      ( Arrow
-      , BoolType
-      , IntType
-      , TVariable
-      )
-  , TypeVariableId
+  ( Arrow (Arrow')
+  , BoolType (BoolType')
+  , IntType (IntType')
+  , Type
+    ( TBool
+    , TInt
+    , TVariable
+    )
   )
 import qualified Octizys.FrontEnd.Cst.Type as Type
 import qualified Octizys.Package.Reference as Package
@@ -74,11 +76,11 @@ simbolContext =
 
 
 boolType :: Type TypeVariableId
-boolType = BoolType sourceInfo
+boolType = TBool $ BoolType' sourceInfo
 
 
 intType :: Type TypeVariableId
-intType = IntType sourceInfo
+intType = TInt $ IntType' sourceInfo
 
 
 addSourceInfo :: Functor t => t a -> t (SourceInfo, a)
@@ -92,16 +94,17 @@ addSourceInfo2 x = (\y -> (y, sourceInfo)) <$> x
 arrow :: [Type tvar] -> Type tvar -> Type tvar
 arrow [] t = t
 arrow (x : xs) out =
-  Arrow
-    x
-    ( NonEmpty.prependList
-        (addSourceInfo xs)
-        ((sourceInfo, out) NonEmpty.:| [])
-    )
+  from $
+    Arrow'
+      x
+      ( NonEmpty.prependList
+          (addSourceInfo xs)
+          ((sourceInfo, out) NonEmpty.:| [])
+      )
 
 
 tParens :: Type tvar -> Type tvar
-tParens x = Type.Parens sourceInfo x sourceInfo
+tParens x = from $ Type.Parens' sourceInfo x sourceInfo
 
 
 makeVariable :: GenerateFromInt a => IORef Int -> IO a
@@ -116,7 +119,7 @@ makeVariable varCounter = do
 tVar :: IORef Int -> IO (Type TypeVariableId)
 tVar counter = do
   newValue <- makeVariable counter
-  pure $ TVariable sourceInfo newValue
+  pure $ TVariable (Type.Variable' sourceInfo newValue)
 
 
 makeExpressionVariableId :: IORef Int -> IO ExpressionVariableId

@@ -10,14 +10,13 @@ module Octizys.Ast.Type.Basics
 import Data.Set (singleton)
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
-import Octizys.FrontEnd.Cst.Type (TypeVariableId)
 
 import Data.Aeson (ToJSON, ToJSONKey)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
 import GHC.Generics (Generic, Generically (..))
-import Octizys.Common.Id (GenerateFromInt (generateFromInt))
+import Octizys.Common.Id (GenerateFromInt (generateFromInt), TypeVariableId)
 import Octizys.Format.Class (Formattable (format))
 import qualified Octizys.Format.Config as Format
 import qualified Octizys.Format.Utils as Format

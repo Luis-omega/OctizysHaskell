@@ -87,21 +87,19 @@ import Octizys.FrontEnd.Cst.Expression
 import qualified Octizys.FrontEnd.Cst.Expression as E
 import Octizys.FrontEnd.Cst.SourceInfo (SourceInfo, SourceVariable)
 import Octizys.FrontEnd.Cst.Type
-  ( Type
-      ( Arrow
-      , BoolType
-      , IntType
-      , Parens
-      , TVariable
-      , info
-      , lparen
-      , remain
-      , rparen
-      , start
-      , variable
-      , _type
-      )
+  ( Arrow (Arrow', remain, start)
+  , BoolType (BoolType', info)
+  , IntType (IntType', info)
+  , Parens (Parens', lparen, rparen, _type)
+  , Type
+    ( TArrow
+    , TBool
+    , TInt
+    , TParens
+    , TVariable
+    )
   )
+import qualified Octizys.FrontEnd.Cst.Type as Type
 
 
 data Context = Context'
@@ -376,9 +374,9 @@ makeTypeVariablesUnique
   -> Eff es (Type TypeVariableId)
 makeTypeVariablesUnique t =
   case t of
-    BoolType {info} -> pure BoolType {info = info}
-    IntType {info} -> pure IntType {info = info}
-    Arrow {start, remain} -> do
+    TBool (BoolType' {info}) -> pure $ from $ BoolType' {info = info}
+    TInt (IntType' {info}) -> pure $ from $ IntType' {info = info}
+    TArrow (Arrow' {start, remain}) -> do
       startNew <- makeTypeVariablesUnique start
       remainNew <-
         forM
@@ -388,17 +386,18 @@ makeTypeVariablesUnique t =
                 result <- makeTypeVariablesUnique y
                 pure (x, result)
           )
-      pure Arrow {start = startNew, remain = remainNew}
-    Parens {lparen, rparen, _type} -> do
+      pure $ from $ Arrow' {start = startNew, remain = remainNew}
+    TParens (Parens' {lparen, rparen, _type}) -> do
       newType <- makeTypeVariablesUnique _type
-      pure Parens {lparen, rparen, _type = newType}
-    TVariable {info, variable} -> do
+      pure $ from $ Parens' {lparen, rparen, _type = newType}
+    TVariable (Type.Variable' {info, variable}) -> do
       varId <- findTvar variable info
-      pure
-        TVariable
-          { info
-          , variable = varId
-          }
+      pure $
+        TVariable $
+          Type.Variable'
+            { info
+            , variable = varId
+            }
 
 
 makeParameterUnique

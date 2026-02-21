@@ -16,7 +16,6 @@ import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Set as Set
 import Octizys.Classes.FreeVariables (FreeVariables (freeVariables))
 import Octizys.Classes.From (From (from))
-import Octizys.FrontEnd.Cst.Type (TypeVariableId)
 
 import Control.Arrow ((<<<))
 import Data.Aeson (ToJSON)
@@ -32,6 +31,7 @@ import Octizys.Ast.Type.Basics
   , TypeValue
   , TypeVariable (TypeVariable')
   )
+import Octizys.Common.Id (TypeVariableId)
 import Octizys.Format.Class (Formattable (format))
 import qualified Octizys.Format.Config as Format
 import qualified Octizys.Format.Utils as Format
