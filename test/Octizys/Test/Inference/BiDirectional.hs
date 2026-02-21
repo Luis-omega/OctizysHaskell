@@ -292,7 +292,7 @@ assertInfers context expression expected = do
         constraints
         subs
         expected
-        (Ast.TMono $ Ast.getType result)
+        (Ast.getType result)
     Left msg -> do
       assertFailure $
         Text.unpack $

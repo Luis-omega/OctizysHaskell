@@ -101,6 +101,10 @@ instance From outVar inVar => From (MonoType outVar) (MonoType inVar) where
   from x = from <$> x
 
 
+instance From (MonoType var) (Arrow var) where
+  from = MonoArrow
+
+
 instance Formattable var => Formattable (MonoType var) where
   format = formatMono
 

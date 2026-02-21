@@ -105,6 +105,7 @@ library
   exposed-modules:
     Octizys.Ast.Combinators
     Octizys.Ast.Expression
+    Octizys.Ast.Expression.Value
     Octizys.Ast.Node
     Octizys.Ast.Type
     Octizys.Ast.Type.Basics

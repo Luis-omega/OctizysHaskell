@@ -16,6 +16,7 @@ import Effectful.Error.Static (Error, HasCallStack, tryError)
 import Effectful.Reader.Static (Reader, ask, local)
 import Effectful.State.Static.Local (State, get, put, runState)
 
+import Octizys.Ast.Expression (getMonoType)
 import qualified Octizys.Ast.Expression as AstE
 import Octizys.Ast.Type (instanceType)
 import qualified Octizys.Ast.Type as AstT
@@ -295,26 +296,25 @@ infer expr =
   case expr of
     CstE.EInt {intValue} -> do
       pure $
-        from
-          AstE.VInt
-            { intValue = intValue
-            , inferType = from @(AstT.MonoType InferenceVariable) AstT.IntType
-            }
+        AstE.EValue $
+          AstE.VInt $
+            AstE.ValueInt' {value = intValue}
     CstE.EBool {boolValue} -> do
       pure $
-        from
-          AstE.VBool
-            { boolValue = boolValue
-            , inferType = from @(AstT.MonoType InferenceVariable) AstT.BoolType
-            }
+        AstE.EValue $
+          AstE.VBool $
+            AstE.ValueBool'
+              { value = boolValue
+              }
     CstE.Variable {name} -> do
       ty <- lookup name
       tyClosed <- instanceType ty
       pure $
-        AstE.Variable
-          { name = name
-          , inferType = tyClosed
-          }
+        AstE.EVariable $
+          AstE.Variable'
+            { name = name
+            , inferType = tyClosed
+            }
     CstE.Parens {expression} -> infer expression
     f@CstE.EFunction {} -> do
       -- Generate type vars for every parameter
@@ -330,7 +330,7 @@ infer expr =
       -- Infer the body with the new type vars
       newBody <- local (const extendedContext) (infer f.body)
       let
-        newBodyType = newBody.inferType
+        newBodyType = getMonoType newBody
       case snd <$> newParams of
         value :| remain ->
           let
@@ -340,14 +340,15 @@ infer expr =
                 Just nonEmptyRemain ->
                   nonEmptyRemain <> NonEmpty.singleton newBodyType
                 Nothing -> NonEmpty.singleton newBodyType
-            inferredType = AstT.MonoArrow AstT.Arrow' {start = value, remain = newEnd}
+            inferredType = AstT.Arrow' {start = value, remain = newEnd}
             outExpression =
-              from
-                AstE.Function
-                  { parameters = newParams
-                  , body = newBody
-                  , inferType = inferredType
-                  }
+              from $
+                from @(AstE.Value InferenceVariable) $
+                  AstE.Function'
+                    { parameters = newParams
+                    , body = newBody
+                    , inferType = inferredType
+                    }
            in
             pure outExpression
     CstE.Application
@@ -370,11 +371,12 @@ infer expr =
             outArgDomain <- check arg domain ArgumentShouldBeOfDomainType
             let
               newApp =
-                AstE.Application
-                  { applicationFunction = preOut
-                  , applicationArgument = outArgDomain
-                  , inferType = codomain
-                  }
+                from $
+                  AstE.Application'
+                    { function = preOut
+                    , argument = outArgDomain
+                    , inferType = codomain
+                    }
             constraintInfo <-
               makeConstraintInfo
                 ApplicationShouldBeOnArrows
@@ -402,12 +404,13 @@ infer expr =
       elseOut <- infer ifFalse
       let
         newIf =
-          AstE.If
-            { condition = condOut
-            , ifTrue = thenOut
-            , ifFalse = elseOut
-            , inferType = AstE.getMonoType thenOut
-            }
+          from $
+            AstE.If'
+              { condition = condOut
+              , ifTrue = thenOut
+              , ifFalse = elseOut
+              , inferType = AstE.getMonoType thenOut
+              }
       conditionIsBoolInfo <-
         makeConstraintInfo
           IfConditionShouldBeBool
@@ -443,12 +446,13 @@ infer expr =
         inferDefinitions definitions
       newInBody <- local (const finalContext) (infer _in)
       pure
-        ( AstE.Let
-            { definitions =
-                (\(n, d) -> AstE.Definition' n d (from d.inferType)) <$> inferredBodies
-            , expression = newInBody
-            , inferType = newInBody.inferType
-            }
+        ( from $
+            AstE.Let'
+              { definitions =
+                  (\(n, d) -> AstE.Definition' n d (from $ getMonoType d)) <$> inferredBodies
+              , expression = newInBody
+              , inferType = getMonoType newInBody
+              }
         )
     CstE.Annotation {expression = exprr, _type = ann} -> do
       let newTypeAnn = cstToAstMonoType ann
@@ -472,20 +476,20 @@ check expr ty cr =
   case (expr, ty) of
     (CstE.EInt {intValue}, AstT.MonoValue AstT.IntType) ->
       pure $
-        from
-          AstE.VInt
-            { intValue =
-                intValue
-            , inferType = AstT.MonoValue @InferenceVariable AstT.IntType
-            }
+        from $
+          from @(AstE.Value InferenceVariable) $
+            AstE.ValueInt'
+              { value =
+                  intValue
+              }
     (CstE.EBool {boolValue}, AstT.MonoValue AstT.BoolType) ->
       pure $
-        from
-          AstE.VBool
-            { boolValue =
-                boolValue
-            , inferType = AstT.MonoValue @InferenceVariable AstT.BoolType
-            }
+        from $
+          from @(AstE.Value InferenceVariable) $
+            AstE.ValueBool'
+              { value =
+                  boolValue
+              }
     -- TODO:
     -- ( CstE.EFunction
     --     (CstE.Function' {parameters, body})
@@ -508,7 +512,7 @@ check expr ty cr =
       inferred <- infer expr
       let
         inferredType =
-          AstE.getType inferred
+          AstE.getMonoType inferred
       constraintInfo <-
         makeConstraintInfo
           cr
